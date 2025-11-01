@@ -1,0 +1,20 @@
+#+TITLE: TODO List
+
+* Répartiteur
+** Entrepôts [0/3]
+- [ ] Définir des lieux d'entrepôts
+- [ ] Définir des produits à livrer
+  - Plusieurs produits dans des colis ?
+- [ ] Définir des types de colis
+  - Taille
+  - Poids
+  - Contenu
+** Algorithme de sélection de drone [0/3]
+- [ ] Si un drone est en livraison (occupé), mais peut faire la livraison cible en moins de temps que les autres drones libres, alors demander au drone occupé de faire la livraison cible dans la foulée
+- [ ] Prendre en compte le type de paquets à livrer
+- [ ] Positionner les drône sur les entrepôts souvent sollicités / contenant des colis souvent utilisés (statistiquement)
+** Algorithme de sélection des destinations [3/4]
+- [X] La plus prioritaire
+- [X] La plus proche
+- [X] En attente le plus longtemps
+- [ ] Score le plus élevé, en prenant en compte la priorité et la distance
