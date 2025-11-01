@@ -42,7 +42,8 @@ for i in range (half, node_count):
             shortest_edge = edge
     closest_drone = G.nodes[shortest_edge[0]] if shortest_edge[0] != str(i) else G.nodes[shortest_edge[1]]
     closest_drone['allocated'] = i
-    allocations.append((int(shortest_edge[1]), i))
+    allocations.append((int(shortest_edge[1]), i))very pygame oriented. The paint() methods take pygame.Surfaces, the event() methods take pygame.Events.pgu is easy to extend with your own pygame based widgets.
+
 
 print (allocations)
 
