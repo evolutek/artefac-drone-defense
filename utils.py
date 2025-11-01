@@ -17,7 +17,7 @@ class Drone:
         self.max_speed = max_speed
         self.acceleration = acceleration
         self.autonomy = autonomy
-self.position = position
+        self.position = position
         self.target = None
 
     def draw(self, surface):

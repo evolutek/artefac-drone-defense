@@ -7,18 +7,12 @@ import math
 import sys
 import numpy as np
 
-class Destination:
-
-    def __init__(self, node_idx, path, score):
-        self.node_idx = node_idx
-        self.score = score
-        self.path = path
-
 def compute_distance(a, b):
     diffx = a[0] - b[0]
     diffy = a[1] - b[1]
     diffz = a[2] - b[2]
     return math.sqrt(diffx * diffx + diffy * diffy + diffz * diffz)
+
 
 G = nx.read_gml(sys.argv[1])
 pos = {}
@@ -42,12 +36,8 @@ for i in range (half, node_count):
             shortest_edge = edge
     closest_drone = G.nodes[shortest_edge[0]] if shortest_edge[0] != str(i) else G.nodes[shortest_edge[1]]
     closest_drone['allocated'] = i
-    allocations.append((int(shortest_edge[1]), i))very pygame oriented. The paint() methods take pygame.Surfaces, the event() methods take pygame.Events.pgu is easy to extend with your own pygame based widgets.
-
-
+    allocations.append((int(shortest_edge[1]), i))
 print (allocations)
-
-
        
 # for i in range(half):
 #     shortest_path = nx.astar_path(G, start_node_idx, i, heuristic = lambda na, nb: compute_distance(G.nodes[na]['pos'], G.nodes[nb]['pos']), weight = 'distance')
