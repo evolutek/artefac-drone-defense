@@ -1,0 +1,194 @@
+services:
+  # PX4 SITL + Gazebo Harmonic Simulation
+  simulation:
+    build:
+      context: ./simulation
+      dockerfile: Dockerfile.px4
+      args:
+        PX4_VERSION: v1.16.0
+        UBUNTU_VERSION: jammy
+    container_name: artefac_simulation
+    network_mode: host
+    privileged: true
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - QT_X11_NO_MITSHM=1
+      - XAUTHORITY=/tmp/.docker.xauth
+      - PX4_HOME_LAT=${PX4_HOME_LAT:-43.6047}
+      - PX4_HOME_LON=${PX4_HOME_LON:-1.4442}
+      - PX4_HOME_ALT=${PX4_HOME_ALT:-0}
+      - PX4_SIM_MODEL=${PX4_SIM_MODEL:-gz_x500}
+      - HEADLESS=${HEADLESS:-0}
+      - PX4_GZ_WORLD=${PX4_GZ_WORLD:-default}
+    volumes:
+      # X11 for GUI
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
+      # Gazebo Harmonic models and worlds
+      - ./simulation/gazebo_worlds:/root/.gz/sim/worlds:rw
+      - ./simulation/models:/root/.gz/sim/models:rw
+      # PX4 build cache (speeds up subsequent builds)
+      - px4_build:/root/PX4-Autopilot/build:rw
+      # PX4 logs
+      - ./logs/px4:/root/.ros/log:rw
+      # Custom startup script
+      - ./simulation/start_px4_sitl.sh:/root/start_px4_sitl.sh:ro
+    working_dir: /root/PX4-Autopilot
+    command: ["bash", "/root/start_px4_sitl.sh"]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "ps aux | grep -v grep | grep 'gz sim' && ps aux | grep -v grep | grep px4"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  # ROS2 Core + MAVROS Bridge
+  ros2_core:
+    build:
+      context: ./simulation
+      dockerfile: Dockerfile
+      args:
+        ROS_DISTRO: humble
+        UBUNTU_VERSION: jammy
+    container_name: artefac_ros2_core
+    network_mode: host
+    privileged: true
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-42}
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/root/fastdds.xml
+      - ROS_LOCALHOST_ONLY=0
+      - DISPLAY=${DISPLAY:-:0}
+    volumes:
+      # ROS2 workspace
+      - ./simulation/src:/root/ros2_ws/src:rw
+      - ./simulation/config:/root/config:ro
+      # ROS2 build cache
+      - ros2_install:/root/ros2_ws/install:rw
+      - ros2_build:/root/ros2_ws/build:rw
+      # ROS2 logs
+      - ./logs/ros2:/root/.ros/log:rw
+      # FastDDS config
+      - ./simulation/config/fastdds.xml:/root/fastdds.xml:ro
+    working_dir: /root/ros2_ws
+    depends_on:
+      simulation:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Starting ROS2 Core, MAVROS and MQTT Bridge...' &&
+        source /opt/ros/humble/setup.bash &&
+        echo 'Building ROS2 workspace...' &&
+        colcon build --symlink-install &&
+        source install/setup.bash &&
+        sleep 5 &&
+        ros2 launch mavros_launcher px4_sitl.launch.py fcu_url:=udp://:14540@127.0.0.1:14580 namespace:=mavros &
+        MAVROS_PID=\$$! &&
+        sleep 10 &&
+        echo 'Launching MQTT Bridge...' &&
+        ros2 launch mqtt_bridge mqtt_bridge.launch.py drone_id:=drone_1 mqtt_broker:=localhost &&
+        wait \$$MAVROS_PID
+      "
+    healthcheck:
+      test: ["CMD", "bash", "-c", "source /opt/ros/humble/setup.bash && ros2 topic list | grep -q mavros"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # MQTT Broker (Mosquitto)
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    container_name: artefac_mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mqtt/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mqtt_data:/mosquitto/data:rw
+      - mqtt_logs:/mosquitto/log:rw
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # FastAPI Backend (Pure Python, no ROS2 dependency)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.10"
+    container_name: artefac_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./backend_data/app.db}
+      - BACKEND_PORT=${BACKEND_PORT:-8000}
+      - MQTT_BROKER_HOST=${MQTT_BROKER_HOST:-mqtt}
+      - MQTT_BROKER_PORT=${MQTT_BROKER_PORT:-1883}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Backend code (hot reload)
+      - ./backend/app:/app/app:rw
+      # Database persistence
+      - backend_data:/app/backend_data:rw
+      # Logs
+      - ./logs/backend:/app/logs:rw
+    working_dir: /app
+    depends_on:
+      mqtt:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Starting Backend API...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # Frontend (React + Vite + Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: artefac_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+# Named volumes for caching and persistence
+volumes:
+  px4_build:
+    name: artefac_px4_build
+    driver: local
+  ros2_install:
+    name: artefac_ros2_install
+    driver: local
+  ros2_build:
+    name: artefac_ros2_build
+    driver: local
+  backend_data:
+    name: artefac_backend_data
+    driver: local
+  mqtt_data:
+    name: artefac_mqtt_data
+    driver: local
+  mqtt_logs:
+    name: artefac_mqtt_logs
+    driver: local
