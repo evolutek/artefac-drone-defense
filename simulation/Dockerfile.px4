@@ -104,8 +104,56 @@ RUN git clone https://github.com/PX4/PX4-Autopilot.git \
     && git checkout ${PX4_VERSION} \
     && git submodule update --init --recursive
 
-# Build PX4 SITL without running simulation
+# Copy custom configuration files BEFORE build
+COPY config/px4_params_no_gps.params /root/config/px4_params_no_gps.params
+COPY config/rcS_no_gps /root/config/rcS_no_gps
+RUN chmod +x /root/config/rcS_no_gps
+
+# Inject GPS-free parameters into PX4 startup (before build)
 WORKDIR /root/PX4-Autopilot
+RUN mkdir -p ROMFS/px4fmu_common/init.d-posix && \
+    cat > ROMFS/px4fmu_common/init.d-posix/rc.autostart_ext << 'EOF'
+#!/bin/sh
+# Custom PX4 parameters for GPS-free operation and MAVLink broadcast
+# This file is sourced during PX4 startup
+
+# Allow arming without GPS
+param set COM_ARM_WO_GPS 1
+
+# Disable GPS requirement for EKF2
+param set EKF2_GPS_CTRL 0
+
+# Disable pre-arm mode (allows arming in more situations)
+param set COM_PREARM_MODE 0
+
+# RC loss action: disabled
+param set NAV_RCL_ACT 0
+
+# Allow arming without RC (for MAVROS control)
+param set COM_RC_IN_MODE 1
+
+# Low battery action: warning only
+param set COM_LOW_BAT_ACT 1
+
+# Geofence action: none
+param set GF_ACTION 0
+
+# Don't auto-disarm on land (-1 = never)
+param set COM_DISARM_LAND -1
+
+# Reduce position/velocity checks for pre-arm
+param set COM_POS_FS_EPH 10.0
+param set COM_VEL_FS_EVH 2.0
+
+# Enable MAVLink broadcast (fixes MAVROS connection)
+param set MAV_0_BROADCAST 1
+param set MAV_1_BROADCAST 1
+
+echo "[CUSTOM] PX4 configured for GPS-free operation with MAVLink broadcast"
+EOF
+RUN chmod +x ROMFS/px4fmu_common/init.d-posix/rc.autostart_ext
+
+# Build PX4 SITL without running simulation
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
     make px4_sitl_default"
 
