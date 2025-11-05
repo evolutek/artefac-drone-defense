@@ -24,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'bridge_node = mqtt_bridge.bridge_node:main',
+            'vision_pose_bridge = mqtt_bridge.vision_pose_bridge:main',
         ],
     },
 )

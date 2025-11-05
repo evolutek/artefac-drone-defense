@@ -7,7 +7,7 @@ import os
 import json
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 import paho.mqtt.client as mqtt
 
 # MAVROS messages
@@ -37,6 +37,7 @@ class MQTTBridgeNode(Node):
         # State topic requires RELIABLE + TRANSIENT_LOCAL to match MAVROS publisher
         state_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
             history=HistoryPolicy.KEEP_LAST,
             depth=10
         )
@@ -49,10 +50,10 @@ class MQTTBridgeNode(Node):
         )
 
         # ROS2 Subscribers (MAVROS topics)
-        # Note: MAVROS publishes on /state (no namespace prefix for core topics)
+        # Note: MAVROS publishes on /mavros/state
         self.state_sub = self.create_subscription(
             State,
-            '/state',
+            '/mavros/state',
             self.state_callback,
             state_qos
         )
@@ -197,35 +198,49 @@ class MQTTBridgeNode(Node):
     # ==================== MQTT Publishing ====================
 
     def publish_telemetry(self):
-        """Publish telemetry to MQTT"""
-        if not self.current_position:
-            return
+        """Publish telemetry to MQTT - publishes available data even if some sensors are missing"""
+        # Build telemetry with available data
+        telemetry = {}
 
-        telemetry = {
-            'position_x': self.current_position.pose.position.x,
-            'position_y': self.current_position.pose.position.y,
-            'position_z': self.current_position.pose.position.z,
-            'orientation_x': self.current_position.pose.orientation.x,
-            'orientation_y': self.current_position.pose.orientation.y,
-            'orientation_z': self.current_position.pose.orientation.z,
-            'orientation_w': self.current_position.pose.orientation.w,
-        }
+        # Add state information if available
+        if self.current_state:
+            telemetry['connected'] = self.current_state.connected
+            telemetry['armed'] = self.current_state.armed
+            telemetry['mode'] = self.current_state.mode
 
+        # Add position data if available
+        if self.current_position:
+            telemetry['position_x'] = self.current_position.pose.position.x
+            telemetry['position_y'] = self.current_position.pose.position.y
+            telemetry['position_z'] = self.current_position.pose.position.z
+            telemetry['orientation_x'] = self.current_position.pose.orientation.x
+            telemetry['orientation_y'] = self.current_position.pose.orientation.y
+            telemetry['orientation_z'] = self.current_position.pose.orientation.z
+            telemetry['orientation_w'] = self.current_position.pose.orientation.w
+
+        # Add global position if available
         if self.current_global_position:
             telemetry['latitude'] = self.current_global_position.latitude
             telemetry['longitude'] = self.current_global_position.longitude
             telemetry['altitude'] = self.current_global_position.altitude
 
+        # Add velocity if available
         if self.current_velocity:
             telemetry['velocity_x'] = self.current_velocity.twist.linear.x
             telemetry['velocity_y'] = self.current_velocity.twist.linear.y
             telemetry['velocity_z'] = self.current_velocity.twist.linear.z
 
+        # Add battery if available
         if self.current_battery:
             telemetry['battery'] = self.current_battery.percentage * 100
 
-        topic = f'drone/{self.drone_id}/telemetry'
-        self.mqtt_client.publish(topic, json.dumps(telemetry), qos=1)
+        # Only publish if we have at least state or position data
+        if telemetry:
+            topic = f'drone/{self.drone_id}/telemetry'
+            self.mqtt_client.publish(topic, json.dumps(telemetry), qos=1)
+            self.get_logger().debug(f'Published telemetry: {len(telemetry)} fields')
+        else:
+            self.get_logger().warn('No telemetry data available to publish', throttle_duration_sec=5.0)
 
     def publish_state(self):
         """Publish state to MQTT"""
@@ -241,12 +256,29 @@ class MQTTBridgeNode(Node):
         topic = f'drone/{self.drone_id}/state'
         self.mqtt_client.publish(topic, json.dumps(state), qos=1, retain=True)
 
+    def publish_command_result(self, command: str, success: bool, message: str):
+        """Publish command execution result to MQTT"""
+        result = {
+            'command': command,
+            'success': success,
+            'message': message,
+            'timestamp': self.get_clock().now().to_msg().sec
+        }
+
+        topic = f'drone/{self.drone_id}/command_result'
+        self.mqtt_client.publish(topic, json.dumps(result), qos=1)
+        self.get_logger().info(f'Published command result: {result}')
+
     # ==================== Command Handlers ====================
 
     def handle_arm_command(self, arm: bool):
         """Handle ARM/DISARM command"""
-        if not self.arming_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().error('Arming service not available')
+        command_name = 'ARM' if arm else 'DISARM'
+
+        if not self.arming_client.wait_for_service(timeout_sec=5.0):
+            error_msg = 'Arming service not available'
+            self.get_logger().error(error_msg)
+            self.publish_command_result(command_name, False, error_msg)
             return
 
         request = CommandBool.Request()
@@ -257,29 +289,38 @@ class MQTTBridgeNode(Node):
 
     def arm_callback(self, future, arm: bool):
         """Callback for arming service"""
+        command_name = 'ARM' if arm else 'DISARM'
+        action = 'armed' if arm else 'disarmed'
+
         try:
             response = future.result()
             if response.success:
-                action = 'armed' if arm else 'disarmed'
-                self.get_logger().info(f'Drone {action} successfully')
+                success_msg = f'Drone {action} successfully'
+                self.get_logger().info(success_msg)
+                self.publish_command_result(command_name, True, success_msg)
                 self.publish_state()
             else:
-                self.get_logger().error(f'Failed to arm/disarm drone')
+                error_msg = f'Failed to {action.lower()} drone - PX4 rejected command (check GPS fix, flight mode, or safety checks)'
+                self.get_logger().error(error_msg)
+                self.publish_command_result(command_name, False, error_msg)
         except Exception as e:
-            self.get_logger().error(f'Arming service call failed: {e}')
+            error_msg = f'Arming service call failed: {str(e)}'
+            self.get_logger().error(error_msg)
+            self.publish_command_result(command_name, False, error_msg)
 
     def handle_takeoff_command(self, altitude: float):
         """Handle TAKEOFF command"""
         # First, ensure drone is armed
         if not self.current_state or not self.current_state.armed:
-            self.get_logger().info('Arming drone before takeoff...')
-            self.handle_arm_command(True)
-            # Wait a bit for arming
-            import time
-            time.sleep(2)
+            error_msg = 'Cannot takeoff: drone must be armed first'
+            self.get_logger().warning(error_msg)
+            self.publish_command_result('TAKEOFF', False, error_msg)
+            return
 
-        if not self.takeoff_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().error('Takeoff service not available')
+        if not self.takeoff_client.wait_for_service(timeout_sec=5.0):
+            error_msg = 'Takeoff service not available'
+            self.get_logger().error(error_msg)
+            self.publish_command_result('TAKEOFF', False, error_msg)
             return
 
         request = CommandTOL.Request()
@@ -293,16 +334,24 @@ class MQTTBridgeNode(Node):
         try:
             response = future.result()
             if response.success:
-                self.get_logger().info(f'Takeoff command sent (altitude: {altitude}m)')
+                success_msg = f'Takeoff command sent (altitude: {altitude}m)'
+                self.get_logger().info(success_msg)
+                self.publish_command_result('TAKEOFF', True, success_msg)
             else:
-                self.get_logger().error('Takeoff command failed')
+                error_msg = f'Takeoff command failed - PX4 rejected command'
+                self.get_logger().error(error_msg)
+                self.publish_command_result('TAKEOFF', False, error_msg)
         except Exception as e:
-            self.get_logger().error(f'Takeoff service call failed: {e}')
+            error_msg = f'Takeoff service call failed: {str(e)}'
+            self.get_logger().error(error_msg)
+            self.publish_command_result('TAKEOFF', False, error_msg)
 
     def handle_land_command(self):
         """Handle LAND command"""
-        if not self.land_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().error('Land service not available')
+        if not self.land_client.wait_for_service(timeout_sec=5.0):
+            error_msg = 'Land service not available'
+            self.get_logger().error(error_msg)
+            self.publish_command_result('LAND', False, error_msg)
             return
 
         request = CommandTOL.Request()
@@ -314,11 +363,17 @@ class MQTTBridgeNode(Node):
         try:
             response = future.result()
             if response.success:
-                self.get_logger().info('Land command sent')
+                success_msg = 'Land command sent'
+                self.get_logger().info(success_msg)
+                self.publish_command_result('LAND', True, success_msg)
             else:
-                self.get_logger().error('Land command failed')
+                error_msg = 'Land command failed - PX4 rejected command'
+                self.get_logger().error(error_msg)
+                self.publish_command_result('LAND', False, error_msg)
         except Exception as e:
-            self.get_logger().error(f'Land service call failed: {e}')
+            error_msg = f'Land service call failed: {str(e)}'
+            self.get_logger().error(error_msg)
+            self.publish_command_result('LAND', False, error_msg)
 
     def destroy_node(self):
         """Cleanup on node shutdown"""

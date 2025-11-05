@@ -31,6 +31,23 @@ def generate_launch_description():
             default_value='/mavros',
             description='MAVROS namespace'
         ),
+        DeclareLaunchArgument(
+            'model_name',
+            default_value='x500_0',
+            description='Gazebo model name'
+        ),
+
+        # Vision Pose Bridge Node (Gazebo → MAVROS)
+        Node(
+            package='mqtt_bridge',
+            executable='vision_pose_bridge',
+            name='vision_pose_bridge',
+            output='screen',
+            parameters=[{
+                'drone_id': LaunchConfiguration('drone_id'),
+                'model_name': LaunchConfiguration('model_name'),
+            }],
+        ),
 
         # MQTT Bridge Node
         Node(
