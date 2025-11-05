@@ -62,6 +62,7 @@ def generate_launch_description():
                 'imu',                  # IMU data (accelerometer, gyroscope)
                 'local_position',       # Local position (x, y, z in map frame)
                 'global_position',      # GPS position (lat, lon, alt)
+                'vision_pose',          # Vision/mocap pose input for GPS-free operation
                 # All setpoint plugins conflict with local_position on 'local' topic
                 # Use velocity control via command plugin or direct MAVLink messages
                 'command',              # Send generic commands (arm, takeoff, land, velocity)
