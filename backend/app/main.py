@@ -35,6 +35,8 @@ async def lifespan(app: FastAPI):
     Application lifespan manager
     Initialize database and MQTT client on startup
     """
+    import asyncio
+
     logger.info("Starting application...")
 
     # Initialize database
@@ -45,9 +47,10 @@ async def lifespan(app: FastAPI):
     logger.info("Starting MQTT client...")
     mqtt_client.start()
 
-    # Setup MQTT callbacks for WebSocket broadcasting
+    # Setup MQTT callbacks for WebSocket broadcasting with the main event loop
     from .websocket_manager import setup_mqtt_callbacks
-    setup_mqtt_callbacks()
+    event_loop = asyncio.get_event_loop()
+    setup_mqtt_callbacks(event_loop)
 
     yield
 
@@ -154,68 +157,153 @@ def get_drone_telemetry(drone_id: str, db: Session = Depends(get_db)):
 def arm_drone(drone_id: str, db: Session = Depends(get_db)):
     """
     Arm drone motors
-    Publishes ARM command to MQTT
+    Publishes ARM command to MQTT and waits for result
     """
     drone = crud.get_drone(db, drone_id)
     if not drone:
         raise HTTPException(status_code=404, detail="Drone not found")
 
     # Publish ARM command via MQTT
-    mqtt_client.publish_command(drone_id, "ARM")
-    logger.info(f"ARM command sent to {drone_id}")
+    success = mqtt_client.publish_command(drone_id, "ARM")
+    if not success:
+        raise HTTPException(status_code=503, detail="MQTT broker not available")
 
-    return {"message": f"ARM command sent to {drone_id}"}
+    logger.info(f"ARM command sent to {drone_id}, waiting for result...")
+
+    # Wait for command result from ROS2 bridge
+    result = mqtt_client.wait_for_command_result(drone_id, "ARM", timeout=5.0)
+
+    if result is None:
+        raise HTTPException(
+            status_code=504,
+            detail="Timeout waiting for drone response - check if ROS2 bridge is running"
+        )
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("message", "ARM command failed")
+        )
+
+    return {
+        "success": True,
+        "message": result.get("message", "Drone armed successfully")
+    }
 
 
 @app.post("/drones/{drone_id}/disarm")
 def disarm_drone(drone_id: str, db: Session = Depends(get_db)):
     """
     Disarm drone motors
-    Publishes DISARM command to MQTT
+    Publishes DISARM command to MQTT and waits for result
     """
     drone = crud.get_drone(db, drone_id)
     if not drone:
         raise HTTPException(status_code=404, detail="Drone not found")
 
     # Publish DISARM command via MQTT
-    mqtt_client.publish_command(drone_id, "DISARM")
-    logger.info(f"DISARM command sent to {drone_id}")
+    success = mqtt_client.publish_command(drone_id, "DISARM")
+    if not success:
+        raise HTTPException(status_code=503, detail="MQTT broker not available")
 
-    return {"message": f"DISARM command sent to {drone_id}"}
+    logger.info(f"DISARM command sent to {drone_id}, waiting for result...")
+
+    # Wait for command result from ROS2 bridge
+    result = mqtt_client.wait_for_command_result(drone_id, "DISARM", timeout=5.0)
+
+    if result is None:
+        raise HTTPException(
+            status_code=504,
+            detail="Timeout waiting for drone response - check if ROS2 bridge is running"
+        )
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("message", "DISARM command failed")
+        )
+
+    return {
+        "success": True,
+        "message": result.get("message", "Drone disarmed successfully")
+    }
 
 
 @app.post("/drones/{drone_id}/takeoff")
 def takeoff_drone(drone_id: str, altitude: float = 5.0, db: Session = Depends(get_db)):
     """
     Command drone to takeoff
-    Publishes TAKEOFF command to MQTT with altitude parameter
+    Publishes TAKEOFF command to MQTT with altitude parameter and waits for result
     """
     drone = crud.get_drone(db, drone_id)
     if not drone:
         raise HTTPException(status_code=404, detail="Drone not found")
 
     # Publish TAKEOFF command via MQTT
-    mqtt_client.publish_command(drone_id, "TAKEOFF", {"altitude": altitude})
-    logger.info(f"TAKEOFF command sent to {drone_id} (altitude: {altitude}m)")
+    success = mqtt_client.publish_command(drone_id, "TAKEOFF", {"altitude": altitude})
+    if not success:
+        raise HTTPException(status_code=503, detail="MQTT broker not available")
 
-    return {"message": f"TAKEOFF command sent to {drone_id}", "altitude": altitude}
+    logger.info(f"TAKEOFF command sent to {drone_id} (altitude: {altitude}m), waiting for result...")
+
+    # Wait for command result from ROS2 bridge
+    result = mqtt_client.wait_for_command_result(drone_id, "TAKEOFF", timeout=5.0)
+
+    if result is None:
+        raise HTTPException(
+            status_code=504,
+            detail="Timeout waiting for drone response - check if ROS2 bridge is running"
+        )
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("message", "TAKEOFF command failed")
+        )
+
+    return {
+        "success": True,
+        "message": result.get("message", "Takeoff command sent successfully"),
+        "altitude": altitude
+    }
 
 
 @app.post("/drones/{drone_id}/land")
 def land_drone(drone_id: str, db: Session = Depends(get_db)):
     """
     Command drone to land
-    Publishes LAND command to MQTT
+    Publishes LAND command to MQTT and waits for result
     """
     drone = crud.get_drone(db, drone_id)
     if not drone:
         raise HTTPException(status_code=404, detail="Drone not found")
 
     # Publish LAND command via MQTT
-    mqtt_client.publish_command(drone_id, "LAND")
-    logger.info(f"LAND command sent to {drone_id}")
+    success = mqtt_client.publish_command(drone_id, "LAND")
+    if not success:
+        raise HTTPException(status_code=503, detail="MQTT broker not available")
 
-    return {"message": f"LAND command sent to {drone_id}"}
+    logger.info(f"LAND command sent to {drone_id}, waiting for result...")
+
+    # Wait for command result from ROS2 bridge
+    result = mqtt_client.wait_for_command_result(drone_id, "LAND", timeout=5.0)
+
+    if result is None:
+        raise HTTPException(
+            status_code=504,
+            detail="Timeout waiting for drone response - check if ROS2 bridge is running"
+        )
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("message", "LAND command failed")
+        )
+
+    return {
+        "success": True,
+        "message": result.get("message", "Land command sent successfully")
+    }
 
 
 # ==================== Mission Endpoints ====================

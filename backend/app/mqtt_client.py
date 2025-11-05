@@ -25,6 +25,10 @@ class MQTTClient:
         # Callbacks for telemetry updates (to be set by WebSocket manager)
         self.telemetry_callback = None
         self.state_callback = None
+        self.command_result_callback = None
+
+        # Command result storage (for synchronous command waiting)
+        self.command_results = {}  # {drone_id: {command: result}}
 
     def on_connect(self, client, userdata, flags, rc):
         """Callback when connected to MQTT broker"""
@@ -32,10 +36,11 @@ class MQTTClient:
             self.connected = True
             logger.info(f"Connected to MQTT broker at {self.broker_host}:{self.broker_port}")
 
-            # Subscribe to all drone telemetry and state topics
+            # Subscribe to all drone telemetry, state, and command result topics
             client.subscribe("drone/+/telemetry")
             client.subscribe("drone/+/state")
-            logger.info("Subscribed to drone/+/telemetry and drone/+/state")
+            client.subscribe("drone/+/command_result")
+            logger.info("Subscribed to drone/+/telemetry, drone/+/state, and drone/+/command_result")
         else:
             self.connected = False
             logger.error(f"Failed to connect to MQTT broker, return code: {rc}")
@@ -57,7 +62,7 @@ class MQTTClient:
             logger.debug(f"Received MQTT message on {topic}: {payload}")
 
             # Parse topic to get drone_id
-            # Format: drone/{drone_id}/telemetry or drone/{drone_id}/state
+            # Format: drone/{drone_id}/telemetry or drone/{drone_id}/state or drone/{drone_id}/command_result
             parts = topic.split("/")
             if len(parts) != 3:
                 logger.warning(f"Invalid topic format: {topic}")
@@ -71,6 +76,8 @@ class MQTTClient:
                 self._handle_telemetry(drone_id, payload)
             elif message_type == "state":
                 self._handle_state(drone_id, payload)
+            elif message_type == "command_result":
+                self._handle_command_result(drone_id, payload)
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to decode JSON payload: {e}")
@@ -178,6 +185,52 @@ class MQTTClient:
         # Notify WebSocket clients
         if self.state_callback:
             self.state_callback(drone_id, payload)
+
+    def _handle_command_result(self, drone_id: str, payload: Dict[str, Any]):
+        """Handle command result message"""
+        logger.info(f"Command result from {drone_id}: {payload}")
+
+        command = payload.get("command")
+        success = payload.get("success", False)
+        message = payload.get("message", "")
+
+        # Store result for synchronous waiting
+        if drone_id not in self.command_results:
+            self.command_results[drone_id] = {}
+
+        self.command_results[drone_id][command] = {
+            "success": success,
+            "message": message,
+            "timestamp": payload.get("timestamp")
+        }
+
+        # Notify WebSocket clients
+        if self.command_result_callback:
+            self.command_result_callback(drone_id, payload)
+
+    def wait_for_command_result(self, drone_id: str, command: str, timeout: float = 5.0) -> Optional[Dict[str, Any]]:
+        """
+        Wait for command result from drone
+        Returns result dict or None if timeout
+        """
+        import time
+        start_time = time.time()
+
+        # Clear previous result if exists
+        if drone_id in self.command_results and command in self.command_results[drone_id]:
+            del self.command_results[drone_id][command]
+
+        # Wait for result with timeout
+        while time.time() - start_time < timeout:
+            if drone_id in self.command_results and command in self.command_results[drone_id]:
+                result = self.command_results[drone_id][command]
+                # Clean up
+                del self.command_results[drone_id][command]
+                return result
+            time.sleep(0.1)
+
+        logger.warning(f"Timeout waiting for command result: {command} from {drone_id}")
+        return None
 
     def start(self):
         """Start MQTT client in background thread"""

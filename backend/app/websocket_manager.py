@@ -100,34 +100,36 @@ websocket_manager = WebSocketManager()
 
 
 # Register callbacks with MQTT client
-def setup_mqtt_callbacks():
+def setup_mqtt_callbacks(event_loop):
     """
     Setup callbacks to link MQTT client with WebSocket manager
-    Should be called after both are initialized
+    Should be called after both are initialized with the main event loop
+
+    Args:
+        event_loop: The main asyncio event loop (from FastAPI)
     """
     from .mqtt_client import mqtt_client
     import asyncio
 
     def telemetry_callback(drone_id: str, payload: Dict[str, Any]):
-        """Called when telemetry received from MQTT"""
-        # Run async broadcast in the event loop
+        """Called when telemetry received from MQTT (runs in MQTT thread)"""
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(websocket_manager.broadcast_telemetry(drone_id, payload))
-            else:
-                loop.run_until_complete(websocket_manager.broadcast_telemetry(drone_id, payload))
+            # Schedule coroutine in the main event loop from MQTT thread
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast_telemetry(drone_id, payload),
+                event_loop
+            )
         except Exception as e:
             logger.error(f"Error broadcasting telemetry: {e}")
 
     def state_callback(drone_id: str, payload: Dict[str, Any]):
-        """Called when state update received from MQTT"""
+        """Called when state update received from MQTT (runs in MQTT thread)"""
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(websocket_manager.broadcast_state(drone_id, payload))
-            else:
-                loop.run_until_complete(websocket_manager.broadcast_state(drone_id, payload))
+            # Schedule coroutine in the main event loop from MQTT thread
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast_state(drone_id, payload),
+                event_loop
+            )
         except Exception as e:
             logger.error(f"Error broadcasting state: {e}")
 
