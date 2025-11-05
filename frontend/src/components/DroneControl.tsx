@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { droneApi } from '../utils/api';
+import { useWebSocket } from '../hooks/useWebSocket';
+import axios from 'axios';
 
 interface DroneControlProps {
   droneId: string;
@@ -9,21 +11,33 @@ export function DroneControl({ droneId }: DroneControlProps) {
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [altitude, setAltitude] = useState(5.0);
+  const { telemetry } = useWebSocket(droneId);
+
+  // Get current armed state from telemetry
+  const isArmed = telemetry?.type === 'state' ? telemetry.data.armed ?? false : false;
 
   const handleCommand = async (command: string, action: () => Promise<any>) => {
     setLoading(command);
     setMessage(null);
 
     try {
-      await action();
-      setMessage({ type: 'success', text: `${command} command sent successfully` });
+      const response = await action();
+      const successMsg = response.data?.message || `${command} command sent successfully`;
+      setMessage({ type: 'success', text: successMsg });
     } catch (error) {
-      setMessage({ type: 'error', text: `Failed to send ${command} command` });
-      console.error(error);
+      let errorMsg = `Failed to send ${command} command`;
+
+      if (axios.isAxiosError(error)) {
+        // Extract error message from backend response
+        errorMsg = error.response?.data?.detail || errorMsg;
+      }
+
+      setMessage({ type: 'error', text: errorMsg });
+      console.error(`${command} error:`, error);
     } finally {
       setLoading(null);
-      // Clear message after 3 seconds
-      setTimeout(() => setMessage(null), 3000);
+      // Clear message after 5 seconds
+      setTimeout(() => setMessage(null), 5000);
     }
   };
 
@@ -58,6 +72,14 @@ export function DroneControl({ droneId }: DroneControlProps) {
     );
   };
 
+  const handleArmToggle = async () => {
+    if (isArmed) {
+      await handleCommand('DISARM', () => droneApi.disarm(droneId));
+    } else {
+      await handleCommand('ARM', () => droneApi.arm(droneId));
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-2xl font-bold mb-6">Drone Control - {droneId}</h2>
@@ -75,20 +97,32 @@ export function DroneControl({ droneId }: DroneControlProps) {
       )}
 
       <div className="space-y-4">
-        {/* Arming Controls */}
+        {/* Arming Switch */}
         <div>
           <h3 className="text-lg font-semibold mb-3">Arming</h3>
-          <div className="flex gap-3">
-            <CommandButton
-              label="ARM"
-              onClick={() => handleCommand('ARM', () => droneApi.arm(droneId))}
-              color="green"
-            />
-            <CommandButton
-              label="DISARM"
-              onClick={() => handleCommand('DISARM', () => droneApi.disarm(droneId))}
-              color="red"
-            />
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleArmToggle}
+              disabled={loading !== null}
+              className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                isArmed
+                  ? 'bg-green-600 focus:ring-green-500'
+                  : 'bg-gray-300 focus:ring-gray-400'
+              }`}
+            >
+              <span
+                className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                  isArmed ? 'translate-x-9' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className={`font-semibold ${isArmed ? 'text-green-600' : 'text-gray-600'}`}>
+              {loading === 'ARM' || loading === 'DISARM'
+                ? 'Processing...'
+                : isArmed
+                  ? 'ARMED'
+                  : 'DISARMED'}
+            </span>
           </div>
         </div>
 
