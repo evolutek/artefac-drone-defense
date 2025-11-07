@@ -4,6 +4,52 @@ This guide explains how to configure X11/Display forwarding to see the Gazebo GU
 
 ---
 
+## Quick Start (Recommended)
+
+The project includes an automated setup script that configures X11 for your operating system.
+
+### Setup Steps
+
+1. **Copy `.env.example` to `.env`:**
+```bash
+cp .env.example .env
+```
+
+2. **Set your operating system in `.env`:**
+```bash
+# Valid values: linux, macos, windows
+HOST_OS=linux
+```
+
+3. **Start the project:**
+```bash
+./start.sh up
+```
+
+The script will automatically:
+- Configure X11/XQuartz based on your `HOST_OS`
+- Set up display permissions
+- Start Docker Compose services
+
+**That's it!** The Gazebo GUI should appear automatically.
+
+### Available Commands
+
+```bash
+./start.sh up          # Start all services
+./start.sh up -d       # Start in background (detached)
+./start.sh down        # Stop all services
+./start.sh restart     # Restart services
+```
+
+---
+
+## Manual Setup (Advanced)
+
+If you prefer manual configuration or need to troubleshoot, follow the OS-specific instructions below.
+
+---
+
 ## Linux (Native X11)
 
 ### Prerequisites
@@ -12,27 +58,23 @@ This guide explains how to configure X11/Display forwarding to see the Gazebo GU
 
 ### Setup Steps
 
-1. **Create Docker X11 authority file:**
-```bash
-sudo touch /tmp/.docker.xauth
-sudo xauth nlist $DISPLAY | sed -e 's/^..../ffff/' | sudo xauth -f /tmp/.docker.xauth nmerge -
-sudo chmod 666 /tmp/.docker.xauth
-```
+1. **Set `HOST_OS=linux` in `.env`**
 
-2. **Allow Docker to access X11:**
+2. **The `./start.sh` script will automatically run:**
 ```bash
 xhost +local:docker
+xauth nlist $DISPLAY | sed -e 's/^..../ffff/' | xauth -f ~/.docker.xauth nmerge -
 ```
 
 3. **Verify DISPLAY variable in `.env`:**
 ```bash
 DISPLAY=:0
-XAUTHORITY=/tmp/.docker.xauth
+XAUTHORITY=~/.docker.xauth
 ```
 
-4. **Run containers:**
+4. **Run with start script:**
 ```bash
-docker compose up simulation
+./start.sh up
 ```
 
 The Gazebo GUI window should appear automatically.
@@ -63,33 +105,23 @@ brew install --cask xquartz
    - ✅ Enable "Allow connections from network clients"
    - **Restart your Mac** after this change
 
-3. **Start XQuartz and configure access:**
-```bash
-# Start XQuartz (if not already running)
-open -a XQuartz
+3. **Set `HOST_OS=macos` in `.env`**
 
-# Allow connections from localhost
-xhost + 127.0.0.1
-# Or allow all local connections (less secure)
-xhost +local:
-```
+4. **The `./start.sh` script will automatically:**
+   - Start XQuartz if not running
+   - Configure xhost permissions
+   - Create the xauth file
 
-4. **Update `.env` file:**
+5. **Update `.env` file for macOS:**
 ```bash
+HOST_OS=macos
 DISPLAY=host.docker.internal:0
-XAUTHORITY=/tmp/.docker.xauth
+XAUTHORITY=~/.docker.xauth
 ```
 
-5. **Create xauth file:**
+6. **Run with start script:**
 ```bash
-touch /tmp/.docker.xauth
-xauth nlist $DISPLAY | sed -e 's/^..../ffff/' | xauth -f /tmp/.docker.xauth nmerge -
-chmod 644 /tmp/.docker.xauth
-```
-
-6. **Run containers:**
-```bash
-docker compose up simulation
+./start.sh up
 ```
 
 The Gazebo window should appear in XQuartz.
@@ -123,33 +155,29 @@ The Gazebo window should appear in XQuartz.
      - ✅ Native OpenGL
      - ✅ Disable access control (important!)
 
-3. **In WSL2, update `.env`:**
+3. **Set `HOST_OS=windows` in `.env`**
+
+4. **The `./start.sh` script will automatically:**
+   - Detect Windows host IP
+   - Configure DISPLAY variable
+   - Create xauth file
+
+5. **Update `.env` file for Windows:**
 ```bash
-# Get Windows host IP
-export WINDOWS_HOST=$(ip route show | grep -i default | awk '{ print $3}')
-echo "DISPLAY=$WINDOWS_HOST:0" >> .env
+HOST_OS=windows
+# DISPLAY will be auto-configured by the script
+# Or manually set:
+# DISPLAY=<WINDOWS_HOST_IP>:0
+XAUTHORITY=~/.docker.xauth
 ```
 
-Or manually set in `.env`:
-```bash
-DISPLAY=<WINDOWS_HOST_IP>:0
-XAUTHORITY=/tmp/.docker.xauth
-```
-
-4. **Create xauth file (in WSL2):**
-```bash
-touch /tmp/.docker.xauth
-xauth nlist $DISPLAY | sed -e 's/^..../ffff/' | xauth -f /tmp/.docker.xauth nmerge - 2>/dev/null || true
-chmod 644 /tmp/.docker.xauth
-```
-
-5. **Allow firewall access:**
+6. **Allow firewall access:**
    - Windows Defender Firewall → Allow app
    - Allow VcXsrv on Private networks
 
-6. **Run containers:**
+7. **Run with start script:**
 ```bash
-docker compose up simulation
+./start.sh up
 ```
 
 ### Option B: X410 (Paid)
@@ -160,13 +188,12 @@ docker compose up simulation
    - Right-click X410 tray icon
    - Select "Windowed Apps" mode
 
-3. **In WSL2, update `.env`:**
+3. **Set `HOST_OS=windows` in `.env` and run:**
 ```bash
-DISPLAY=$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}'):0
-XAUTHORITY=/tmp/.docker.xauth
+./start.sh up
 ```
 
-4. **Follow steps 4-6 from Option A**
+The script will automatically detect and configure the display.
 
 ### Troubleshooting Windows
 - Ensure VcXsrv/X410 is running (check system tray)
@@ -202,12 +229,12 @@ This will:
 
 ## Configuration Summary Table
 
-| OS | X11 Server | DISPLAY Value | Special Setup |
+| OS | X11 Server | DISPLAY Value | Setup Method |
 |----|-----------|---------------|---------------|
-| **Linux** | Native | `:0` | `xhost +local:docker` |
-| **macOS** | XQuartz | `host.docker.internal:0` | Enable network clients in XQuartz prefs |
-| **Windows (WSL2)** | VcXsrv/X410 | `<HOST_IP>:0` | Disable access control, firewall rules |
-| **Headless** | None | N/A | Set `HEADLESS=1` in `.env` |
+| **Linux** | Native | `:0` | Set `HOST_OS=linux` in `.env`, run `./start.sh up` |
+| **macOS** | XQuartz | `host.docker.internal:0` | Set `HOST_OS=macos` in `.env`, run `./start.sh up` |
+| **Windows (WSL2)** | VcXsrv/X410 | Auto-detected | Set `HOST_OS=windows` in `.env`, run `./start.sh up` |
+| **Headless** | None | N/A | Set `HEADLESS=1` in `.env`, use `docker compose up` |
 
 ---
 

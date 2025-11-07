@@ -5,16 +5,20 @@
 
 ## 🚀 Quick Start - MVP
 
-**Test the complete stack in 3 commands:**
+**Test the complete stack in 4 commands:**
 
 ```bash
-# 1. Build containers (first time)
+# 1. Configure your environment
+cp .env.example .env
+# Edit .env and set HOST_OS=linux (or macos/windows)
+
+# 2. Build containers (first time)
 docker compose build
 
-# 2. Launch everything
-docker compose up
+# 3. Launch everything (automated X11 setup!)
+./start.sh up
 
-# 3. Open web interface
+# 4. Open web interface
 # Visit: http://localhost:3000
 ```
 
