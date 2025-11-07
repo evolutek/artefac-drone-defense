@@ -125,7 +125,14 @@ param set COM_POS_FS_EPH 10.0\
 param set COM_VEL_FS_EVH 2.0\
 param set MAV_0_BROADCAST 1\
 param set MAV_1_BROADCAST 1\
-echo "[CUSTOM] PX4 configured for GPS-free operation with MAVLink broadcast"\
+# Vision fusion parameters for GPS-free operation\
+param set EKF2_EV_CTRL 15\
+param set EKF2_HGT_REF 3\
+param set EKF2_EV_DELAY 0\
+param set EKF2_EVP_NOISE 0.1\
+param set EKF2_EVV_NOISE 0.1\
+param set EKF2_EVA_NOISE 0.05\
+echo "[CUSTOM] PX4 configured for GPS-free operation with vision fusion and MAVLink broadcast"\
 ' /root/PX4-Autopilot/build/px4_sitl_default/etc/init.d-posix/rcS
 
 echo "rcS patched with GPS-free parameters"
