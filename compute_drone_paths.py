@@ -77,27 +77,6 @@ else:
 
 #Baptiste's version
 
-#Version that do not take in account priority
-def choose_drones(drones:list[utils.Drone], deliveries:list[utils.Delivery]):
-    while (deliveries != []):
-        delivery = deliveries[0]
-
-        min_weight:float = -1
-        min_drone:utils.Drone = None
-        for drone in  drones:
-            drone_weight:float = utils.weight(drone, delivery)
-            if drone.can_handle_delivery(delivery) and (min_weight < 0 or drone_weight < min_weight):
-                min_weight = drone_weight
-                min_drone = drone
-        
-        if min_drone == None:
-            return False
-        
-        min_drone.add_target(delivery)
-        del deliveries[0]
-
-    return True
-
 
 def choose_drones_with_priority(drones:list[utils.Drone], deliveries:list[utils.Delivery]):
     while (deliveries != []):
@@ -119,12 +98,50 @@ def choose_drones_with_priority(drones:list[utils.Drone], deliveries:list[utils.
         del deliveries[min_index]
 
     return True
-    
+
+
+
+
+def choose_drones_naive_aux(drones:list[utils.Drone], deliveries:list[utils.Delivery], tab:dict[utils.Drone:list[utils.Delivery]] = []):
+    min = 0
+    tab_min = tab
+    deliveries_left = deliveries
+    for i in range(len(deliveries)):
+        for j in range(len(drones)):
+            if drones[j].can_handle_delivery(deliveries[i]):
+                drone_value,drone_tab,drone_deliveries = choose_drones_naive_aux(drones, deliveries[:i] + deliveries[i + 1:], tab + [(drones[j], deliveries[i])])
+                if min == 0 or drone_value < min:
+                    min = drone_value
+                    tab_min = drone_tab
+                    deliveries_left = drone_deliveries
+
+    if min == 0:
+        max = 0
+        weights = {drone:(drone.weight(),drone.last_position()) for drone in drones}
+        for drone,delivery in tab:
+            weights[drone] = (weights[drone][0] + utils.distance(weights[drone][1], delivery.position), delivery.position)
+        
+        for weight in weights.values():
+            if weight[0] > max:
+                max = weight[0]
+        min = max 
+            
+
+    return min,tab_min,deliveries_left
+
+
+def choose_drones_naive(drones:list[utils.Drone], deliveries:list[utils.Delivery]):
+    returned_value = choose_drones_naive_aux(drones, deliveries)
+    for drone,delivery in returned_value[1]:
+        drone.add_target(delivery)
+    return returned_value[2]
+
+
 
 #Simple test of the function choose_drones_for_deliveries
 
-drone1 = utils.Drone(capacity=2, max_speed=1, acceleration=1, autonomy=100, position=(0,0))
-drone2 = utils.Drone(capacity=2, max_speed=1, acceleration=1, autonomy=100, position=(4,0))
+drone1 = utils.Drone(capacity=10, max_speed=1, acceleration=1, autonomy=100, position=(0,0))
+drone2 = utils.Drone(capacity=10, max_speed=1, acceleration=1, autonomy=100, position=(4,0))
 drones = [drone1,drone2]
 
 delivery1 = utils.Delivery(obj="default_item_1", mass=1, position=(1,0), priority=2)
@@ -132,9 +149,11 @@ delivery2 = utils.Delivery(obj="default_item_2", mass=1, position=(2.1,0), prior
 delivery3 = utils.Delivery(obj="default_item_3", mass=1, position=(3,0), priority=0)
 deliveries = [delivery1, delivery2, delivery3]
 
-
+"""
 if(not choose_drones_with_priority(drones, deliveries)):
     print("The drone do not have enought space to hanle every deliveries")
+"""
+deliveries = choose_drones_naive(drones, deliveries)
 
 for i in range (len(drones)):
     print(f"drone {i} : {drones[i].targets}")

@@ -78,6 +78,18 @@ class Drone:
         self.capacity = self.max_capacity
         self.autonomy = self.max_autonomy
 
+    def weight(self):
+        dist = 0
+        actual_pos = self.position
+        for target in self.targets:
+            dist += distance(actual_pos, target.position) / self.max_speed
+            actual_pos = target.position
+        return dist
+    
+    def last_position(self):
+        if self.targets != []:
+            return self.targets[-1].position
+        return self.position
 
 
 # FUNCTIONS
@@ -90,12 +102,10 @@ def distance(position1, position2):
 
 #Do not take in account the acceleration
 def weight(drone:Drone, delivery:Delivery):
-    dist:float = 0
+    dist = drone.weight() + distance(drone.last_position(), delivery.position) 
 
-    actual_pos = drone.position
-    for target in drone.targets:
-        dist += distance(actual_pos, target.position) / drone.max_speed
-        actual_pos = target.position
-    dist += distance(actual_pos, delivery.position) / drone.max_speed
+    return dist * (delivery.priority + 1) * 0.5 / drone.max_speed # Add time
 
-    return dist * (delivery.priority + 1) * 0.5 # Add time
+
+
+
