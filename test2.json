@@ -1,0 +1,39 @@
+{
+    "objets": [
+        {"nom": "Grenade offensive", "masse": 1},
+        {"nom": "Grenade défensive", "masse": 2},
+        {"nom": "Munitions", "masse": 10},
+        {"nom": "Trousse de secours", "masse": 5},
+        {"nom": "Médicaments", "masse": 2},
+        {"nom": "Frappe aérienne", "masse": 100}
+    ],
+    "entrepots": [
+        {"x": 2154, "y": 6984, "objets": [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 2]},
+        {"x": 1234, "y": 4321, "objets": [3, 3, 3, 3, 3, 4, 4, 4, 4, 4]},
+        {"x": 9999, "y": 9999, "objets": [5, 5, 5]}
+    ],
+    "gares": [
+        {"x": 100, "y": 100},
+        {"x": 200, "y": 100},
+        {"x": 100, "y": 200},
+        {"x": 200, "y": 200}
+    ],
+    "drones": [
+        {"x": 0, "y": 0, "charge": 100, "batterie": 100000, "vitesse": 20, "vitesse_charge": 99999},
+        {"x": 0, "y": 0, "charge": 10, "batterie": 40000, "vitesse": 50, "vitesse_charge": 99999},
+        {"x": 0, "y": 0, "charge": 10, "batterie": 80000, "vitesse": 50, "vitesse_charge": 99999},
+        {"x": 0, "y": 0, "charge": 10, "batterie": 50000, "vitesse": 50, "vitesse_charge": 99999}
+    ],
+    "livraisons": [
+        {"x": 1000, "y": 10000, "objet": 0},
+        {"x": 2000, "y": 9000, "objet": 0},
+        {"x": 3000, "y": 8000, "objet": 1},
+        {"x": 4000, "y": 7000, "objet": 1},
+        {"x": 5000, "y": 6000, "objet": 2},
+        {"x": 6000, "y": 5000, "objet": 3},
+        {"x": 7000, "y": 4000, "objet": 3},
+        {"x": 8000, "y": 3000, "objet": 4},
+        {"x": 9000, "y": 2000, "objet": 4},
+        {"x": 10000, "y": 1000, "objet": 5}
+    ]
+}
