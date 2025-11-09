@@ -1,0 +1,53 @@
+{
+    "objets": [
+        {"moment": 0, "nom": "Grenade offensive", "masse": 1},
+        {"moment": 0, "nom": "Grenade défensive", "masse": 2},
+        {"moment": 0, "nom": "Munitions", "masse": 10},
+        {"moment": 0, "nom": "Trousse de secours", "masse": 5},
+        {"moment": 0, "nom": "Médicaments", "masse": 2},
+        {"moment": 0, "nom": "Frappe aérienne", "masse": 100}
+    ],
+    "entrepots": [
+        {"moment": 0, "x": 2154, "y": 6984, "objets": []},
+        {"moment": 10, "x": 1234, "y": 4321, "objets": []},
+        {"moment": 20, "x": 9999, "y": 9999, "objets": []}
+    ],
+    "gares": [
+        {"moment": 0, "x": 100, "y": 100},
+        {"moment": 10, "x": 200, "y": 100},
+        {"moment": 100, "x": 100, "y": 200},
+        {"moment": 1000, "x": 200, "y": 200}
+    ],
+    "drones": [
+        {"moment": 0, "x": 0, "y": 0, "charge": 100, "batterie": 100000, "vitesse": 20, "vitesse_charge": 99999},
+        {"moment": 0, "x": 0, "y": 0, "charge": 10, "batterie": 40000, "vitesse": 100, "vitesse_charge": 99999},
+        {"moment": 0, "x": 0, "y": 0, "charge": 10, "batterie": 80000, "vitesse": 50, "vitesse_charge": 99999},
+        {"moment": 0, "x": 0, "y": 0, "charge": 10, "batterie": 50000, "vitesse": 750, "vitesse_charge": 99999}
+    ],
+    "livraisons": [
+        {"moment": 0, "x": 1500, "y": 10000, "objet": 0},
+        {"moment": 0, "x": 2090, "y": 9000, "objet": 0},
+        {"moment": 0, "x": 3000, "y": 8000, "objet": 1},
+        {"moment": 0, "x": 4001, "y": 7000, "objet": 1},
+        {"moment": 0, "x": 5080, "y": 6000, "objet": 2},
+        {"moment": 0, "x": 6800, "y": 5060, "objet": 3},
+        {"moment": 0, "x": 7090, "y": 4000, "objet": 3},
+        {"moment": 0, "x": 8009, "y": 3400, "objet": 4},
+        {"moment": 0, "x": 9050, "y": 2005, "objet": 4},
+        {"moment": 0, "x": 11090, "y": 1050, "objet": 5}
+    ],
+    "rechargements": [
+        {"moment": 0, "entrepot": 0, "objet": 0, "quantite": 1},
+        {"moment": 10, "entrepot": 0, "objet": 1, "quantite": 1},
+        {"moment": 20, "entrepot": 0, "objet": 2, "quantite": 1},
+        {"moment": 30, "entrepot": 0, "objet": 3, "quantite": 1},
+        {"moment": 40, "entrepot": 1, "objet": 4, "quantite": 1},
+        {"moment": 50, "entrepot": 1, "objet": 5, "quantite": 1},
+        {"moment": 60, "entrepot": 1, "objet": 0, "quantite": 1},
+        {"moment": 70, "entrepot": 1, "objet": 1, "quantite": 1},
+        {"moment": 80, "entrepot": 2, "objet": 2, "quantite": 1},
+        {"moment": 90, "entrepot": 2, "objet": 3, "quantite": 1},
+        {"moment": 100, "entrepot": 2, "objet": 4, "quantite": 1},
+        {"moment": 110, "entrepot": 2, "objet": 5, "quantite": 1}
+    ]
+}

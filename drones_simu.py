@@ -86,6 +86,9 @@ class Entrepot:
                 return True
         return False
 
+    def remplir(self, objet):
+        self.matos.append(objet)
+
     def donner(self, drone, nom):
         for i in range(len(self.matos)):
             if self.matos[i].nom == nom and drone.remplir(self.matos[i]):
@@ -273,20 +276,31 @@ try:
 except:
     sys.exit("Please specify which file to use like: python drones_simu.py config.json")
 
-for x in data["objets"]:
-    Objet(x["nom"], x["masse"])
-for x in data["entrepots"]:
-    Entrepot((x["x"], x["y"]), [OBJETS[i] for i in x["objets"]])
-for x in data["gares"]:
-    Gare((x["x"], x["y"]))
-for x in data["drones"]:
-    Drone((x["x"], x["y"]), x["charge"], x["batterie"], x["vitesse"], x["vitesse_charge"])
-for x in data["livraisons"]:
-    Livraison((x["x"], x["y"]), OBJETS[x["objet"]])
-
 temps = 0
-while not check_livraisons():
+while True: # Pcq on peut pas do while
+    for x in data["objets"]:
+        if x["moment"] == temps:
+            Objet(x["nom"], x["masse"])
+    for x in data["entrepots"]:
+        if x["moment"] == temps:
+            Entrepot((x["x"], x["y"]), [OBJETS[i] for i in x["objets"]])
+    for x in data["gares"]:
+        if x["moment"] == temps:
+            Gare((x["x"], x["y"]))
+    for x in data["drones"]:
+        if x["moment"] == temps:
+            Drone((x["x"], x["y"]), x["charge"], x["batterie"], x["vitesse"], x["vitesse_charge"])
+    for x in data["livraisons"]:
+        if x["moment"] == temps:
+            Livraison((x["x"], x["y"]), OBJETS[x["objet"]])
+    for x in data["rechargements"]:
+        if x["moment"] == temps:
+            for i in range(x["quantite"]):
+                ENTREPOTS[x["entrepot"]].remplir(OBJETS[x["objet"]])
     temps += 1
     for x in DRONES:
         x.tick()
+
+    if check_livraisons(): # Pcq on peut pas do while
+        break # Pcq on peut pas do while
 output(f"Mission achevée en {temps} ticks !")

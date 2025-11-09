@@ -1,17 +1,19 @@
 {
     "objets": [
-        {"nom": "A", "masse": 100}
+        {"moment": 0, "nom": "A", "masse": 100}
     ],
     "entrepots": [
-        {"x": 2154, "y": 6984, "objets": [0]}
+        {"moment": 0, "x": 2154, "y": 6984, "objets": [0]}
     ],
     "gares": [
-        {"x": 100, "y": 100}
+        {"moment": 0, "x": 100, "y": 100}
     ],
     "drones": [
-        {"x": 0, "y": 0, "charge": 1000, "batterie": 100000, "vitesse": 20, "vitesse_charge": 99999}
+        {"moment": 0, "x": 0, "y": 0, "charge": 1000, "batterie": 100000, "vitesse": 20, "vitesse_charge": 99999}
     ],
     "livraisons": [
-        {"x": 2000, "y": 6000, "objet": 0}
+        {"moment": 0, "x": 2000, "y": 6000, "objet": 0}
+    ],
+    "rechargements": [
     ]
 }
