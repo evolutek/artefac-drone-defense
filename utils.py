@@ -48,6 +48,8 @@ class Drone:
         self.position:tuple[float, float] = position
         self.targets:list[Delivery] = []
 
+        self.weight = 0
+
     def draw(self, surface):
         pygame.draw.circle(surface, pygame.BLUE, (self.position[0], self.position[1]), 10)
 
@@ -69,6 +71,9 @@ class Drone:
         self.capacity -= delivery.mass
         self.autonomy -= distance(self.position, delivery.position) #if autonomy is a distance
 
+        self.weight += distance(delivery.position, delivery.position) / self.max_speed
+        self.position = delivery.position
+
         return True
     
     def can_handle_delivery(self, delivery:Delivery):
@@ -77,7 +82,7 @@ class Drone:
     def reset_drone(self):
         self.capacity = self.max_capacity
         self.autonomy = self.max_autonomy
-
+    """
     def weight(self):
         dist = 0
         actual_pos = self.position
@@ -90,6 +95,7 @@ class Drone:
         if self.targets != []:
             return self.targets[-1].position
         return self.position
+    """
 
 
 # FUNCTIONS
@@ -102,7 +108,7 @@ def distance(position1, position2):
 
 #Do not take in account the acceleration
 def weight(drone:Drone, delivery:Delivery):
-    dist = drone.weight() + distance(drone.last_position(), delivery.position) 
+    dist = drone.weight + distance(drone.position, delivery.position) 
 
     return dist * (delivery.priority + 1) * 0.5 / drone.max_speed # Add time
 
