@@ -21,7 +21,8 @@ def dist(a, b):
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
 
 def output(text):
-    print(text)
+    global temps
+    print(str(temps).zfill(5) + " | " + text)
 
 def output_tick(text):
     output("[TICK]" + text)
@@ -79,10 +80,19 @@ class Entrepot:
         ENTREPOTS.append(self)
         self.coos = coos
         self.matos = matos
+        self.promis = []
 
     def a(self, nom):
         for x in self.matos:
             if x.nom == nom:
+                return True
+        return False
+
+    def promet(self, nom):
+        for i in range(len(self.matos)):
+            if self.matos[i].nom == nom:
+                self.promis.append(self.matos[i])
+                self.matos.pop(i)
                 return True
         return False
 
@@ -91,8 +101,8 @@ class Entrepot:
 
     def donner(self, drone, nom):
         for i in range(len(self.matos)):
-            if self.matos[i].nom == nom and drone.remplir(self.matos[i]):
-                self.matos.pop(i)
+            if self.promis[i].nom == nom and drone.remplir(self.matos[i]):
+                self.promis.pop(i)
                 return True
         return False
 
@@ -134,6 +144,7 @@ class Livraison:
             self.status = Status.EN_ATTENTE
             output_tick(f"{self} Manque de matériel pour livrer.")
         else:
+            mini.promet(self.objet.nom)
             self.status = Status.EN_ATTENTE_LIVREUR
             output(f"{self} Sera apprivisionné à {self.entrepot}.")
 
