@@ -24,7 +24,7 @@ def compute_distance(a, b):
 
 if (len(sys.argv) == 1):
     #raise Exception("error, you must give a gml graph in argument if you want to create a graph")
-    print("if you want to create a graph, give on in argument (.gml)")
+    print("if you want to create a graph, give it in argument (.gml)")
 
 else:
     G = nx.read_gml(sys.argv[1])
@@ -110,14 +110,14 @@ def choose_drones_naive_aux(drones:list[utils.Drone], deliveries:list[utils.Deli
         for j in range(len(drones)):
             if drones[j].can_handle_delivery(deliveries[i]):
                 drone_value,drone_tab,drone_deliveries = choose_drones_naive_aux(drones, deliveries[:i] + deliveries[i + 1:], tab + [(drones[j], deliveries[i])])
-                if min == 0 or drone_value < min:
+                if min == 0 or (drone_value < min and len(drone_deliveries) <= len(deliveries_left)):
                     min = drone_value
                     tab_min = drone_tab
                     deliveries_left = drone_deliveries
 
     if min == 0:
         max = 0
-        weights = {drone:(drone.weight(),drone.last_position()) for drone in drones}
+        weights = {drone:(drone.weight,drone.position) for drone in drones}
         for drone,delivery in tab:
             weights[drone] = (weights[drone][0] + utils.distance(weights[drone][1], delivery.position), delivery.position)
         
@@ -140,15 +140,23 @@ def choose_drones_naive(drones:list[utils.Drone], deliveries:list[utils.Delivery
 
 #Simple test of the function choose_drones_for_deliveries
 
-drone1 = utils.Drone(capacity=10, max_speed=1, acceleration=1, autonomy=100, position=(0,0))
-drone2 = utils.Drone(capacity=10, max_speed=1, acceleration=1, autonomy=100, position=(4,0))
+drone1 = utils.Drone(capacity=100, max_speed=1, acceleration=1, autonomy=100, position=(0,0))
+drone2 = utils.Drone(capacity=100, max_speed=1, acceleration=1, autonomy=100, position=(4,0))
 drones = [drone1,drone2]
 
 delivery1 = utils.Delivery(obj="default_item_1", mass=1, position=(1,0), priority=2)
 delivery2 = utils.Delivery(obj="default_item_2", mass=1, position=(2.1,0), priority=2)
 delivery3 = utils.Delivery(obj="default_item_3", mass=1, position=(3,0), priority=0)
-deliveries = [delivery1, delivery2, delivery3]
-
+delivery4 = utils.Delivery(obj="default_item_4", mass=1, position=(3,0), priority=0)
+delivery5 = utils.Delivery(obj="default_item_5", mass=1, position=(3,0), priority=0)
+delivery6 = utils.Delivery(obj="default_item_6", mass=1, position=(3,0), priority=0)
+delivery7 = utils.Delivery(obj="default_item_7", mass=1, position=(3,0), priority=0)
+delivery8 = utils.Delivery(obj="default_item_8", mass=1, position=(3,0), priority=0)
+delivery9 = utils.Delivery(obj="default_item_9", mass=1, position=(3,0), priority=0)
+delivery10= utils.Delivery(obj="default_item_10", mass=1, position=(3,0), priority=0)
+delivery11= utils.Delivery(obj="default_item_11", mass=1, position=(3,0), priority=0)
+#deliveries = [delivery1, delivery2, delivery3, delivery4, delivery5, delivery6, delivery7, delivery8, delivery9, delivery10, delivery11]
+deliveries = [delivery1, delivery2, delivery3, delivery4, delivery5, delivery6, delivery7]
 """
 if(not choose_drones_with_priority(drones, deliveries)):
     print("The drone do not have enought space to hanle every deliveries")
