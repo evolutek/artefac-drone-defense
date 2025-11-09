@@ -73,7 +73,7 @@ class Objet:
         return f"[OBJET {self.id}]"
 
 class Entrepot:
-    def __init__(self, coos, matos):
+    def __init__(self, coos, matos, cd):
         global ENTREPOTS
         self.id = len(ENTREPOTS)
         output(f"{self} Enregistrement.")
@@ -81,6 +81,8 @@ class Entrepot:
         self.coos = coos
         self.matos = matos
         self.promis = []
+        self.cooldown = cd
+        self.max_cooldown = cd
 
     def a(self, nom):
         for x in self.matos:
@@ -98,6 +100,15 @@ class Entrepot:
 
     def remplir(self, objet):
         self.matos.append(objet)
+
+    def demander(self, demandeur, objet):
+        if self.cooldown == 0:
+            self.donner(demandeur, objet)
+            self.cooldown = self.max_cooldown
+            return True
+        else:
+            self.cooldown -= 1
+            return False
 
     def donner(self, drone, nom):
         for i in range(len(self.matos)):
@@ -249,14 +260,17 @@ class Drone:
                     self.status = Status.GARE
                     output(f"{self} Vient d'arriver en gare de {self.trajet[0]}.")
                 elif self.trajet[0] in ENTREPOTS:
-                    output(f"{self} Vient d'arriver en entrepot de {self.trajet[0]}.")
-                    output(f"{self} Chargement automatique.")
+                    output_tick(f"{self} Vient d'arriver en entrepot de {self.trajet[0]}.")
+                    output_tick(f"{self} Chargement en cours.")
                     i = 0
                     while i < len(self.veut):
-                        if self.trajet[0].donner(self, self.veut[i]):
+                        if self.trajet[0].demander(self, self.veut[i]):
                             self.veut.pop(i)
                         else:
                             i += 1
+                    if len(self.veut) != 0:
+                        output_tick(f"{self} Chargement non terminé.")
+                        return
                     self.status = Status.MISSION
                     output(f"{self} Chargé.")
                 elif self.trajet[0] in LIVRAISONS:
@@ -294,7 +308,7 @@ while True: # Pcq on peut pas do while
             Objet(x["nom"], x["masse"])
     for x in data["entrepots"]:
         if x["moment"] == temps:
-            Entrepot((x["x"], x["y"]), [OBJETS[i] for i in x["objets"]])
+            Entrepot((x["x"], x["y"]), [OBJETS[i] for i in x["objets"]], x["cooldown"])
     for x in data["gares"]:
         if x["moment"] == temps:
             Gare((x["x"], x["y"]))

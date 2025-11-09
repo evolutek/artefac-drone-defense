@@ -3,7 +3,7 @@
         {"moment": 0, "nom": "A", "masse": 100}
     ],
     "entrepots": [
-        {"moment": 0, "x": 2154, "y": 6984, "objets": [0]}
+        {"moment": 0, "x": 2154, "y": 6984, "cooldown": 0, "objets": [0]}
     ],
     "gares": [
         {"moment": 0, "x": 100, "y": 100}

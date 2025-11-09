@@ -8,9 +8,9 @@
         {"moment": 0, "nom": "Frappe aérienne", "masse": 100}
     ],
     "entrepots": [
-        {"moment": 0, "x": 2154, "y": 6984, "cooldown": 0, "objets": []},
-        {"moment": 10, "x": 1234, "y": 4321, "cooldown": 0, "objets": []},
-        {"moment": 20, "x": 9999, "y": 9999, "cooldown": 0, "objets": []}
+        {"moment": 0, "x": 2154, "y": 6984, "cooldown": 10, "objets": []},
+        {"moment": 10, "x": 1234, "y": 4321, "cooldown": 20, "objets": []},
+        {"moment": 20, "x": 9999, "y": 9999, "cooldown": 30, "objets": []}
     ],
     "gares": [
         {"moment": 0, "x": 100, "y": 100},
