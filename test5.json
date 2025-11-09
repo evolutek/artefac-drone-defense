@@ -5,12 +5,13 @@
         {"moment": 0, "nom": "Munitions", "masse": 10},
         {"moment": 0, "nom": "Trousse de secours", "masse": 5},
         {"moment": 0, "nom": "Médicaments", "masse": 2},
-        {"moment": 0, "nom": "Frappe aérienne", "masse": 100}
+        {"moment": 0, "nom": "Frappe aérienne", "masse": 100},
+        {"moment": 0, "nom": "Autorisation", "masse": 0}
     ],
     "entrepots": [
-        {"moment": 0, "x": 2154, "y": 6984, "cooldown": 0, "objets": []},
-        {"moment": 10, "x": 1234, "y": 4321, "cooldown": 0, "objets": []},
-        {"moment": 20, "x": 9999, "y": 9999, "cooldown": 0, "objets": []}
+        {"moment": 0, "x": 2154, "y": 6984, "cooldown": 10, "objets": [6, 6, 6]},
+        {"moment": 10, "x": 1234, "y": 4321, "cooldown": 20, "objets": [6, 6, 6]},
+        {"moment": 20, "x": 9999, "y": 9999, "cooldown": 30, "objets": [6, 6, 6]}
     ],
     "gares": [
         {"moment": 0, "x": 100, "y": 100},
@@ -50,5 +51,5 @@
         {"moment": 100, "entrepot": 2, "objet": 4, "quantite": 1},
         {"moment": 110, "entrepot": 2, "objet": 5, "quantite": 1}
     ],
-    "autorisation": -1
+    "autorisation": 6
 }

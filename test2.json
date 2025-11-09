@@ -37,5 +37,6 @@
         {"moment": 0, "x": 10000, "y": 1000, "objet": 5}
     ],
     "rechargements": [
-    ]
+    ],
+    "autorisation": -1
 }

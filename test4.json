@@ -49,5 +49,6 @@
         {"moment": 90, "entrepot": 2, "objet": 3, "quantite": 1},
         {"moment": 100, "entrepot": 2, "objet": 4, "quantite": 1},
         {"moment": 110, "entrepot": 2, "objet": 5, "quantite": 1}
-    ]
+    ],
+    "autorisation": -1
 }

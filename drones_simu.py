@@ -31,8 +31,7 @@ def output_mouv(text):
     output_tick("[MOUV]" + text)
 
 def check_livraisons():
-    global LIVRAISONS
-    global DRONES
+    global LIVRAISONS, DRONES
     sortie = True
     for x in LIVRAISONS:
         if x.status != Status.EFFECTUEE:
@@ -111,8 +110,8 @@ class Entrepot:
             return False
 
     def donner(self, drone, nom):
-        for i in range(len(self.matos)):
-            if self.promis[i].nom == nom and drone.remplir(self.matos[i]):
+        for i in range(len(self.promis)):
+            if self.promis[i].nom == nom and drone.remplir(self.promis[i]):
                 self.promis.pop(i)
                 return True
         return False
@@ -133,11 +132,10 @@ class Gare:
 
 class Livraison:
     def __init__(self, coos, objet):
-        global LIVRAISONS
+        global LIVRAISONS, ENTREPOTS
         self.id = len(LIVRAISONS)
         output(f"{self} Enregistrement.")
         LIVRAISONS.append(self)
-        global ENTREPOTS
         self.coos = coos
         self.objet = objet
         self.recalc()
@@ -221,6 +219,7 @@ class Drone:
             return float("inf")
 
     def missionne(self, livraison):
+        global AUTORISATION, OBJETS
         # On s'estime valide
         output(f"{self} Part en mission.")
         if self.trajet == []:
@@ -239,6 +238,8 @@ class Drone:
             retenu_livraison = min(detours_livraison)
             self.trajet.insert(detours_livraison.index(retenu_livraison), livraison)
         self.veut.append(livraison.objet.nom)
+        if AUTORISATION != -1:
+            self.veut.append(OBJETS[AUTORISATION])
         self.charge += livraison.objet.masse
 
     def recalc_coos(self, dest, dist):
@@ -301,6 +302,7 @@ try:
 except:
     sys.exit("Please specify which file to use like: python drones_simu.py config.json")
 
+AUTORISATION = data["autorisation"]
 temps = 0
 while True: # Pcq on peut pas do while
     for x in data["objets"]:
