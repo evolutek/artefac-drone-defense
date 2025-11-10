@@ -26,6 +26,40 @@ This document explains the complete communication flow between all system compon
 
 ---
 
+## Key Terminology
+
+### MAVLink (Low-Level Protocol)
+- **What it is**: Binary protocol for drone communication
+- **Message types**: `HEARTBEAT`, `GPS_RAW_INT`, `VISION_POSITION_ESTIMATE`, etc.
+- **Transport**: TCP/UDP/Serial
+- **Used by**: PX4 ↔ MAVROS communication
+
+### MAVROS (ROS2 ↔ MAVLink Translator)
+- **What it is**: ROS2 node that translates MAVLink to ROS2 Topics/Services
+- **Architecture**: Plugin-based (sys_status, local_position, command, vision_pose, etc.)
+- **Exposes**:
+  - **Services**: `/mavros_node/arming`, `/mavros_node/set_mode`, `/mavros_node/cmd/takeoff`, `/mavros_node/cmd/land`
+  - **Topics**: `/mavros/state`, `/mavros/local_position/pose`, `/mavros/vision_pose/pose`
+- **Note**: Don't confuse `/mavros_node/arming` (service) with `/mavros/cmd/arming` (topic)
+
+### Pose (Position + Orientation)
+- **Position**: `(x, y, z)` in meters
+- **Orientation**: Quaternion `(x, y, z, w)` for 3D rotation
+- **Example**: `/mavros/local_position/pose` = where the drone is and which direction it's pointing
+
+### EKF2 (Extended Kalman Filter)
+- **What it is**: PX4's state estimator that fuses sensor data
+- **Inputs**: IMU, GPS, barometer, vision, magnetometer
+- **Output**: Estimated position, velocity, attitude
+- **GPS-free**: Can be configured to use vision data instead of GPS (see `GPS_FREE_OPERATION.md`)
+
+### MQTT Bridge (ROS2 ↔ MQTT Translator)
+- **Listens to**: ROS2 topics (`/mavros/state`, `/mavros/local_position/pose`)
+- **Publishes to**: MQTT (`drone/drone_1/telemetry`)
+- **Calls**: ROS2 services (`/mavros_node/arming`) when MQTT commands received
+
+---
+
 ## Communication Protocols
 
 ### 1. Frontend ↔ Backend
@@ -40,17 +74,19 @@ This document explains the complete communication flow between all system compon
   - `drone/{id}/command_result` - Command execution results (QoS 1)
 
 ### 3. ROS2 Bridge ↔ MAVROS
-- **ROS2 Topics**:
-  - `/state` - MAVROS state (QoS: RELIABLE)
-  - `/mavros/local_position/pose` - Local position
-  - `/mavros/global_position/global` - GPS position
-  - `/mavros/battery` - Battery status
-  - `/mavros/local_position/velocity_local` - Velocity
-- **ROS2 Services**:
+- **ROS2 Topics** (telemetry from drone):
+  - `/mavros/state` - MAVROS state (QoS: RELIABLE, TRANSIENT_LOCAL)
+  - `/mavros/local_position/pose` - Local position (x, y, z + orientation)
+  - `/mavros/global_position/global` - GPS position (lat, lon, alt)
+  - `/mavros/battery` - Battery status (voltage, current, %)
+  - `/mavros/local_position/velocity_local` - Velocity (vx, vy, vz)
+- **ROS2 Services** (commands to drone):
   - `/mavros_node/arming` - ARM/DISARM service
   - `/mavros_node/cmd/takeoff` - Takeoff service
   - `/mavros_node/cmd/land` - Land service
   - `/mavros_node/set_mode` - Flight mode service
+
+**Note**: Do NOT confuse `/mavros_node/arming` (service) with `/mavros/cmd/arming` (topic). The MQTT bridge uses **services**, not topics.
 
 ---
 
@@ -404,10 +440,10 @@ docker exec artefac_mqtt mosquitto_sub -t "drone/#" -v
 **Diagnosis**:
 ```bash
 # Check if ROS2 bridge receives command
-docker compose logs ros2_core | grep "Received command"
+docker compose logs ros2_integration | grep "Received command"
 
 # Check if MAVROS service responds
-docker exec -it artefac_ros2_core bash -c "source /opt/ros/humble/setup.bash && ros2 service call /mavros_node/arming mavros_msgs/srv/CommandBool '{value: true}'"
+docker exec -it artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 service call /mavros_node/arming mavros_msgs/srv/CommandBool '{value: true}'"
 ```
 
 **Common Causes**:
@@ -521,7 +557,7 @@ curl http://localhost:8000/health
 docker exec artefac_mqtt mosquitto_sub -t '$SYS/broker/messages/received' -v
 
 # ROS2 topic bandwidth
-docker exec -it artefac_ros2_core bash -c "source /opt/ros/humble/setup.bash && ros2 topic bw /mavros/local_position/pose"
+docker exec -it artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic bw /mavros/local_position/pose"
 ```
 
 ---
