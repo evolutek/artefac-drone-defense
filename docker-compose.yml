@@ -13,7 +13,7 @@ services:
     environment:
       - DISPLAY=${DISPLAY:-:0}
       - QT_X11_NO_MITSHM=1
-      - XAUTHORITY=${XAUTHORITY:-${HOME}/.docker.xauth}
+      - XAUTHORITY=/root/.docker.xauth
       - PX4_HOME_LAT=${PX4_HOME_LAT:-43.6047}
       - PX4_HOME_LON=${PX4_HOME_LON:-1.4442}
       - PX4_HOME_ALT=${PX4_HOME_ALT:-0}
@@ -23,7 +23,7 @@ services:
     volumes:
       # X11 for GUI
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ${HOME}/.docker.xauth:${HOME}/.docker.xauth:rw
+      - ${HOME}/.docker.xauth:/root/.docker.xauth:rw
       # Gazebo Harmonic models and worlds
       - ./simulation/gazebo_worlds:/root/.gz/sim/worlds:rw
       - ./simulation/models:/root/.gz/sim/models:rw

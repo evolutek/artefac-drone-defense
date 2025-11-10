@@ -183,7 +183,11 @@ Drone N:
 #### XQuartz authorization errors
 **Symptom**: `xauth: error in locking authority file ~/.docker.xauth`
 
-**Solution**: The start script now automatically removes and recreates the xauth file with proper permissions. If the issue persists:
+**Root cause**: The xauth command was trying to lock a file that already existed with incorrect permissions or was in use.
+
+**Solution**: The start script now automatically removes and recreates the xauth file with proper permissions. The Docker volume mount has also been fixed to map correctly from host (`$HOME/.docker.xauth`) to container (`/root/.docker.xauth`).
+
+If the issue persists:
 ```bash
 # Manually clean up
 rm -f ~/.docker.xauth

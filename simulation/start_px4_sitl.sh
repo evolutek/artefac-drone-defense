@@ -22,14 +22,16 @@ if [ "$HEADLESS" = "0" ]; then
     echo "GUI mode enabled - configuring X11..."
     if [ -n "$DISPLAY" ]; then
         # Try to setup xauth if available
-        if [ -f "$XAUTHORITY" ]; then
-            echo "Using XAUTHORITY: $XAUTHORITY"
+        if [ -n "$XAUTHORITY" ] && [ -f "$XAUTHORITY" ]; then
+            echo "✓ XAUTHORITY file found: $XAUTHORITY"
+            chmod 644 "$XAUTHORITY" 2>/dev/null || true
         else
-            echo "Warning: XAUTHORITY file not found, GUI may not work"
+            echo "⚠ Warning: XAUTHORITY file not found at: $XAUTHORITY"
+            echo "   GUI may not work properly"
         fi
 
         # Allow X11 connections (fallback)
-        xhost +local:docker 2>/dev/null || echo "Note: xhost command not available"
+        xhost +local:docker 2>/dev/null || echo "Note: xhost command not available (this is normal in container)"
     else
         echo "Warning: DISPLAY not set, GUI will not work"
     fi

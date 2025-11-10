@@ -55,8 +55,12 @@ echo "Creating X authorization file: $XAUTH_FILE"
 touch "$XAUTH_FILE"
 chmod 600 "$XAUTH_FILE"
 
-# Add X authorization entries
-xauth nlist "$DISPLAY" | sed -e 's/^..../ffff/' | xauth -f "$XAUTH_FILE" nmerge - 2>/dev/null || true
+# Add X authorization entries - use full path instead of ~ to avoid lock issues
+if xauth nlist "$DISPLAY" 2>/dev/null | sed -e 's/^..../ffff/' | xauth -f "$XAUTH_FILE" nmerge - 2>&1 | grep -v "already exists"; then
+    echo "X authorization entries added successfully"
+else
+    echo "Warning: Could not add X authorization entries (this may be normal if no X session exists yet)"
+fi
 
 echo "✅ XQuartz display setup completed successfully!"
 echo "   DISPLAY: $DISPLAY"
