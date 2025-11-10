@@ -99,14 +99,15 @@ Système de simulation multi-drones pour missions de livraison en zones de crise
 │  └──────────────────────┬─────────────────────────────────────┘  │
 │                         │ MAVLink UDP                            │
 │  ┌──────────────────────▼───────────────────────────────────┐    │
-│  │  Container: ros2_core (MAVROS Bridge)                    │    │
+│  │  Container: ros2_integration (ROS2 Integration Layer)    │    │
 │  │  Base: osrf/ros:humble-desktop-full-jammy                │    │
 │  │  Size: ~3.5 GB                                           │    │
 │  │                                                          │    │
 │  │  Processes:                                              │    │
 │  │    • ROS2 DDS daemon - Communication middleware          │    │
 │  │    • mavros_node - MAVLink↔ROS2 translator               │    │
-│  │    • (future) Custom nodes - Swarm coordination          │    │
+│  │    • mqtt_bridge - MQTT↔ROS2 translator                  │    │
+│  │    • vision_pose_bridge - Vision data integration        │    │
 │  │                                                          │    │
 │  │  Responsibilities:                                       │    │
 │  │    - Bridge MAVLink (binary) ↔ ROS2 topics (DDS)         │    │
@@ -213,7 +214,7 @@ MAVROS + Simulation
 
 **Exposes**: MAVLink on UDP port 14540 (localhost only, network_mode: host)
 
-### ROS2 Core Container Dependencies
+### ROS2 Integration Container Dependencies
 **Build-time**:
 - osrf/ros:humble-desktop-full-jammy base
 - MAVROS packages (`ros-humble-mavros`, `ros-humble-mavros-extras`)
