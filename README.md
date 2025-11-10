@@ -35,6 +35,11 @@ docker compose build
 4. Monitor real-time telemetry updates
 5. Click **LAND** → **DISARM**
 
+**API Documentation:**
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+- Health Check: http://localhost:8000/health
+
 ---
 
 ## Vue d'ensemble
@@ -49,8 +54,10 @@ Système de simulation multi-drones pour missions de livraison en zones de crise
 - Architecture scalable (jusqu'à 10+ drones par instance)
 
 ## Documentation
-- **[SETUP.md](SETUP.md)** - Installation guide (setup instructions, all OS)
 - **[DISPLAY_SETUP.md](DISPLAY_SETUP.md)** - Gazebo GUI display setup (Linux/macOS/Windows X11 configuration)
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Complete system architecture and technical details
+- **[CLAUDE.md](CLAUDE.md)** - Development guidelines and project status
+- **[docs/](docs/)** - Additional documentation (GPS-free operation, troubleshooting, communication flow)
 - **[simulation/src/README.md](simulation/src/README.md)** - ROS2 workspace documentation
 
 ---
@@ -293,13 +300,32 @@ artefac-drone-defense/
 │   │   │   │   └── px4_sitl.launch.py
 │   │   │   ├── package.xml
 │   │   │   └── CMakeLists.txt
+│   │   ├── mqtt_bridge/         # ROS2 ↔ MQTT bridge package
+│   │   │   ├── mqtt_bridge/
+│   │   │   │   ├── bridge_node.py
+│   │   │   │   └── vision_pose_bridge.py
+│   │   │   ├── launch/
+│   │   │   │   └── mqtt_bridge.launch.py
+│   │   │   ├── package.xml
+│   │   │   └── CMakeLists.txt
 │   │   └── README.md
 │   ├── config/
 │   │   └── fastdds.xml         # DDS configuration
 │   ├── gazebo_worlds/          # Custom Gazebo world files
 │   ├── models/                 # Gazebo model definitions
+│   ├── scripts/                # Helper scripts
 │   ├── Dockerfile              # ROS2 Humble + MAVROS
 │   └── Dockerfile.px4          # PX4 v1.16.0 build
+├── frontend/
+│   ├── src/
+│   │   ├── components/         # React components
+│   │   ├── App.tsx
+│   │   └── utils/api.ts
+│   ├── Dockerfile              # Multi-stage build (Node + Nginx)
+│   └── package.json
+├── mqtt/
+│   └── config/
+│       └── mosquitto.conf      # MQTT broker configuration
 ├── logs/                       # Container logs (gitignored)
 │   ├── px4/
 │   ├── ros2/
