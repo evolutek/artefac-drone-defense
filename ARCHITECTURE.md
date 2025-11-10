@@ -273,10 +273,34 @@ map (global frame)
 ```
 
 ##### B. MQTT Bridge Node
-- **Package custom**: `mqtt_bridge` (à développer)
+- **Package custom**: `mqtt_bridge` (✅ implemented)
 - **Langage**: Python 3.10 avec `rclpy` + `paho-mqtt`
 
 **Fonction**: Traduit ROS2 Topics → MQTT Topics
+
+##### C. Vision Pose Bridge Node
+- **Package**: Part of `mqtt_bridge` package
+- **Langage**: Python 3.10 avec `gz.transport13` + `rclpy`
+- **Rate**: 52 Hz (publishes vision pose data from Gazebo)
+
+**Fonction**: Bridge Gazebo ground truth pose data to MAVROS for GPS-free operation
+
+**Data Flow**:
+```
+Gazebo Harmonic (gz.msgs.Pose_V @ 50Hz)
+    ↓ Gazebo Transport Python API
+vision_pose_bridge.py
+    ↓ geometry_msgs/PoseStamped @ 52Hz
+MAVROS vision_pose plugin
+    ↓ MAVLink VISION_POSITION_ESTIMATE
+PX4 EKF2 (sensor fusion)
+```
+
+**Configuration**:
+- Subscribes to Gazebo topic: `/world/default/dynamic_pose/info`
+- Publishes to ROS2 topic: `/mavros/vision_pose/pose`
+- Coordinate frame: ENU (East-North-Up)
+- Enables GPS-free arming with EKF2 vision fusion
 
 **Mapping des topics:**
 ```python
@@ -306,7 +330,7 @@ telemetry_qos = 0  # Best effort (high frequency data)
 command_qos = 1    # At least once (critical commands)
 ```
 
-##### C. ROS2 DDS Network (FastRTPS)
+##### D. ROS2 DDS Network (FastRTPS)
 - **Implémentation**: rmw_fastrtps_cpp (eProsima Fast DDS)
 - **Alternative**: CycloneDDS (meilleur pour WAN)
 
