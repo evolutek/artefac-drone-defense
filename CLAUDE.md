@@ -178,6 +178,43 @@ Drone N:
 3. Check gz sim process: `ps aux | grep "gz sim"`
 4. View logs: `docker compose logs simulation`
 
+### macOS-specific issues
+
+#### XQuartz authorization errors
+**Symptom**: `xauth: error in locking authority file ~/.docker.xauth`
+
+**Solution**: The start script now automatically removes and recreates the xauth file with proper permissions. If the issue persists:
+```bash
+# Manually clean up
+rm -f ~/.docker.xauth
+./start.sh up simulation
+```
+
+#### Headless mode forced despite XQuartz running
+**Symptom**: Logs show `Headless mode: 1` even with XQuartz configured
+
+**Solution**: The start script now automatically forces `HEADLESS=0` on macOS. Verify your `.env` file doesn't override this after script execution.
+
+#### Sensor timeout errors (Accel #0 fail: TIMEOUT)
+**Symptom**: `ERROR [sensors] Accel #0 fail: TIMEOUT!` and `ekf2 missing data`
+
+**Root cause**: Gazebo Harmonic in Docker on macOS has issues communicating sensor data to PX4 in headless mode.
+
+**Solution**:
+1. Ensure XQuartz is running with "Allow connections from network clients" enabled
+2. The start script forces GUI mode (`HEADLESS=0`) automatically
+3. Rebuild the simulation container: `docker compose build simulation`
+4. Restart: `./start.sh up simulation`
+
+#### Parameter calculation errors (bc: not found)
+**Symptom**: `etc/init.d-posix/rcS: 196: bc: not found` and parameter errors like `COM_DL_LOSS_T set to <empty>`
+
+**Solution**: Rebuild the simulation container (the fix is now in Dockerfile.px4):
+```bash
+docker compose build simulation --no-cache
+./start.sh up simulation
+```
+
 ### MAVROS not connecting
 1. Verify PX4 MAVLink port: `netstat -tulpn | grep 14540`
 2. Check MAVROS launch file FCU URL
@@ -321,4 +358,4 @@ PX4 SITL normally refuses arming without:
 ---
 
 **Last Updated**: 2025-11-10
-**Status**: Command feedback system implemented ✅ | Vision pose bridge operational @ 52Hz ✅ | GPS-free arming under investigation 🔄
+**Status**: Command feedback system implemented ✅ | Vision pose bridge operational @ 52Hz ✅ | macOS compatibility fixes applied ✅ | GPS-free arming under investigation 🔄

@@ -43,11 +43,19 @@ xhost + 127.0.0.1 > /dev/null 2>&1 || true
 
 # Create .docker.xauth for macOS
 XAUTH_FILE="${HOME}/.docker.xauth"
-if [ ! -f "$XAUTH_FILE" ]; then
-    echo "Creating X authorization file: $XAUTH_FILE"
-    touch "$XAUTH_FILE"
+
+# Remove existing xauth file if it has permission issues
+if [ -f "$XAUTH_FILE" ]; then
+    echo "Removing existing X authorization file to avoid lock issues..."
+    rm -f "$XAUTH_FILE"
 fi
 
+# Create fresh xauth file with proper permissions
+echo "Creating X authorization file: $XAUTH_FILE"
+touch "$XAUTH_FILE"
+chmod 600 "$XAUTH_FILE"
+
+# Add X authorization entries
 xauth nlist "$DISPLAY" | sed -e 's/^..../ffff/' | xauth -f "$XAUTH_FILE" nmerge - 2>/dev/null || true
 
 echo "✅ XQuartz display setup completed successfully!"
