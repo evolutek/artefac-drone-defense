@@ -37,7 +37,21 @@ def generate_launch_description():
             description='Gazebo model name'
         ),
 
-        # Vision Pose Bridge Node (Gazebo → MAVROS)
+        # ROS-Gazebo Bridge (Gazebo Transport → ROS2)
+        # TODO: Fix this bridge - currently disabled due to message type incompatibility
+        # Gazebo publishes gz.msgs.Pose_V which has no direct ROS2 equivalent
+        # For now, vision_pose_bridge uses static test data
+        # Node(
+        #     package='ros_gz_bridge',
+        #     executable='parameter_bridge',
+        #     name='gz_pose_bridge',
+        #     output='screen',
+        #     arguments=[
+        #         '/world/default/pose/info@ros_gz_interfaces/msg/EntityWrench[gz.msgs.Pose_V'
+        #     ],
+        # ),
+
+        # Vision Pose Bridge Node (ROS2 → MAVROS)
         Node(
             package='mqtt_bridge',
             executable='vision_pose_bridge',

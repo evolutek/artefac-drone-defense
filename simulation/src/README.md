@@ -71,11 +71,11 @@ To add a new ROS2 package:
 
 ## Building
 
-The workspace is automatically built when the `ros2_core` Docker container starts.
+The workspace is automatically built when the `ros2_integration` Docker container starts.
 
 To manually rebuild:
 ```bash
-docker compose exec ros2_core bash
+docker compose exec ros2_integration bash
 cd /root/ros2_ws
 colcon build --symlink-install
 source install/setup.bash

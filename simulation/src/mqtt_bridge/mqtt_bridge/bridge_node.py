@@ -88,7 +88,7 @@ class MQTTBridgeNode(Node):
         )
 
         # ROS2 Service Clients (MAVROS services)
-        # Note: MAVROS services are published under /mavros_node namespace
+        # Note: MAVROS is launched without namespace, services are directly under /mavros_node
         self.arming_client = self.create_client(
             CommandBool,
             '/mavros_node/arming'
@@ -116,6 +116,10 @@ class MQTTBridgeNode(Node):
         self.current_battery = None
         self.current_velocity = None
 
+        # Wait for MAVROS services to be available
+        self.get_logger().info('Waiting for MAVROS services to become available...')
+        self.wait_for_mavros_services(timeout_sec=30.0)
+
         # MQTT Client
         self.mqtt_client = mqtt.Client(client_id=f'ros2_bridge_{self.drone_id}')
         self.mqtt_client.on_connect = self.on_mqtt_connect
@@ -131,6 +135,31 @@ class MQTTBridgeNode(Node):
 
         # Timer for periodic telemetry publishing
         self.telemetry_timer = self.create_timer(0.5, self.publish_telemetry)  # 2 Hz
+
+    def wait_for_mavros_services(self, timeout_sec=30.0):
+        """Wait for all MAVROS services to become available"""
+        services = [
+            (self.arming_client, 'arming'),
+            (self.set_mode_client, 'set_mode'),
+            (self.takeoff_client, 'takeoff'),
+            (self.land_client, 'land')
+        ]
+
+        all_ready = True
+        for client, name in services:
+            self.get_logger().info(f'Waiting for {name} service...')
+            if not client.wait_for_service(timeout_sec=timeout_sec):
+                self.get_logger().error(f'{name} service not available after {timeout_sec}s')
+                all_ready = False
+            else:
+                self.get_logger().info(f'{name} service ready!')
+
+        if all_ready:
+            self.get_logger().info('All MAVROS services are ready!')
+        else:
+            self.get_logger().warn('Some MAVROS services are not ready, commands may fail')
+
+        return all_ready
 
     def on_mqtt_connect(self, client, userdata, flags, rc):
         """Callback when connected to MQTT broker"""
