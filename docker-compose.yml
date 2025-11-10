@@ -43,15 +43,15 @@ services:
       start_period: 60s
     restart: unless-stopped
 
-  # ROS2 Core + MAVROS Bridge
-  ros2_core:
+  # ROS2 Integration Layer (MAVROS + MQTT Bridge + Vision Bridge)
+  ros2_integration:
     build:
       context: ./simulation
       dockerfile: Dockerfile
       args:
         ROS_DISTRO: humble
         UBUNTU_VERSION: jammy
-    container_name: artefac_ros2_core
+    container_name: artefac_ros2_integration
     network_mode: host
     privileged: true
     environment:
@@ -79,16 +79,25 @@ services:
         condition: service_healthy
     command: >
       bash -c "
-        echo 'Starting ROS2 Core, MAVROS and MQTT Bridge...' &&
+        echo 'Starting ROS2 Integration Layer (MAVROS, MQTT Bridge, Vision Bridge)...' &&
         source /opt/ros/humble/setup.bash &&
         echo 'Building ROS2 workspace...' &&
         colcon build --symlink-install &&
         source install/setup.bash &&
+        echo 'Waiting for PX4 SITL to be ready...' &&
         sleep 5 &&
-        ros2 launch mavros_launcher px4_sitl.launch.py fcu_url:=udp://:14540@127.0.0.1:14580 namespace:=mavros &
+        echo 'Launching MAVROS...' &&
+        ros2 launch mavros_launcher px4_sitl.launch.py fcu_url:=udp://:14540@127.0.0.1:14580 &
         MAVROS_PID=\$$! &&
-        sleep 10 &&
-        echo 'Launching MQTT Bridge...' &&
+        echo 'Waiting for MAVROS services to be available...' &&
+        until source /opt/ros/humble/setup.bash && ros2 service list 2>/dev/null | grep -q 'mavros_node/arming'; do
+          echo 'Still waiting for MAVROS services...' &&
+          sleep 2;
+        done &&
+        echo 'MAVROS ready! Enabling vision pose forwarding...' &&
+        ros2 param set /mavros_node global_position.use_vision true &&
+        echo 'Vision pose enabled! ✓' &&
+        echo 'MAVROS services ready! Launching MQTT Bridge...' &&
         ros2 launch mqtt_bridge mqtt_bridge.launch.py drone_id:=drone_1 mqtt_broker:=localhost &&
         wait \$$MAVROS_PID
       "

@@ -53,6 +53,9 @@ RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-rqt-common-plugins \
     # Gazebo Harmonic
     gz-harmonic \
+    # Gazebo Transport for Python bindings (vision bridge)
+    libgz-transport13-dev \
+    python3-gz-transport13 \
     # Cleanup
     && rm -rf /var/lib/apt/lists/*
 
