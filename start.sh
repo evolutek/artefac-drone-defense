@@ -55,6 +55,13 @@ fi
 
 # Execute the display setup script
 bash "$SCRIPT_PATH"
+
+# Override HEADLESS to 0 on macOS (GUI required for proper Gazebo operation)
+if [ "$HOST_OS" = "macos" ]; then
+    export HEADLESS=0
+    echo -e "${GREEN}✓${NC} macOS detected: Forcing HEADLESS=0 for GUI mode"
+    echo ""
+fi
 echo ""
 
 # Start Docker Compose services
