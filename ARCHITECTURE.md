@@ -13,7 +13,7 @@
 │  (Disappears in Prod)  │         │         (Evolves in Production)                │
 ├────────────────────────┤         ├────────────────────────────────────────────────┤
 │                        │         │                                                │
-│  Container: simulation │         │  Container: ros2_core                          │
+│  Container: simulation │         │  Container: ros2_integration                   │
 │  ┌──────────────────┐  │         │  ┌──────────────────────────────────────────┐  │
 │  │  PX4 Autopilot   │  │         │  │                                          │  │
 │  │  v1.16.0 (SITL)  │  │         │  │  ┌────────────┐    ┌──────────────┐      │  │
@@ -50,9 +50,9 @@
         │  │  Eclipse Mosquitto 2.0 (MQTT Broker)                                 │  │
         │  │                                                                      │  │
         │  │  Topics:                                                             │  │
-        │  │    telemetry/drone_N/gps         ← ros2_core publishes               │  │
-        │  │    telemetry/drone_N/battery     ← ros2_core publishes               │  │
-        │  │    telemetry/drone_N/state       ← ros2_core publishes               │  │
+        │  │    telemetry/drone_N/gps         ← ros2_integration publishes        │  │
+        │  │    telemetry/drone_N/battery     ← ros2_integration publishes        │  │
+        │  │    telemetry/drone_N/state       ← ros2_integration publishes        │  │
         │  │    commands/drone_N/goto         ← backend publishes                 │  │
         │  │    commands/drone_N/arm          ← backend publishes                 │  │
         │  │    commands/drone_N/mission      ← backend publishes                 │  │
@@ -212,7 +212,7 @@ Remplacé par des drones physiques avec autopilote Pixhawk.
 
 ### 2. MIDDLEWARE LAYER (Evolves in Production)
 
-#### Container: `ros2_core`
+#### Container: `ros2_integration`
 **Image**: Custom (`simulation/Dockerfile`)
 **Base**: osrf/ros:humble-desktop-full
 
@@ -332,6 +332,7 @@ command_qos = 1    # At least once (critical commands)
 **Ce qui reste:**
 - MAVROS (connexion drone réel)
 - MQTT Bridge (même code)
+- Vision Bridge (données caméra/SLAM réelles)
 - ROS2 Core (topic routing)
 
 **Ce qui disparaît:**
@@ -379,9 +380,9 @@ Drone 1                  Drone 2
 
 **Architecture Pub/Sub:**
 ```
-Publisher                    Broker                Subscriber
-ros2_core ──publish──> [Topic: telemetry/drone_1/gps] ──subscribe──> backend
-backend   ──publish──> [Topic: commands/drone_1/goto] ──subscribe──> ros2_core
+Publisher                         Broker                     Subscriber
+ros2_integration ──publish──> [Topic: telemetry/drone_1/gps] ──subscribe──> backend
+backend          ──publish──> [Topic: commands/drone_1/goto] ──subscribe──> ros2_integration
 ```
 
 **Topics utilisés:**
@@ -622,7 +623,7 @@ Backend FastAPI → Validates mission
     ↓
 Backend → MQTT publish to "commands/drone_1/mission"
     ↓
-MQTT Broker → ros2_core subscribes
+MQTT Broker → ros2_integration subscribes
     ↓
 MQTT Bridge → ROS2 topic /drone_1/mavros/mission/push
     ↓
@@ -968,9 +969,9 @@ volumes:
 ```
 Real Drone / Simulation
     ↓ [MAVLink v2.0 over TCP/Serial]
-MAVROS Node (ros2_core)
+MAVROS Node (ros2_integration)
     ↓ [ROS2 Topics via DDS]
-MQTT Bridge Node (ros2_core)
+MQTT Bridge Node (ros2_integration)
     ↓ [MQTT Protocol]
 Mosquitto Broker (mqtt)
     ↓ [MQTT Subscribe]
@@ -989,7 +990,7 @@ FastAPI Backend
     ↓ [MQTT Publish to commands/drone_1/takeoff]
 Mosquitto Broker
     ↓ [MQTT Subscribe]
-MQTT Bridge Node (ros2_core)
+MQTT Bridge Node (ros2_integration)
     ↓ [ROS2 Service Call /drone_1/mavros/cmd/takeoff]
 MAVROS Node
     ↓ [MAVLink COMMAND_LONG message]
@@ -1060,7 +1061,7 @@ AWS ECS (backend containers)
 + AWS IoT Core (MQTT)
 + AWS RDS (PostgreSQL)
 + CloudFront (frontend CDN)
-+ EC2 (ros2_core on ground station)
++ EC2 (ros2_integration on ground station)
 ```
 
 ---
