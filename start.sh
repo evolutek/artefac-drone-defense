@@ -11,64 +11,54 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}=======================================================${NC}"
-echo -e "${BLUE}  Artefac Drone Defense - Starting Services${NC}"
-echo -e "${BLUE}=======================================================${NC}"
-echo ""
+# Logging functions
+log_info() { echo -e "${GREEN}[MAIN] ✓${NC} $1"; }
+log_step() { echo -e "${BLUE}[MAIN] →${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[MAIN] ⚠${NC} $1"; }
+log_error() { echo -e "${RED}[MAIN] ✗${NC} $1"; }
+
+echo -e "\n${BLUE}=== Artefac Drone Defense - Starting Services ===${NC}\n"
 
 # Load .env file
 if [ ! -f .env ]; then
-    echo -e "${RED}✗${NC} .env file not found!"
-    echo -e "   Please copy .env.example to .env and configure HOST_OS"
+    log_error ".env file not found"
+    echo "   Please copy .env.example to .env and configure HOST_OS"
     exit 1
 fi
 
-echo -e "${GREEN}✓${NC} Loading configuration from .env file..."
+log_step "Loading configuration from .env"
 export $(grep -v '^#' .env | xargs)
-echo ""
 
-# Check if HOST_OS is set
+# Validate HOST_OS
 if [ -z "$HOST_OS" ]; then
-    echo -e "${RED}✗${NC} HOST_OS is not set in .env file!"
-    echo -e "   Please add HOST_OS to your .env file with one of these values:"
-    echo -e "   - HOST_OS=linux"
-    echo -e "   - HOST_OS=macos"
-    echo -e "   - HOST_OS=windows"
+    log_error "HOST_OS not set in .env"
+    echo "   Valid values: linux, macos, windows"
     exit 1
 fi
 
-# Validate HOST_OS value
 if [ "$HOST_OS" != "linux" ] && [ "$HOST_OS" != "macos" ] && [ "$HOST_OS" != "windows" ]; then
-    echo -e "${RED}✗${NC} Invalid HOST_OS value: $HOST_OS"
-    echo -e "   Valid values are: linux, macos, windows"
+    log_error "Invalid HOST_OS: $HOST_OS"
+    echo "   Valid values: linux, macos, windows"
     exit 1
 fi
 
-# Run the appropriate display setup script
-echo -e "${BLUE}→${NC} Setting up display for ${HOST_OS}..."
+# Run display setup script
+log_step "Setting up display for $HOST_OS"
 SCRIPT_PATH="./scripts/start_display_${HOST_OS}.sh"
 
 if [ ! -f "$SCRIPT_PATH" ]; then
-    echo -e "${RED}✗${NC} Display setup script not found: $SCRIPT_PATH"
+    log_error "Display setup script not found: $SCRIPT_PATH"
     exit 1
 fi
 
-# Execute the display setup script
 bash "$SCRIPT_PATH"
 
-# Override HEADLESS to 0 on macOS (GUI required for proper Gazebo operation)
+# macOS-specific: Force GUI mode
 if [ "$HOST_OS" = "macos" ]; then
     export HEADLESS=0
-    echo -e "${GREEN}✓${NC} macOS detected: Forcing HEADLESS=0 for GUI mode"
-    echo ""
+    log_info "macOS: Forcing GUI mode (HEADLESS=0)"
 fi
-echo ""
 
-# Start Docker Compose services
-echo -e "${BLUE}=======================================================${NC}"
-echo -e "${BLUE}  Starting Docker Compose services...${NC}"
-echo -e "${BLUE}=======================================================${NC}"
-echo ""
-
-# Pass all arguments to docker-compose (e.g., ./start.sh up -d)
+# Start Docker Compose
+echo -e "\n${BLUE}=== Starting Docker Compose Services ===${NC}\n"
 docker compose "$@"

@@ -1,3 +1,18 @@
 .env
 __pycache__/
 logs/
+
+# Test artifacts
+tests/__pycache__/
+tests/**/__pycache__/
+.pytest_cache/
+test-results/
+htmlcov/
+.coverage
+*.pytest_cache
+
+# Python virtual environment
+venv/
+env/
+*.pyc
+*.pyo

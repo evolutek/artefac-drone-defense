@@ -87,9 +87,9 @@ def health_check(db: Session = Depends(get_db)):
     # Check MQTT connection
     mqtt_status = mqtt_client.is_connected()
 
-    # Count connected drones
+    # Count connected drones (any status except disconnected)
     drones = crud.get_drones(db)
-    connected_drones = len([d for d in drones if d.status == "connected"])
+    connected_drones = len([d for d in drones if d.status != "disconnected"])
 
     return {
         "status": "healthy",

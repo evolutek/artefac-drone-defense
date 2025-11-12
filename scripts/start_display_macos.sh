@@ -4,67 +4,60 @@
 
 set -e
 
-echo "🍎 Setting up XQuartz display for macOS..."
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-# Check if XQuartz is installed
+# Logging functions
+log_info() { echo -e "${GREEN}[DISPLAY] ✓${NC} $1"; }
+log_step() { echo -e "${BLUE}[DISPLAY] →${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[DISPLAY] ⚠${NC} $1"; }
+log_error() { echo -e "${RED}[DISPLAY] ✗${NC} $1"; }
+
+log_step "macOS XQuartz display setup"
+
+# Check XQuartz installation
 if ! command -v xquartz &> /dev/null && ! [ -d "/Applications/Utilities/XQuartz.app" ]; then
-    echo "❌ ERROR: XQuartz is not installed!"
-    echo "Please install XQuartz from: https://www.xquartz.org/"
-    echo "Or use Homebrew: brew install --cask xquartz"
+    log_error "XQuartz not installed"
+    echo "   Install from: https://www.xquartz.org/"
+    echo "   Or use: brew install --cask xquartz"
     exit 1
 fi
 
-# Check if XQuartz is running
+# Start XQuartz if needed
 if ! pgrep -x "Xquartz" > /dev/null; then
-    echo "Starting XQuartz..."
+    log_step "Starting XQuartz"
     open -a XQuartz
-    echo "⏳ Waiting for XQuartz to start (10 seconds)..."
     sleep 10
 fi
 
-# Get the host IP for Docker
+# Detect host IP
 HOST_IP=$(ifconfig en0 | grep "inet " | awk '{print $2}')
-if [ -z "$HOST_IP" ]; then
-    # Try with en1 if en0 doesn't have an IP
-    HOST_IP=$(ifconfig en1 | grep "inet " | awk '{print $2}')
-fi
+[ -z "$HOST_IP" ] && HOST_IP=$(ifconfig en1 | grep "inet " | awk '{print $2}')
 
 if [ -z "$HOST_IP" ]; then
-    echo "⚠️  WARNING: Could not detect host IP. Using host.docker.internal"
+    log_warn "Could not detect host IP, using host.docker.internal"
     export DISPLAY="host.docker.internal:0"
 else
     export DISPLAY="$HOST_IP:0"
 fi
 
-# Allow connections from localhost
-echo "Granting Docker containers access to XQuartz..."
+# Grant X11 access
 xhost + "$HOST_IP" > /dev/null 2>&1 || true
 xhost + 127.0.0.1 > /dev/null 2>&1 || true
 
-# Create .docker.xauth for macOS
+# Create fresh XAUTH file
 XAUTH_FILE="${HOME}/.docker.xauth"
-
-# Remove existing xauth file if it has permission issues
-if [ -f "$XAUTH_FILE" ]; then
-    echo "Removing existing X authorization file to avoid lock issues..."
-    rm -f "$XAUTH_FILE"
-fi
-
-# Create fresh xauth file with proper permissions
-echo "Creating X authorization file: $XAUTH_FILE"
+[ -f "$XAUTH_FILE" ] && rm -f "$XAUTH_FILE"
 touch "$XAUTH_FILE"
 chmod 600 "$XAUTH_FILE"
 
-# Add X authorization entries - use full path instead of ~ to avoid lock issues
-if xauth nlist "$DISPLAY" 2>/dev/null | sed -e 's/^..../ffff/' | xauth -f "$XAUTH_FILE" nmerge - 2>&1 | grep -v "already exists"; then
-    echo "X authorization entries added successfully"
-else
-    echo "Warning: Could not add X authorization entries (this may be normal if no X session exists yet)"
-fi
+# Add X authorization
+xauth nlist "$DISPLAY" 2>/dev/null | sed -e 's/^..../ffff/' | xauth -f "$XAUTH_FILE" nmerge - 2>/dev/null || true
 
-echo "✅ XQuartz display setup completed successfully!"
-echo "   DISPLAY: $DISPLAY"
-echo "   XAUTHORITY: $XAUTH_FILE"
-echo ""
-echo "⚠️  NOTE: Make sure 'Allow connections from network clients' is enabled in"
-echo "   XQuartz -> Preferences -> Security"
+log_info "Display configured - DISPLAY=$DISPLAY"
+log_warn "Ensure 'Allow connections from network clients' is enabled"
+echo "   XQuartz → Preferences → Security"

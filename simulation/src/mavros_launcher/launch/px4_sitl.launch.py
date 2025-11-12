@@ -11,8 +11,8 @@ def generate_launch_description():
     # Declare launch arguments
     fcu_url_arg = DeclareLaunchArgument(
         'fcu_url',
-        default_value='tcp://127.0.0.1:4560',
-        description='FCU connection URL (MAVLink protocol)'
+        default_value='udp://:14540@127.0.0.1:14580',
+        description='FCU connection URL (MAVLink UDP protocol - local:14540@remote:14580)'
     )
 
     gcs_url_arg = DeclareLaunchArgument(

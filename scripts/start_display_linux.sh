@@ -4,38 +4,58 @@
 
 set -e
 
-echo "🐧 Setting up X11 display for Linux..."
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-# Create .docker.xauth if it doesn't exist
+# Logging functions
+log_info() { echo -e "${GREEN}[DISPLAY] ✓${NC} $1"; }
+log_step() { echo -e "${BLUE}[DISPLAY] →${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[DISPLAY] ⚠${NC} $1"; }
+
+log_step "Linux X11 display setup"
+
+# Detect session type
+SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
 XAUTH_FILE="${HOME}/.docker.xauth"
 
-# If Docker created it as a directory, remove it first
+# Clean up Docker-created directory if needed
 if [ -d "$XAUTH_FILE" ]; then
-    echo "⚠️  Removing Docker-created directory: $XAUTH_FILE"
+    log_warn "Removing Docker-created directory: $XAUTH_FILE"
     sudo rm -rf "$XAUTH_FILE"
 fi
 
-# Create the file (must exist BEFORE docker compose starts)
+# Create/fix XAUTH file
 if [ ! -f "$XAUTH_FILE" ]; then
-    echo "Creating X authorization file: $XAUTH_FILE"
     touch "$XAUTH_FILE"
     chmod 600 "$XAUTH_FILE"
-    # Ensure ownership is correct
     chown $USER:$USER "$XAUTH_FILE" 2>/dev/null || true
 else
-    echo "X authorization file already exists: $XAUTH_FILE"
-    # Ensure correct permissions
     chmod 600 "$XAUTH_FILE" 2>/dev/null || sudo chmod 600 "$XAUTH_FILE"
     chown $USER:$USER "$XAUTH_FILE" 2>/dev/null || sudo chown $USER:$USER "$XAUTH_FILE"
 fi
 
-# Generate X authority entry (suppress lock errors)
-xauth nlist "$DISPLAY" 2>/dev/null | sed -e 's/^..../ffff/' | xauth -f "$XAUTH_FILE" nmerge - 2>/dev/null || echo "⚠️  xauth merge failed (non-critical)"
+# Setup X11 auth based on session type
+if [ "$SESSION_TYPE" = "wayland" ]; then
+    log_step "Wayland session - using XWayland compatibility"
 
-# Allow local Docker containers to access X server
-echo "Granting Docker containers access to X11..."
-xhost +local:docker > /dev/null 2>&1 || echo "⚠️  xhost command failed (non-critical)"
+    WAYLAND_XAUTH=$(find /run/user/$(id -u)/ -name ".mutter-Xwaylandauth*" 2>/dev/null | head -n1)
 
-echo "✅ X11 display setup completed successfully!"
-echo "   DISPLAY: $DISPLAY"
-echo "   XAUTHORITY: $XAUTH_FILE"
+    if [ -n "$WAYLAND_XAUTH" ]; then
+        XAUTHORITY="$WAYLAND_XAUTH" xauth nlist "$DISPLAY" 2>/dev/null | sed -e 's/^..../ffff/' | xauth -f "$XAUTH_FILE" nmerge - 2>/dev/null || true
+        XAUTHORITY="$WAYLAND_XAUTH" xhost +local:docker 2>/dev/null || true
+    else
+        log_warn "XWayland auth file not found, using fallback"
+        xauth nlist "$DISPLAY" 2>/dev/null | sed -e 's/^..../ffff/' | xauth -f "$XAUTH_FILE" nmerge - 2>/dev/null || true
+    fi
+else
+    log_step "X11 session - using standard X11 access"
+
+    xauth nlist "$DISPLAY" 2>/dev/null | sed -e 's/^..../ffff/' | xauth -f "$XAUTH_FILE" nmerge - 2>/dev/null || true
+    xhost +local:docker 2>/dev/null || true
+fi
+
+log_info "Display configured - DISPLAY=$DISPLAY"
