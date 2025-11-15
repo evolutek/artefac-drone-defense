@@ -1,36 +1,54 @@
-//what do we need ?
+#pragma once
 
-// representation of drones
-// representation of deliveries
-// usefull functions 
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
+
+#define MAX_DELIVERY_PER_DRONE 5
+
+
+struct Position{
+    double x;
+    double y;
+};
 
 struct Delivery{
+    //Propre à l'objet
     char* obj;
     unsigned int priority;
-    double[2] position;
+    struct Position* position;
     double mass;
-}
+};
 
-struct Drones{
+struct Drone{
+    //Propre à l'objet
     double max_capacity;
-    double capacity;
-
     double max_autonomy;
-    double autonomy;
-
     double max_speed;
     double acceleration;
 
-    double[2] position;
-    struct Delivery* targets;
-    double weight;
-}
+    //En temps réel
+    double actual_capacity;
+    double actual_autonomy;
+    struct Position* position;
+    struct Delivery* targets[MAX_DELIVERY_PER_DRONE];
+    size_t nb_targets;
 
-struct Delivery build_delivery(char* obj, unsigned int priority, double[2] position, double mass);
-struct Drone build_drone(double[2] position, double capacity, double autonomy, double speed, double acceleration, struct Delivery* targets, double weight);
+    //Pour le programme
+    double cost;
+};
 
-//calcul dist
-//calcul weight
-//add target drone
-//can handle delivery drone
+
+
+struct Delivery* build_delivery(char* obj, unsigned int priority, struct Position* position, double mass);
+
+struct Drone* build_drone(struct Position* position, double capacity, double autonomy, double speed, double acceleration);
+
+double Distance(struct Position* position1, struct Position* position2);
+
+double Weight(struct Drone* drone, struct Delivery* delivery, double distance);
+
+int add_target(struct Drone* drone, struct Delivery* delivery);
+
+int can_handle_delivery(struct Drone* drone, struct Delivery* delivery);
