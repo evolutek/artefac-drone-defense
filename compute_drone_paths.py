@@ -136,7 +136,40 @@ def choose_drones_naive(drones:list[utils.Drone], deliveries:list[utils.Delivery
         drone.add_target(delivery)
     return returned_value[2]
 
+"""
+#naive whith commutative plus
+#iterate depending on the dornes not the deliveries
+def choose_drones_naive_opti_aux(drones:list[utils.Drone], deliveries:list[utils.Delivery], tab:dict[utils.Drone:list[utils.Delivery]] = []):
+    min = 0
+    tab_min = tab
+    deliveries_left = deliveries
+    for i in range(len(drones)):
 
+        for j in range(len(drones)):
+            if drones[j].can_handle_delivery(deliveries[i]):
+                drone_value,drone_tab,drone_deliveries = choose_drones_naive_opti_aux(drones, deliveries[:i] + deliveries[i + 1:], tab + [(drones[j], deliveries[i])])
+                if min == 0 or (drone_value < min and len(drone_deliveries) <= len(deliveries_left)):
+                    min = drone_value
+                    tab_min = drone_tab
+                    deliveries_left = drone_deliveries
+
+    if min == 0:
+        max = 0
+        weights = {drone:(drone.weight,drone.position) for drone in drones}
+        for drone,delivery in tab:
+            weights[drone] = (weights[drone][0] + utils.distance(weights[drone][1], delivery.position), delivery.position)
+        
+        for weight in weights.values():
+            if weight[0] > max:
+                max = weight[0]
+        min = max 
+            
+def choose_drones_naive_opti(drones:list[utils.Drone], deliveries:list[utils.Delivery]):
+    returned_value = choose_drones_naive_opti_aux(drones, deliveries)
+    for drone,delivery in returned_value[1]:
+        drone.add_target(delivery)
+    return returned_value[2]
+"""
 
 #Simple test of the function choose_drones_for_deliveries
 

@@ -1,0 +1,4 @@
+*.o
+.venv
+__pycache__
+path
