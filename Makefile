@@ -1,23 +1,16 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -lm -fsanitize=address
+DB-CFLAGS = -Wall -Wextra -fsanitize=address
+CFLAGS = -lm
 
-SRC = utils.c path.c
+SRC_ALGO = src/algo/utils.c
 OBJ = ${SRC:.c=.o}
-DEP = ${SRC:.c=.d}
 
-all: path
+all: algo
 
-path: ${OBJ}
-	${CC} -o $@ $^ ${CFLAGS}
-
-
-
--include ${DEP}
+algo:
+	${CC} ${SRC_ALGO} -o build/$@ ${CFLAGS} ${DB-CFLAGS}
 
 .PHONY: clean
 
 clean:
-	${RM} ${OBJ}
-	${RM} ${DEP}
-	${RM} utils.o
-	${RM} path.o
+	${RM} build/*
