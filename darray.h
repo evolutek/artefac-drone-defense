@@ -74,6 +74,8 @@ bool darray_pop(void* darray, void* out_elem);
  */
 bool darray_remove(void* darray, ssize_t index, void* out_elem);
 
+void darray_clear(void* darray);
+
 size_t _darray_get_field(const void* darray, enum _DarrayField field);
 
 #define darray_add(darray, elem)                                                                   \

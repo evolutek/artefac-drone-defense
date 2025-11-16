@@ -136,6 +136,11 @@ bool darray_remove(void* darray, ssize_t index, void* out_elem) {
     return true;
 }
 
+void darray_clear(void* darray) {
+    struct darray_header* header = ptr_offset_bytes(darray, -HEADER_SIZE);
+    header->size = 0;
+}
+
 size_t _darray_get_field(const void* darray, enum _DarrayField field) {
     struct darray_header* header = ptr_offset_bytes(darray, -HEADER_SIZE);
 
