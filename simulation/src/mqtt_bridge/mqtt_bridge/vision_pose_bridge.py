@@ -40,12 +40,15 @@ class VisionPoseBridge(Node):
         # Parameters
         self.declare_parameter('drone_id', 'drone_1')
         self.declare_parameter('model_name', 'x500_0')
+        self.declare_parameter('namespace', 'drone_1')
 
         self.drone_id = self.get_parameter('drone_id').value
         self.model_name = self.get_parameter('model_name').value
+        self.namespace = self.get_parameter('namespace').value
 
         self.get_logger().info(f'Initializing Vision Odometry Bridge for {self.drone_id}')
         self.get_logger().info(f'Subscribing to Gazebo model: {self.model_name}')
+        self.get_logger().info(f'Publishing to namespace: {self.namespace}')
 
         # QoS profile for MAVROS odometry (BEST_EFFORT to match MAVROS)
         vision_qos = QoSProfile(
@@ -56,9 +59,11 @@ class VisionPoseBridge(Node):
 
         # ROS2 Publisher to MAVROS odometry topic
         # MAVROS expects odometry data in ENU (East-North-Up) frame
+        # Topic is namespaceed for multi-drone support: /{namespace}/mavros/odometry/out
+        self.mavros_odom_topic = f'/{self.namespace}/mavros/odometry/out'
         self.odom_pub = self.create_publisher(
             Odometry,
-            '/mavros/odometry/out',
+            self.mavros_odom_topic,
             vision_qos
         )
 
@@ -106,7 +111,7 @@ class VisionPoseBridge(Node):
         self.get_logger().info(f'  Gazebo pose topic: {self.gz_pose_topic}')
         self.get_logger().info(f'  Gazebo odom topic: {self.gz_odom_topic}')
         self.get_logger().info(f'  Filtering for model: {self.model_name}')
-        self.get_logger().info(f'  Publishing to: /mavros/odometry/out')
+        self.get_logger().info(f'  Publishing to: {self.mavros_odom_topic}')
 
     def publish_static_transforms(self):
         """

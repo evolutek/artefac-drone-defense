@@ -173,8 +173,9 @@ class TestWorldToBodyFrameTransform:
 
         vel_body = self.world_to_body_frame(vel_world, 0.0, 0.0, qz, qw)
 
-        # After 90° yaw, world +X becomes body +Y
-        expected = np.array([0.0, 1.0, 0.0])
+        # After 90° yaw rotation (counter-clockwise when viewed from above),
+        # world +X becomes body -Y (right side of body frame becomes opposite)
+        expected = np.array([0.0, -1.0, 0.0])
         np.testing.assert_array_almost_equal(vel_body, expected, decimal=5)
 
     def test_combined_velocity_components(self):

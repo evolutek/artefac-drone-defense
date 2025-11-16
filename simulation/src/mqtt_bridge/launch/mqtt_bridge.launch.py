@@ -27,14 +27,14 @@ def generate_launch_description():
             description='MQTT broker port'
         ),
         DeclareLaunchArgument(
-            'mavros_namespace',
-            default_value='/mavros',
-            description='MAVROS namespace'
+            'namespace',
+            default_value='drone_1',
+            description='ROS2 namespace for MAVROS topics (e.g., drone_1, drone_2)'
         ),
         DeclareLaunchArgument(
             'model_name',
             default_value='x500_0',
-            description='Gazebo model name'
+            description='Gazebo model name (e.g., x500_0, x500_1)'
         ),
 
         # ROS-Gazebo Bridge (Gazebo Transport → ROS2)
@@ -51,7 +51,8 @@ def generate_launch_description():
         #     ],
         # ),
 
-        # Vision Pose Bridge Node (ROS2 → MAVROS)
+        # Vision Pose Bridge Node (Gazebo Transport → MAVROS)
+        # Subscribes to Gazebo ground truth, publishes to /{namespace}/mavros/odometry/out
         Node(
             package='mqtt_bridge',
             executable='vision_pose_bridge',
@@ -60,10 +61,12 @@ def generate_launch_description():
             parameters=[{
                 'drone_id': LaunchConfiguration('drone_id'),
                 'model_name': LaunchConfiguration('model_name'),
+                'namespace': LaunchConfiguration('namespace'),
             }],
         ),
 
-        # MQTT Bridge Node
+        # MQTT Bridge Node (ROS2 MAVROS → MQTT)
+        # Subscribes to /{namespace}/mavros/*, publishes to MQTT drone/{drone_id}/*
         Node(
             package='mqtt_bridge',
             executable='bridge_node',
@@ -71,9 +74,9 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'drone_id': LaunchConfiguration('drone_id'),
+                'namespace': LaunchConfiguration('namespace'),
                 'mqtt_broker': LaunchConfiguration('mqtt_broker'),
                 'mqtt_port': LaunchConfiguration('mqtt_port'),
-                'mavros_namespace': LaunchConfiguration('mavros_namespace'),
             }],
         ),
     ])

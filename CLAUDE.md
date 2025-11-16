@@ -26,7 +26,7 @@
 
 ```
 simulation/     - PX4 SITL + Gazebo Harmonic (gz sim)
-ros2_core/      - ROS2 Humble + MAVROS + mqtt_bridge package
+ros2_integration/      - ROS2 Humble + MAVROS + mqtt_bridge package
 mqtt/           - Eclipse Mosquitto MQTT broker
 backend/        - FastAPI + SQLite + MQTT client + WebSocket
 frontend/       - React + TypeScript + Nginx
@@ -78,19 +78,31 @@ HEADLESS=0                     # 0=GUI, 1=headless
 ```
 
 ### X11 Display (for Gazebo GUI)
-**⚠️ See [DISPLAY_SETUP.md](DISPLAY_SETUP.md) for detailed multi-OS setup**
+**⚠️ DISPLAY is auto-detected from your shell environment - no manual configuration needed!**
+
+The `./start.sh` script automatically configures X11 based on `HOST_OS` in `.env`.
+
+**Important**:
+- `DISPLAY` is inherited from your shell (e.g., `:0` on X11, `:1` on Wayland+XWayland)
+- Do NOT set `DISPLAY` in `.env` unless you need to override (e.g., remote X11)
+- Use `./start.sh` instead of `docker compose` directly
+
 ```bash
-# Linux
-DISPLAY=:0
-XAUTHORITY=/tmp/.docker.xauth
-# Required: xhost +local:docker
+# Linux - Auto-detected (nothing to configure)
+# The script detects :0 (X11) or :1 (Wayland+XWayland) automatically
 
 # macOS (requires XQuartz)
-DISPLAY=host.docker.internal:0
+# Override in .env only if auto-detection fails:
+# DISPLAY=host.docker.internal:0
 
 # Windows WSL2 (requires VcXsrv/X410)
-DISPLAY=<WINDOWS_HOST_IP>:0
+# Must set in .env:
+# DISPLAY=<WINDOWS_HOST_IP>:0  # Get IP from: ipconfig in Windows
 ```
+
+**Troubleshooting**:
+- Ubuntu 25.04+ often uses Wayland → DISPLAY=:1 (XWayland)
+- If GUI doesn't show: `echo $DISPLAY` and verify it's not hardcoded in `.env`
 
 ### ROS2
 ```bash
@@ -128,13 +140,13 @@ docker compose build --no-cache
 ### ROS2 Debugging
 ```bash
 # List topics
-docker exec -it artefac_ros2_core bash -c "source /opt/ros/humble/setup.bash && ros2 topic list"
+docker exec -it artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic list"
 
 # Monitor MAVROS state
-docker exec -it artefac_ros2_core bash -c "source /opt/ros/humble/setup.bash && ros2 topic echo /mavros/state"
+docker exec -it artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic echo /mavros/state"
 
 # Check node connectivity
-docker exec -it artefac_ros2_core bash -c "source /opt/ros/humble/setup.bash && ros2 node list"
+docker exec -it artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 node list"
 ```
 
 ### PX4 Debugging
@@ -167,6 +179,43 @@ Drone N:
 - `gz_x500_depth` - With depth camera
 - `gz_rc_cessna` - Fixed-wing
 - Custom models in `simulation/models/`
+
+### Dynamic Drone Management ⭐ NEW
+
+**Spawn/Despawn drones at runtime** without restarting the simulation:
+
+```bash
+# Add a drone dynamically
+docker exec -it artefac_ros2_integration bash -c "cd /root && bash simulation/spawn_drone.sh 0"
+# → Spawns drone_1 (x500_0) at default position
+
+docker exec -it artefac_ros2_integration bash -c "cd /root && bash simulation/spawn_drone.sh 1 5 5 0.5"
+# → Spawns drone_2 (x500_1) at position (5, 5, 0.5)
+
+# Remove a drone
+docker exec -it artefac_ros2_integration bash -c "cd /root && bash simulation/despawn_drone.sh 0"
+# → Removes drone_1
+
+# List active drones
+docker exec -it artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic list | grep /drone_"
+```
+
+**What happens when spawning:**
+1. Gazebo spawns `x500_N` model at specified position
+2. PX4 SITL instance N starts (port 14540+N)
+3. MAVROS + vision_bridge + mqtt_bridge launch for `/drone_N/` namespace
+4. Drone operational in ~10-15 seconds
+
+**Current limitations:**
+- Manual spawn/despawn via shell scripts (API coming in v2)
+- Max ~5-6 drones on 8-core CPU (physics real-time constraint)
+- Drone numbering must be sequential for now (0, 1, 2, ...)
+
+**Roadmap (Option B - Full System):**
+- [ ] Backend API: `POST /drones/spawn`, `DELETE /drones/{id}`
+- [ ] Frontend UI: Add/Remove drone buttons
+- [ ] Auto port/ID management
+- [ ] Drone placement grid visualization
 
 ---
 
@@ -277,7 +326,7 @@ artefac-drone-defense/
 │   └── config/
 │       └── mosquitto.conf           # MQTT broker config
 ├── logs/                            # Container logs (gitignored)
-├── docker-compose.yml               # 5 services (simulation, ros2_core, mqtt, backend, frontend)
+├── docker-compose.yml               # 5 services (simulation, ros2_integration, mqtt, backend, frontend)
 ├── .env.example
 ├── CLAUDE.md                        # This file
 └── README.md

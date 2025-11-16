@@ -39,6 +39,18 @@ def generate_launch_description():
         description='Namespace for MAVROS topics'
     )
 
+    system_id_arg = DeclareLaunchArgument(
+        'system_id',
+        default_value='1',
+        description='MAVLink System ID (must match PX4 instance: 1, 2, 3, etc.)'
+    )
+
+    use_sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='true',
+        description='Use simulation time from Gazebo /clock topic'
+    )
+
     # MAVROS node
     mavros_node = Node(
         package='mavros',
@@ -47,12 +59,13 @@ def generate_launch_description():
         namespace=LaunchConfiguration('namespace'),
         output='screen',
         parameters=[{
+            'use_sim_time': LaunchConfiguration('use_sim_time'),
             'fcu_url': LaunchConfiguration('fcu_url'),
             'gcs_url': LaunchConfiguration('gcs_url'),
             'tgt_system': LaunchConfiguration('tgt_system'),
             'tgt_component': LaunchConfiguration('tgt_component'),
             'fcu_protocol': 'v2.0',
-            'system_id': 1,
+            'system_id': LaunchConfiguration('system_id'),
             'component_id': 240,
             # Plugin allowlist - ONLY these plugins will be loaded
             # All other plugins are disabled by default
@@ -101,5 +114,7 @@ def generate_launch_description():
         tgt_system_arg,
         tgt_component_arg,
         namespace_arg,
+        system_id_arg,
+        use_sim_time_arg,
         mavros_node
     ])

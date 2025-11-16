@@ -23,14 +23,17 @@ class MQTTBridgeNode(Node):
 
         # Parameters
         self.declare_parameter('drone_id', 'drone_1')
+        self.declare_parameter('namespace', 'drone_1')
         self.declare_parameter('mqtt_broker', 'mqtt')
         self.declare_parameter('mqtt_port', 1883)
 
         self.drone_id = self.get_parameter('drone_id').value
+        self.namespace = self.get_parameter('namespace').value
         self.mqtt_broker = self.get_parameter('mqtt_broker').value
         self.mqtt_port = self.get_parameter('mqtt_port').value
 
         self.get_logger().info(f'Initializing MQTT Bridge for {self.drone_id}')
+        self.get_logger().info(f'ROS2 Namespace: {self.namespace}')
         self.get_logger().info(f'MQTT Broker: {self.mqtt_broker}:{self.mqtt_port}')
 
         # QoS profiles for subscriptions
@@ -50,63 +53,62 @@ class MQTTBridgeNode(Node):
         )
 
         # ROS2 Subscribers (MAVROS topics)
-        # Note: MAVROS publishes on /mavros/state
+        # Topics are namespaceed for multi-drone support: /{namespace}/mavros/*
         self.state_sub = self.create_subscription(
             State,
-            '/mavros/state',
+            f'/{self.namespace}/mavros/state',
             self.state_callback,
             state_qos
         )
 
-        # Note: MAVROS publishes with 'mavros' namespace for these topics
         self.local_position_sub = self.create_subscription(
             PoseStamped,
-            '/mavros/local_position/pose',
+            f'/{self.namespace}/mavros/local_position/pose',
             self.local_position_callback,
             qos_profile
         )
 
         self.global_position_sub = self.create_subscription(
             NavSatFix,
-            '/mavros/global_position/global',
+            f'/{self.namespace}/mavros/global_position/global',
             self.global_position_callback,
             qos_profile
         )
 
         self.battery_sub = self.create_subscription(
             BatteryState,
-            '/mavros/battery',
+            f'/{self.namespace}/mavros/battery',
             self.battery_callback,
             qos_profile
         )
 
         self.velocity_sub = self.create_subscription(
             TwistStamped,
-            '/mavros/local_position/velocity_local',
+            f'/{self.namespace}/mavros/local_position/velocity_local',
             self.velocity_callback,
             qos_profile
         )
 
         # ROS2 Service Clients (MAVROS services)
-        # Note: MAVROS is launched without namespace, services are directly under /mavros_node
+        # Services are namespaceed: /{namespace}/mavros_node/*
         self.arming_client = self.create_client(
             CommandBool,
-            '/mavros_node/arming'
+            f'/{self.namespace}/mavros_node/arming'
         )
 
         self.set_mode_client = self.create_client(
             SetMode,
-            '/mavros_node/set_mode'
+            f'/{self.namespace}/mavros_node/set_mode'
         )
 
         self.takeoff_client = self.create_client(
             CommandTOL,
-            '/mavros_node/cmd/takeoff'
+            f'/{self.namespace}/mavros_node/cmd/takeoff'
         )
 
         self.land_client = self.create_client(
             CommandTOL,
-            '/mavros_node/cmd/land'
+            f'/{self.namespace}/mavros_node/cmd/land'
         )
 
         # State cache
