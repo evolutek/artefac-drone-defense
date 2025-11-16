@@ -21,7 +21,7 @@ enum _DarrayField {
 
  * my_int_array[1] = -17;
  */
-void* _darray_create(size_t initial_capacity, size_t stride);
+void* darray_create(size_t initial_capacity, size_t stride);
 void darray_destroy(void* darray);
 
 /**
@@ -90,5 +90,7 @@ size_t _darray_get_field(const void* darray, enum _DarrayField field);
 #define darray_capacity(darray) _darray_get_field(darray, DARRAY_FIELD_CAPACITY)
 #define darray_size(darray) _darray_get_field(darray, DARRAY_FIELD_SIZE)
 #define darray_stride(darray) _darray_get_field(darray, DARRAY_FIELD_STRIDE)
+
+#define decl_darray(name, type, capacity) type* name = _darray_create(capacity, sizeof(type))
 
 #endif /* ! DARRAY_H */
