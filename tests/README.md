@@ -56,17 +56,45 @@ tests/
 
 ### EKF2 Convergence Test Suite (`test_ekf2_convergence.py`)
 
+Tests are organized by **EKF2 initialization phases** and execute in sequence with dependencies. Each test depends on the previous phase succeeding. Tests stop on first failure when using `-x` flag.
+
+#### Test Execution Order (Following EKF2 Phases)
+
+**Phase 1: Sensor Initialization (2-5s)**
 | Test | Description | Duration | What it validates |
 |------|-------------|----------|-------------------|
-| `test_vision_bridge_publishes` | Vision bridge publishing rate | ~10s | Vision pose bridge publishes at 45-60 Hz |
-| `test_gazebo_sensors_active` | Gazebo sensor initialization | ~5s | No sensor timeout errors (IMU, Gyro) |
-| `test_ekf2_initialization` | EKF2 startup and alignment | ~20s | EKF2 initializes without critical errors |
-| `test_mavros_receives_vision_data` | MAVROS odometry topic | ~10s | MAVROS receives vision data at >40 Hz |
-| `test_local_position_available` | EKF2 fused output | ~10s | MAVROS publishes local position from EKF2 |
-| `test_gps_free_parameters_applied` | GPS-free configuration | ~5s | Vision fusion parameters correctly set |
+| `test_phase1_gazebo_sensors_active` | Gazebo sensor data via MAVROS | ~10s | MAVROS publishes IMU and magnetometer data |
+| `test_phase1_vision_bridge_active` | Vision bridge publishing rate | ~10s | Vision pose bridge publishes at >40 Hz (typically ~50-100 Hz) |
+
+**Phase 2: EKF2 Initialization (3-10s)**
+| Test | Description | Duration | What it validates |
+|------|-------------|----------|-------------------|
+| `test_phase2_gps_free_parameters_applied` | GPS-free configuration | ~5s | Vision fusion parameters correctly set (EKF2_EV_CTRL=15, etc.) |
+| `test_phase2_mavros_receives_vision_data` | MAVROS odometry topic | ~10s | MAVROS receives vision data at >40 Hz |
+| `test_phase2_ekf2_initialization` | EKF2 startup and alignment | ~20s | EKF2 initializes without critical errors |
+
+**Phase 3: EKF2 Convergence (5-15s)**
+| Test | Description | Duration | What it validates |
+|------|-------------|----------|-------------------|
+| `test_phase3_local_position_available` | EKF2 fused output | ~10s | MAVROS publishes local position from EKF2 with valid values |
+
+**Quick Check (Independent)**
+| Test | Description | Duration | What it validates |
+|------|-------------|----------|-------------------|
 | `test_ekf2_quick_check` | Quick smoke test | ~15s | Basic sanity check (containers + no critical errors) |
 
-**Total runtime:** ~3-5 minutes for full suite
+**Total runtime:** ~3-5 minutes for full suite (phases run sequentially)
+
+**Test Dependencies:**
+```
+Phase 1: Sensors → Vision Bridge
+         ↓
+Phase 2: Parameters → MAVROS Vision → EKF2 Init
+         ↓
+Phase 3: Local Position Available
+```
+
+Use `pytest -x` or `./run_tests.sh -x` to stop on first failure and quickly identify which phase fails.
 
 ---
 
@@ -106,9 +134,34 @@ def test_custom(container_manager):
 
 ## Running Specific Tests
 
+### Run all tests with stop-on-first-failure (recommended)
+```bash
+# Using test script (recommended)
+./run_tests.sh integration -x
+
+# Using pytest directly
+pytest tests/integration/ -v -x -m integration
+```
+
+### Run tests by phase
+```bash
+# Phase 1 only (sensor initialization)
+pytest tests/integration/test_ekf2_convergence.py -v -k phase1
+
+# Phase 2 only (EKF2 initialization)
+pytest tests/integration/test_ekf2_convergence.py -v -k phase2
+
+# Phase 3 only (EKF2 convergence) - requires Phase 1 & 2 to pass
+pytest tests/integration/test_ekf2_convergence.py -v -k phase3
+```
+
 ### Run a single test
 ```bash
-./run_tests.sh -k test_vision_bridge_publishes
+# Specific phase test
+./run_tests.sh -k test_phase1_gazebo_sensors_active
+
+# Quick check only
+./run_tests.sh -k test_ekf2_quick_check
 ```
 
 ### Run tests matching a pattern
@@ -118,7 +171,7 @@ pytest tests/integration/ -v -k "ekf2 or vision"
 
 ### Run only the test class
 ```bash
-pytest tests/integration/test_ekf2_convergence.py::TestEKF2Convergence -v
+pytest tests/integration/test_ekf2_convergence.py::TestEKF2Convergence -v -x
 ```
 
 ### Run with markers
@@ -214,14 +267,16 @@ pytest tests/integration/test_ekf2_convergence.py::test_ekf2_quick_check -v -s
 2. View logs: `docker compose logs simulation`
 3. Increase timeout in `docker_helpers.py` (default: 120s)
 
-### "No sensor timeout detected" assertion fails
+### "No IMU data from MAVROS" assertion fails
 
-**Cause:** Gazebo not providing sensor data to PX4.
+**Cause:** Gazebo not providing sensor data to PX4, or MAVROS not connected.
 
 **Solution:**
 - **macOS:** Ensure `HEADLESS=0` (GUI mode required for sensors)
 - **Linux:** Check GPU access with `nvidia-smi`
 - Verify Gazebo process: `docker exec artefac_simulation ps aux | grep gz`
+- Check MAVROS connection: `docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic list | grep mavros"`
+- Manually test IMU topic: `docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic echo /mavros/imu/data --once"`
 
 ### "Vision bridge not publishing odometry"
 

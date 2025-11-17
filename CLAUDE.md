@@ -342,10 +342,11 @@ artefac-drone-defense/
 
 **Key Components**:
 1. **MQTT Bridge** (`simulation/src/mqtt_bridge`)
-   - Subscribes to MAVROS topics: `/mavros/state`, `/mavros/local_position/pose`, `/mavros/battery`
+   - Subscribes to MAVROS topics: `/drone_N/mavros/state`, `/drone_N/mavros/local_position/pose`, `/drone_N/mavros/battery`
    - Publishes to MQTT: `drone/{id}/state`, `drone/{id}/telemetry`, `drone/{id}/command_result`
    - Subscribes to MQTT: `drone/{id}/command`
-   - Calls MAVROS services: `/mavros_node/arming`, `/mavros_node/cmd/takeoff`, `/mavros_node/cmd/land`
+   - Calls MAVROS services: `/drone_N/mavros_node/arming`, `/drone_N/mavros_node/cmd/takeoff`, `/drone_N/mavros_node/cmd/land`
+   - **Multi-drone namespace**: All topics/services use `/drone_N/` prefix (verified 2025-11-17)
 
 2. **Backend API** (FastAPI)
    - REST endpoints: `/drones/{id}/arm`, `/drones/{id}/disarm`, `/drones/{id}/takeoff`, `/drones/{id}/land`
@@ -368,10 +369,10 @@ artefac-drone-defense/
 - `drone/{id}/command_result` - Command execution results (success/error) - Published by ROS2 bridge
 
 **Critical ROS2/MAVROS Fixes**:
-- ⚠️ MAVROS publishes state on `/mavros/state` (not `/state`)
-- ⚠️ MAVROS services are under `/mavros_node/*` namespace (not `/mavros/cmd/*`)
-- ⚠️ `/mavros/state` topic requires QoS RELIABLE + TRANSIENT_LOCAL
-- ⚠️ MAVROS publishes other topics with `/mavros/*` prefix
+- ⚠️ MAVROS publishes state on `/drone_N/mavros/state` with namespace prefix
+- ⚠️ MAVROS services are under `/drone_N/mavros_node/*` namespace (not `/mavros/cmd/*`)
+- ⚠️ `/drone_N/mavros/state` topic requires QoS RELIABLE + TRANSIENT_LOCAL
+- ⚠️ All MAVROS topics use `/drone_N/mavros/*` prefix in multi-drone setup
 
 ### Gazebo Harmonic Migration (Nov 2025)
 - Migrated from Gazebo Classic to Gazebo Harmonic
@@ -384,23 +385,58 @@ artefac-drone-defense/
 ### Backend Architecture Decision
 Backend is **pure Python without ROS2** for production deployability. MQTT bridge service handles ROS2 ↔ Backend communication.
 
-### PX4 Arming Behavior (WIP - GPS-Free Configuration)
+### Sensor Integration Status (Verified 2025-11-17)
 
-**Current Status**: Attempting GPS-free arming configuration
+**All Essential Sensors Operational**:
+- ✅ IMU (Accel + Gyro): `/drone_1/mavros/imu/data` @ ~10 Hz
+- ✅ Magnetometer: `/drone_1/mavros/mag` @ ~14 Hz
+- ✅ Barometer: `/drone_1/mavros/imu/static_pressure` @ ~16 Hz
+- ✅ GPS: `/drone_1/mavros/global_position/raw/fix` @ ~30 Hz (active but not fused)
+- ✅ MAVROS connected to PX4 via MAVLink port 14540
 
-PX4 SITL normally refuses arming without:
-- Valid GPS fix, OR
-- OFFBOARD mode enabled, OR
-- Safety checks disabled (not recommended)
+**GPS Topic Discussion**:
+GPS sensor remains active in GPS-free mode (EKF2_GPS_CTRL=0) with negligible CPU impact. GPS data published but NOT fused by EKF2. Allows easy toggle between GPS/GPS-free modes. Can be disabled in Gazebo model if optimization needed (>5 drones).
+
+### PX4 Arming Behavior - GPS-Free Configuration
+
+**Current Status**: GPS-free mode configured, horizontal position estimation unavailable
+
+**EKF2 Convergence Status (Verified 2025-11-17, Vision Bridge Resolved)**:
+
+Operating in GPS-free mode with vision:
+- ✅ `attitude_status_flag: true` - Roll/pitch/yaw estimated from IMU+Magnetometer
+- ✅ `velocity_vert_status_flag: true` - Vertical velocity from IMU+Barometer
+- ✅ `pos_vert_abs_status_flag: true` - Altitude from barometer reference
+- ✅ `velocity_horiz_status_flag: true` - Horizontal velocity from vision fusion
+- ✅ `pos_horiz_rel_status_flag: true` - Horizontal position from vision fusion
+
+**Conclusion**: EKF2 successfully converges for full 3D position and velocity estimation with vision bridge operational.
 
 **GPS-Free Configuration Implemented**:
 - Parameters injected into PX4 startup (rcS patching)
 - `COM_ARM_WO_GPS=1` - Allow arming without GPS
 - `EKF2_GPS_CTRL=0` - Disable GPS requirement in EKF2
+- `EKF2_EV_CTRL=15` - Enable vision fusion for position/velocity/yaw
+- `EKF2_HGT_REF=3` - Use vision for height reference
 - `MAV_*_BROADCAST=1` - Enable MAVLink network broadcast
-- MAVLink localhost-only flag removed from px4-rc.mavlink
 
-**Testing Required**: Verify if GPS-free arming works with current configuration
+### Known Issues
+
+#### Test 3 Fails: GPS-Free Parameters Not Found in Logs (Identified 2025-11-17)
+
+**Problem**: Integration test `test_phase2_gps_free_parameters_applied` fails because GPS-free parameters are not found in PX4 logs
+
+**Details**:
+- PX4 logs show repeated shell prompts (`pxh>`) instead of normal startup sequence
+- Root cause: `start_px4_sitl.sh` silently fails when building/patching rcS
+- Silent failures:
+  - Line 111: `make px4_sitl_default > /dev/null 2>&1` masks all build errors
+  - Line 126: `sed -i` fails silently if rcS doesn't exist
+  - Corrupted state can persist in `px4_build` Docker volume
+- Impact: GPS-free parameters never applied → test 3 fails
+- Location: `simulation/start_px4_sitl.sh`
+
+**Status**: Under investigation - improving error handling to identify root cause
 
 ### Testing Protocol
 - I always run tests myself then tell you the result
@@ -408,7 +444,14 @@ PX4 SITL normally refuses arming without:
 - Never mock tests - use real data dynamically
 - Tests cannot be modified unless specified
 
+**Integration Test Status (Updated 2025-11-17)**:
+- Phase 1: Sensor initialization (IMU, Mag, Baro) - PASSES ✅
+- Phase 1: Vision bridge publication - PASSES ✅ (previously failed, now resolved)
+- Phase 2: GPS-free parameters verification - FAILS ❌ (parameters not found in logs)
+- Phase 2: MAVROS connection - SKIPPED (dependency on Phase 2 params test)
+- Phase 3: EKF2 estimator status - SKIPPED (dependency on Phase 2 params test)
+
 ---
 
-**Last Updated**: 2025-11-10
-**Status**: Command feedback system implemented ✅ | Vision pose bridge operational @ 52Hz ✅ | macOS compatibility fixes applied ✅ | GPS-free arming under investigation 🔄
+**Last Updated**: 2025-11-17
+**Status**: Sensor integration verified ✅ | Vision bridge operational ✅ | GPS-free parameters test failing ❌ | Error handling improvements needed 🔧

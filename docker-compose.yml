@@ -86,16 +86,16 @@ services:
         source install/setup.bash &&
         echo 'Waiting for PX4 SITL to be ready...' &&
         sleep 5 &&
-        echo 'Launching MAVROS...' &&
-        ros2 launch mavros_launcher px4_sitl.launch.py fcu_url:=udp://:14540@127.0.0.1:14580 &
+        echo 'Launching MAVROS (without sim_time)...' &&
+        ros2 launch mavros_launcher px4_sitl.launch.py fcu_url:=udp://:14540@127.0.0.1:14580 namespace:=drone_1 &
         MAVROS_PID=\$$! &&
         echo 'Waiting for MAVROS services to be available...' &&
-        until source /opt/ros/humble/setup.bash && ros2 service list 2>/dev/null | grep -q 'mavros_node/arming'; do
+        until source /opt/ros/humble/setup.bash && ros2 service list 2>/dev/null | grep -q 'drone_1/mavros_node/arming'; do
           echo 'Still waiting for MAVROS services...' &&
           sleep 2;
         done &&
         echo 'MAVROS ready! Enabling vision pose forwarding...' &&
-        ros2 param set /mavros_node global_position.use_vision true &&
+        ros2 param set /drone_1/mavros_node global_position.use_vision true &&
         echo 'Vision pose enabled! ✓' &&
         echo 'MAVROS services ready! Launching MQTT Bridge...' &&
         ros2 launch mqtt_bridge mqtt_bridge.launch.py drone_id:=drone_1 mqtt_broker:=localhost &&

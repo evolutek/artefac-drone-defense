@@ -137,20 +137,29 @@ def container_manager():
     manager.stop_services()
 
 
-@pytest.fixture(scope="function")
-def simulation_containers(container_manager):
+@pytest.fixture(scope="class")
+def simulation_containers(request):
     """
     Start simulation and ROS2 integration containers for EKF2 tests.
 
     This is the minimal set needed to test PX4 SITL + Gazebo + MAVROS.
+
+    Scope: class - Containers are started once per test class and reused.
+    This significantly speeds up test execution by avoiding container restarts.
     """
-    containers = container_manager.start_services(["simulation", "ros2_integration"])
+    manager = ContainerManager()
+    containers = manager.start_services(["simulation", "ros2_integration"])
 
     # Give extra time for PX4 to initialize
     print("⏳ Allowing 10s for PX4 initialization...")
     time.sleep(10)
 
-    return containers
+    yield containers
+
+    # Cleanup after all tests in the class are done
+    # Only stop if --keep-containers flag is not set
+    if not request.config.getoption("--keep-containers"):
+        manager.stop_services()
 
 
 @pytest.fixture(scope="function")

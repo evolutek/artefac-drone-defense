@@ -21,6 +21,7 @@ from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 import numpy as np
 import threading
+import time
 
 # Gazebo Transport imports
 try:
@@ -351,13 +352,24 @@ def main(args=None):
     rclpy.init(args=args)
     node = VisionPoseBridge()
 
+    # CRITICAL FIX: Run rclpy.spin() in a separate thread
+    # gz.transport13 (C++) needs the main thread available for its internal callback threads
+    # If rclpy.spin() blocks the main thread, gz.transport callbacks never execute
+    spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
+    spin_thread.start()
+
+    node.get_logger().info('ROS2 node spinning in separate thread, main thread available for gz.transport')
+
     try:
-        rclpy.spin(node)
+        # Keep main thread alive for gz.transport internal threads
+        # This allows gz.transport callbacks to execute properly
+        while rclpy.ok():
+            time.sleep(0.1)
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
         rclpy.shutdown()
+        node.destroy_node()
 
 
 if __name__ == '__main__':

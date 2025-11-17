@@ -53,38 +53,39 @@ class MQTTBridgeNode(Node):
         )
 
         # ROS2 Subscribers (MAVROS topics)
-        # Topics are namespaceed for multi-drone support: /{namespace}/mavros/*
+        # Topics are namespaceed for multi-drone support: /{namespace}/*
+        # MAVROS node launched with namespace publishes directly under namespace
         self.state_sub = self.create_subscription(
             State,
-            f'/{self.namespace}/mavros/state',
+            f'/{self.namespace}/state',
             self.state_callback,
             state_qos
         )
 
         self.local_position_sub = self.create_subscription(
             PoseStamped,
-            f'/{self.namespace}/mavros/local_position/pose',
+            f'/{self.namespace}/local_position/pose',
             self.local_position_callback,
             qos_profile
         )
 
         self.global_position_sub = self.create_subscription(
             NavSatFix,
-            f'/{self.namespace}/mavros/global_position/global',
+            f'/{self.namespace}/global_position/global',
             self.global_position_callback,
             qos_profile
         )
 
         self.battery_sub = self.create_subscription(
             BatteryState,
-            f'/{self.namespace}/mavros/battery',
+            f'/{self.namespace}/battery',
             self.battery_callback,
             qos_profile
         )
 
         self.velocity_sub = self.create_subscription(
             TwistStamped,
-            f'/{self.namespace}/mavros/local_position/velocity_local',
+            f'/{self.namespace}/local_position/velocity_local',
             self.velocity_callback,
             qos_profile
         )

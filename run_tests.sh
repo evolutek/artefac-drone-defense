@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default values
-TEST_TYPE="integration"  # Default to integration tests
+TEST_TYPE="all"  # Default to all tests (unit first, then integration)
 TEST_SUBTYPE=""  # For unit backend/ros2/frontend
 VERBOSE=false
 STOP_ON_FAIL=false
@@ -24,12 +24,13 @@ print_usage() {
     echo "Usage: $0 [test_type] [options]"
     echo ""
     echo "Test Types:"
+    echo "  all               Run all tests: unit first, then integration (default)"
     echo "  unit              Run unit tests only (no Docker required)"
     echo "  unit backend      Run backend unit tests"
     echo "  unit ros2         Run ROS2 bridge unit tests"
     echo "  unit frontend     Run frontend unit tests"
     echo "  integration       Run integration tests (requires Docker)"
-    echo "  (no argument)     Run integration tests (default)"
+    echo "  (no argument)     Run all tests (unit + integration)"
     echo ""
     echo "Options:"
     echo "  -v, --verbose        Verbose output (show print statements)"
@@ -42,19 +43,24 @@ print_usage() {
     echo "  -h, --help           Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0 unit                               # Run all unit tests"
+    echo "  $0                                    # Run all tests (unit + integration)"
+    echo "  $0 unit                               # Run all unit tests only"
     echo "  $0 unit backend                       # Run backend unit tests"
-    echo "  $0 integration                        # Run integration tests"
-    echo "  $0 -v                                 # Run integration tests (verbose)"
+    echo "  $0 integration                        # Run integration tests only"
+    echo "  $0 -v                                 # Run all tests (verbose)"
     echo "  $0 unit -k test_create_drone          # Run specific unit test"
     echo "  $0 --quick                            # Run quick smoke test only"
-    echo "  $0 integration -x --keep              # Stop on fail, keep containers"
+    echo "  $0 integration -x --keep              # Integration tests, stop on fail, keep containers"
 }
 
 # Parse command line arguments
 # First, check if first argument is a test type
 if [[ $# -gt 0 ]]; then
     case $1 in
+        all)
+            TEST_TYPE="all"
+            shift
+            ;;
         unit)
             TEST_TYPE="unit"
             shift
@@ -119,9 +125,14 @@ if [ "$TEST_TYPE" = "unit" ]; then
     echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${BLUE}║            Artefac Drone Defense - Unit Tests                  ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
-else
+elif [ "$TEST_TYPE" = "integration" ]; then
     echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${BLUE}║         Artefac Drone Defense - Integration Tests              ║${NC}"
+    echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
+else
+    echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║           Artefac Drone Defense - Full Test Suite              ║${NC}"
+    echo -e "${BLUE}║         (Unit Tests → Integration Tests)                       ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 fi
 echo ""
@@ -146,50 +157,72 @@ fi
 echo -e "${GREEN}✓ Dependencies installed${NC}"
 echo ""
 
-# Build pytest command based on test type
-if [ "$TEST_TYPE" = "unit" ]; then
-    # Unit tests don't need Docker
-    if [ -n "$TEST_SUBTYPE" ]; then
-        PYTEST_CMD="pytest tests/unit/$TEST_SUBTYPE/"
+# Function to build pytest command
+build_pytest_cmd() {
+    local test_path=$1
+    local cmd="pytest $test_path"
+
+    if [ "$VERBOSE" = true ]; then
+        cmd="$cmd -v -s"
     else
-        PYTEST_CMD="pytest tests/unit/"
+        cmd="$cmd -v"
     fi
-else
-    # Integration tests require Docker
+
+    if [ "$STOP_ON_FAIL" = true ]; then
+        cmd="$cmd -x"
+    fi
+
+    if [ -n "$TEST_FILTER" ]; then
+        cmd="$cmd -k '$TEST_FILTER'"
+    fi
+
+    cmd="$cmd --color=yes"
+
+    echo "$cmd"
+}
+
+# Function to run unit tests
+run_unit_tests() {
+    local test_subpath=$1
+
+    echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║                   Running Unit Tests...                        ║${NC}"
+    echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    if [ -n "$test_subpath" ]; then
+        PYTEST_CMD=$(build_pytest_cmd "tests/unit/$test_subpath/")
+    else
+        PYTEST_CMD=$(build_pytest_cmd "tests/unit/")
+    fi
+
+    eval $PYTEST_CMD
+    return $?
+}
+
+# Function to run integration tests
+run_integration_tests() {
+    echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║                Running Integration Tests...                    ║${NC}"
+    echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
     # Stop any existing containers
     echo -e "${YELLOW}Stopping any existing containers...${NC}"
     docker compose down --remove-orphans > /dev/null 2>&1 || true
     echo -e "${GREEN}✓ Cleaned up existing containers${NC}"
     echo ""
 
-    PYTEST_CMD="pytest tests/integration/"
-fi
-
-if [ "$VERBOSE" = true ]; then
-    PYTEST_CMD="$PYTEST_CMD -v -s"
-else
-    PYTEST_CMD="$PYTEST_CMD -v"
-fi
-
-if [ "$STOP_ON_FAIL" = true ]; then
-    PYTEST_CMD="$PYTEST_CMD -x"
-fi
-
-if [ -n "$TEST_FILTER" ]; then
-    PYTEST_CMD="$PYTEST_CMD -k '$TEST_FILTER'"
-fi
-
-if [ "$KEEP_CONTAINERS" = true ] && [ "$TEST_TYPE" = "integration" ]; then
-    PYTEST_CMD="$PYTEST_CMD --keep-containers"
-fi
-
-# Add markers
-if [ "$TEST_TYPE" = "integration" ]; then
+    PYTEST_CMD=$(build_pytest_cmd "tests/integration/")
     PYTEST_CMD="$PYTEST_CMD -m integration"
-fi
 
-# Add color
-PYTEST_CMD="$PYTEST_CMD --color=yes"
+    if [ "$KEEP_CONTAINERS" = true ]; then
+        PYTEST_CMD="$PYTEST_CMD --keep-containers"
+    fi
+
+    eval $PYTEST_CMD
+    return $?
+}
 
 # Show configuration
 echo -e "${BLUE}Test Configuration:${NC}"
@@ -199,7 +232,7 @@ if [ -n "$TEST_SUBTYPE" ]; then
 fi
 echo -e "  Verbose:         $VERBOSE"
 echo -e "  Stop on fail:    $STOP_ON_FAIL"
-if [ "$TEST_TYPE" = "integration" ]; then
+if [ "$TEST_TYPE" = "integration" ] || [ "$TEST_TYPE" = "all" ]; then
     echo -e "  Keep containers: $KEEP_CONTAINERS"
 fi
 if [ -n "$TEST_FILTER" ]; then
@@ -207,14 +240,41 @@ if [ -n "$TEST_FILTER" ]; then
 fi
 echo ""
 
-# Run tests
-echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║                    Running Tests...                            ║${NC}"
-echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
-echo ""
+# Run tests based on type
+TEST_EXIT_CODE=0
 
-eval $PYTEST_CMD
-TEST_EXIT_CODE=$?
+if [ "$TEST_TYPE" = "all" ]; then
+    # Run unit tests first
+    run_unit_tests "$TEST_SUBTYPE"
+    UNIT_EXIT_CODE=$?
+
+    if [ $UNIT_EXIT_CODE -ne 0 ]; then
+        echo ""
+        echo -e "${RED}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${RED}║              ✗ Unit Tests Failed!                              ║${NC}"
+        echo -e "${RED}║         Skipping integration tests (fail-fast)                 ║${NC}"
+        echo -e "${RED}╚════════════════════════════════════════════════════════════════╝${NC}"
+        TEST_EXIT_CODE=$UNIT_EXIT_CODE
+    else
+        echo ""
+        echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${GREEN}║              ✓ Unit Tests Passed!                              ║${NC}"
+        echo -e "${GREEN}║         Proceeding to integration tests...                     ║${NC}"
+        echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+
+        # Run integration tests
+        run_integration_tests
+        TEST_EXIT_CODE=$?
+    fi
+elif [ "$TEST_TYPE" = "unit" ]; then
+    run_unit_tests "$TEST_SUBTYPE"
+    TEST_EXIT_CODE=$?
+else
+    # integration
+    run_integration_tests
+    TEST_EXIT_CODE=$?
+fi
 
 echo ""
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"

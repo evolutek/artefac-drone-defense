@@ -12,7 +12,7 @@ def generate_launch_description():
     fcu_url_arg = DeclareLaunchArgument(
         'fcu_url',
         default_value='udp://:14540@127.0.0.1:14580',
-        description='FCU connection URL (MAVLink UDP protocol - local:14540@remote:14580)'
+        description='FCU connection URL (MAVLink UDP protocol - MAVROS listens:14540, PX4 listens:14580)'
     )
 
     gcs_url_arg = DeclareLaunchArgument(
@@ -47,7 +47,7 @@ def generate_launch_description():
 
     use_sim_time_arg = DeclareLaunchArgument(
         'use_sim_time',
-        default_value='true',
+        default_value='false',
         description='Use simulation time from Gazebo /clock topic'
     )
 

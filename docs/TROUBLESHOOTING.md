@@ -25,20 +25,35 @@ docker compose logs --tail 50 mqtt
 
 **Check MAVROS is connected to PX4:**
 ```bash
-docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic echo /mavros/state --once"
+docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic echo /drone_1/mavros/state --once"
 # Expected: connected: true
 ```
 
-**List all MAVROS services:**
+**List all MAVROS services (drone_1):**
 ```bash
-docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 service list | grep mavros"
-# Should show: /mavros_node/arming, /mavros_node/set_mode, /mavros_node/cmd/takeoff, etc.
+docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 service list | grep /drone_1/mavros"
+# Should show: /drone_1/mavros_node/arming, /drone_1/mavros_node/set_mode, /drone_1/mavros_node/cmd/takeoff, etc.
 ```
 
 **Test arming service directly:**
 ```bash
-docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 service call /mavros_node/arming mavros_msgs/srv/CommandBool '{value: true}'"
+docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 service call /drone_1/mavros_node/arming mavros_msgs/srv/CommandBool '{value: true}'"
 # Response: success=true/false, result=<code>
+```
+
+**Verify sensor topics are publishing:**
+```bash
+# IMU data
+docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic hz /drone_1/mavros/imu/data"
+# Expected: ~10 Hz
+
+# Magnetometer
+docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic hz /drone_1/mavros/mag"
+# Expected: ~14 Hz
+
+# Barometer
+docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic hz /drone_1/mavros/imu/static_pressure"
+# Expected: ~16 Hz
 ```
 
 ---
@@ -117,18 +132,18 @@ docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash 
 
 **Check topic frequency:**
 ```bash
-docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic hz /mavros/vision_pose/pose"
-# Expected: ~50 Hz
+docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic hz /drone_1/mavros/vision_pose/pose"
+# Expected: ~50 Hz (currently 0 Hz due to vision bridge issue)
 ```
 
 **Check topic bandwidth:**
 ```bash
-docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic bw /mavros/local_position/pose"
+docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic bw /drone_1/mavros/local_position/pose"
 ```
 
 **Echo a topic (single message):**
 ```bash
-docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic echo /mavros/local_position/pose --once"
+docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic echo /drone_1/mavros/local_position/pose --once"
 ```
 
 ---
@@ -139,18 +154,25 @@ docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash 
 ```bash
 docker logs artefac_ros2_integration 2>&1 | grep vision_pose_bridge | tail -10
 # Expected: [INFO] Vision pose published: pos=[x, y, z] (XX msgs/sec)
+# KNOWN ISSUE (2025-11-17): Callbacks NOT triggered - see "Vision pose bridge not publishing" section
 ```
 
-**Verify vision data reaches MAVROS:**
+**Verify vision data reaches MAVROS (if working):**
 ```bash
-docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic echo /mavros/vision_pose/pose --once"
-# Expected: Real pose data from Gazebo
+docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic echo /drone_1/mavros/vision_pose/pose --once"
+# Expected: Real pose data from Gazebo (currently not publishing due to known issue)
 ```
 
 **Check Gazebo model pose:**
 ```bash
 docker exec artefac_simulation gz model -m x500_0 -p
 # Compare with vision bridge output
+```
+
+**Check EKF2 estimator flags:**
+```bash
+docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic echo /drone_1/mavros/estimator_status --once"
+# Look for: attitude_status_flag, velocity_horiz_status_flag, pos_horiz_rel_status_flag
 ```
 
 ---
@@ -229,16 +251,23 @@ docker logs artefac_simulation | grep -i "ekf2"
 
 ---
 
-### Issue: Vision pose bridge not publishing
+### Issue: Vision pose bridge not publishing (CRITICAL ISSUE - 2025-11-17)
 
 **Symptoms:**
 - No "Vision pose published" in logs
-- EKF2 reports "missing data"
+- Node `/vision_pose_bridge` running but callbacks NOT triggered
+- EKF2 horizontal position flags remain false (`velocity_horiz_status_flag`, `pos_horiz_rel_status_flag`)
 
 **Diagnosis:**
 ```bash
 # Check vision_pose_bridge node is running
 docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 node list | grep vision"
+# Expected: /vision_pose_bridge (but not publishing)
+
+# Verify Gazebo topics exist and publish data
+docker exec artefac_simulation gz topic -e -t /world/default/dynamic_pose/info -n 1
+docker exec artefac_simulation gz topic -e -t /model/x500_0/odometry -n 1
+# Both should output pose/odometry data
 
 # Check for errors in logs
 docker compose logs ros2_integration | grep -i "vision\|error"
@@ -248,10 +277,26 @@ docker exec artefac_ros2_integration dpkg -l | grep gz-transport
 # Expected: python3-gz-transport13
 ```
 
-**Solutions:**
-- Rebuild ROS2 integration container: `docker compose build --no-cache ros2_integration && docker compose up -d ros2_integration`
-- Check Gazebo simulation is publishing poses (see Gazebo Simulation section)
-- Verify model name matches Gazebo model: `gz model -l` should show `x500_0`
+**Root Cause (Identified 2025-11-17):**
+Threading/event loop conflict between `gz.transport13` (C++) and `rclpy` (Python). The Gazebo Transport Python bindings create subscriptions successfully but callbacks are never invoked due to threading model incompatibility.
+
+**Current Status:**
+- Gazebo subscriptions created: `/world/default/dynamic_pose/info` and `/model/x500_0/odometry` ✓
+- Gazebo topics exist and publish data ✓
+- Python callbacks in `vision_pose_bridge.py` NOT triggered ✗
+- Impact: No horizontal position estimation (EKF2 only provides attitude + vertical position)
+
+**Potential Solutions (Under Investigation):**
+1. **Separate process architecture**: Launch vision bridge as standalone process (not in same Python context as ROS2 node)
+2. **C++ implementation**: Rewrite vision bridge in C++ for native `gz.transport` threading
+3. **Alternative bridge**: Use `ros_gz_bridge` package instead of custom Python bridge
+4. **Threading fixes**: Investigate `gz.transport` Python threading configuration
+
+**Workarounds:**
+None currently. System remains functional for attitude and vertical position estimation. Horizontal position requires external solution (GPS, OptiTrack, or vision bridge fix).
+
+**Test Coverage:**
+Integration test `tests/integration/test_ekf2_convergence.py` documents this issue and will detect when fixed.
 
 ---
 
@@ -357,10 +402,11 @@ docker compose logs ros2_integration | grep -C 3 "arm"
 Before reporting an issue, verify:
 
 - [ ] All containers are running: `docker compose ps`
-- [ ] MAVROS connected: `ros2 topic echo /mavros/state --once`
+- [ ] MAVROS connected: `ros2 topic echo /drone_1/mavros/state --once`
 - [ ] MQTT broker reachable: `mosquitto_sub -t "drone/#" -v`
-- [ ] Vision bridge publishing: Check logs for "Vision pose published"
+- [ ] Sensors publishing: Check IMU (~10 Hz), Mag (~14 Hz), Baro (~16 Hz)
 - [ ] PX4 GPS-free params set: `docker logs artefac_simulation | grep COM_ARM_WO_GPS`
+- [ ] EKF2 converged: Check `/drone_1/mavros/estimator_status` flags
 - [ ] No errors in logs: `docker compose logs | grep -i error`
 
 ---
@@ -373,4 +419,4 @@ Before reporting an issue, verify:
 
 ---
 
-**Last Updated**: 2025-11-10
+**Last Updated**: 2025-11-17

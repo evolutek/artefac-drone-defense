@@ -110,6 +110,9 @@ COPY config/px4_params_no_gps.params /root/config/px4_params_no_gps.params
 COPY config/rcS_no_gps /root/config/rcS_no_gps
 RUN chmod +x /root/config/rcS_no_gps
 
+# Copy custom x500 model with odometry plugin
+COPY models/x500/model.sdf /tmp/x500_model_custom.sdf
+
 # Inject GPS-free parameters into PX4 startup (before build)
 WORKDIR /root/PX4-Autopilot
 RUN mkdir -p ROMFS/px4fmu_common/init.d-posix 
@@ -119,6 +122,9 @@ RUN chmod +x ROMFS/px4fmu_common/init.d-posix/rc.autostart_ext
 # Build PX4 SITL without running simulation
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
     make px4_sitl_default"
+
+# Replace default x500 model with custom model that includes odometry publisher
+RUN cp /tmp/x500_model_custom.sdf /root/PX4-Autopilot/Tools/simulation/gz/models/x500/model.sdf
 
 # Set environment variables
 ENV PX4_HOME_LAT=43.6047
