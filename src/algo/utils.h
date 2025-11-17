@@ -18,7 +18,7 @@ typedef struct Item {
 typedef struct Delivery {
 	Item *items;
 	uint16_t quantity;
-	uint8_t priority;	// 0 -> Max priority | 5 -> Min priority
+	uint8_t priority;	// 0 -> Max priority | 5 -> Min priority
 	Position *position;
 	uint32_t mass;		// In grams
 } Delivery;
@@ -29,13 +29,13 @@ typedef struct Drone {
 	uint8_t max_speed;		// In m/s
 	uint8_t acceleration;	// In m/s²
 	// Battery
-	uint16_t energy;				// In Wh
-	uint16_t max_flight_time;		// In minutes
-	uint16_t max_flight_time_speed;	// In km/h
+	float energy;					// In Wh
+	uint16_t max_flight_time;		// In s
+	uint8_t max_flight_time_speed;	// In m/s
 
 	// Operating characteristics
 	uint32_t payload;	// In grams
-	uint16_t autonomy;	// In Wh
+	float autonomy;		// In Wh
 	Position *position;
 	Delivery *targets;
 	uint8_t nb_targets;
@@ -54,10 +54,9 @@ Delivery *new_delivery(Item *const items, const uint16_t quantity,
 		const uint8_t priority, Position *const position, const uint32_t mass);
 
 Drone *new_drone(const uint32_t max_capacity, const uint8_t max_speed,
-		const uint8_t acceleration, const uint16_t energy,
-		const uint16_t max_flight_time, const uint16_t max_flight_time_speed,
-		const uint32_t payload, const uint16_t autonomy, Position *const position,
-		Delivery *const targets,
-		const uint8_t nb_targets, float cost);
+		const uint8_t acceleration, const float energy,
+		const uint16_t max_flight_time, const uint8_t max_flight_time_speed,
+		const uint32_t payload, const float autonomy, Position *const position,
+		Delivery *const targets, const uint8_t nb_targets, float cost);
 
 uint32_t distance(const Position *pos1, const Position *pos2);

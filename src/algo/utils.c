@@ -35,11 +35,10 @@ Delivery *new_delivery(Item *const items, const uint16_t quantity,
 }
 
 Drone *new_drone(const uint32_t max_capacity, const uint8_t max_speed,
-		const uint8_t acceleration, const uint16_t energy,
-		const uint16_t max_flight_time, const uint16_t max_flight_time_speed,
-		const uint32_t payload, const uint16_t autonomy, Position *const position,
-		Delivery *const targets,
-		const uint8_t nb_targets, float cost) {
+		const uint8_t acceleration, const float energy,
+		const uint16_t max_flight_time, const uint8_t max_flight_time_speed,
+		const uint32_t payload, const float autonomy, Position *const position,
+		Delivery *const targets, const uint8_t nb_targets, float cost) {
 	Drone *drone = malloc(sizeof(Drone));
 
 	drone->max_capacity = max_capacity;
@@ -60,20 +59,45 @@ Drone *new_drone(const uint32_t max_capacity, const uint8_t max_speed,
 	return drone;
 }
 
-uint32_t distance(const Position *pos1, const Position *pos2) {
+uint32_t distance_2D(const Position *pos1, const Position *pos2) {
 	float dx = pos2->x - pos1->x;
 	float dy = pos2->y - pos1->y;
 	return (uint32_t) sqrtf(dx * dx + dy * dy);
+}
+
+// distance in m, speed in m/s, charge in g
+// Calculate the estimate consumption in Wh with the following formula :
+// (distance * speed / max_flight_time * max_flight_time_speed * max_flight_time_speed) * energy 
+// 		+ (charge / max_capacity) * (energy / 2)
+// Indeed : 
+// 		consumption(drone, max_flight_time * max_flight_time_speed, max_flight_time_speed, 0) = energy
+// 		consumption(drone, 0, speed, charge) = 0
+// 		consumption(drone, distance, 0, charge) = 0
+// O consumption means that the drone can't flight under the current conditions
+float consumption(Drone *drone, uint32_t distance, uint8_t speed, uint32_t charge) {
+	float f1 = distance * speed * drone->energy;
+	float f2 = drone->max_flight_time * drone->max_flight_time_speed * drone->max_flight_time_speed;
+	float f3 = charge * drone->energy;
+	float f4 = drone->max_capacity * 2;
+	return distance && speed && drone->max_capacity ? f1 / f2 + f3 / f4 : 0;
 }
 
 // TODO :
 // 	- Poids entre les nœuds
 // 	- Définir contrainte
 // 	- Lier contraites et livraisons
-// 	- Batterie
 // 	- can_handle
 
 
+/*#include <stdio.h>
+int main(void) {
+	// ~DJI Mavic 4 Pro : https://www.dji.com/nl/mavic-4-pro/specs
+	Drone *drone = new_drone(100, 0, 0, 95.3, 51 * 60, 32 / 3.6, 0, 0, NULL, NULL, 0, 0);
+
+	printf("%f\n", consumption(drone, drone->max_flight_time * drone->max_flight_time_speed, 
+				drone->max_flight_time_speed, 0));
+	return 0;
+}*/
 
 /*
 double Weight(struct Drone* drone, struct Delivery* delivery, double distance){ // distance = 0 if not calculated before
