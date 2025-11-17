@@ -76,7 +76,7 @@ uint32_t distance(const Position *pos1, const Position *pos2) {
 
 
 /*
-double Weight(struct Drone* drone, struct Delivery* delivery, double distance){ // distance = 0 if not calculated before
+double weight(struct Drone* drone, struct Delivery* delivery, double distance){ // distance = 0 if not calculated before
     double dist = drone->cost;
     if (distance == 0)
         dist += Distance(drone->position, delivery->position);
