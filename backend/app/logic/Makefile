@@ -1,16 +1,20 @@
 CC = gcc
-DB-CFLAGS = -Wall -Wextra -fsanitize=address -g
-CFLAGS = -lm
+CPPFLAGS := -I src
+CFLAGS := -Wall -Wextra -fsanitize=address -Werror
+LDFLAGS := -lm 
 
-SRC_ALGO = utils.c pretraitement.c
-OBJ = ${SRC:.c=.o}
+SRC = $(wildcard src/**/*.c)
+OBJ = $(SRC:.c=.o)
 
-all: algo
+TARGET := build/algo
 
-algo:
-	${CC} ${SRC_ALGO} -o $@ ${CFLAGS} ${DB-CFLAGS}
+.PHONY: clean all
 
-.PHONY: clean
+all: $(TARGET)
+
+$(TARGET): $(OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 clean:
-	${RM} build/*
+	$(RM) $(TARGET)
+	$(RM) $(OBJ)
