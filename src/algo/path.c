@@ -1,25 +1,16 @@
-#include "utils.h"
 #include "path.h"
 #include "darray.h"
+#include <stdlib.h>
 
 
-//renvoi une liste de liste de livraisons (une liste par drone)
-//prend une liste de drones et une liste de livraisons
-//appel récurcivement en enlevant la premiere livraison (récupère la valeur, le nombre de livraisons restantes, la liste finale)
-
-//à faire : une fonction du cas d'arret qui regarde toutes les combinaisons et qui remet la liste dans l'ordre
-//testes pour vérifier si la liste fonctionne
-//
-
-
-
-struct Delivery*** build_final_array(struct Drone** drones, size_t size_drones, struct Deliveries** input_list_deliveries, struct Drones** input_list_drones, size_t input_index, unsigned double* min,){
-    unsigned double* values_drones_array = calloc(size_drones, sizeof(unsigned double));
+//Actual pb : drones[0] = 0xbebebebebebebebe : check here
+struct Delivery*** build_final_array(struct Drone** drones, size_t size_drones, struct Delivery** input_list_deliveries, size_t* input_list_drones, size_t input_index, uint32_t* min){
+    uint32_t* values_drones_array = calloc(size_drones, sizeof(uint32_t));
     struct Delivery*** output_array = darray_create(size_drones, sizeof(Delivery**));
 
     for (size_t i = 0; i < size_drones; i++){
         values_drones_array[i] = drones[i]->cost;
-        output_array[i] = darray_create(5, sizeof(Delivery*));
+        darray_add(output_array, darray_create(5, sizeof(Delivery*)))
     }
 
     for (size_t i = 0; i < input_index; i++){
@@ -30,7 +21,7 @@ struct Delivery*** build_final_array(struct Drone** drones, size_t size_drones, 
     //It is possiblie to change that part and find the max instead of the addition
     *min = 0;
     for (size_t i = 1; i < size_drones; i++){
-        min += values_drones_array[i];
+        *min += values_drones_array[i];
     } 
 
     free(values_drones_array);
@@ -38,30 +29,26 @@ struct Delivery*** build_final_array(struct Drone** drones, size_t size_drones, 
 }
 
 
-struct Delivery*** choose_drone_naive_aux(struct Drone** drones, struct Delivery** deliveries, unsigned double* min, struct Deliveries** input_list_deliveries, struct size_t* input_list_drones, size_t* input_index){ //Qu'est ce qui est nécéssaire en parametre ?
-
-    struct darray_header* header_deliveries = ptr_offset_bytes(elements, -HEADER_SIZE);
+struct Delivery*** choose_drone_naive_aux(struct Drone** drones, size_t drone_size, struct Delivery** deliveries, 
+    size_t deliveries_size, uint32_t* min, struct Delivery** input_list_deliveries, size_t* input_list_drones, size_t* input_index){
+    struct Delivery*** output_array;
 
     //end case, no delivery left
-    if (deliveries->size == 0){
-        output_array = build_final_array(drones, header_drones->size, input_list_deliveries, input_list_drones, *input_index, min);
+    if (deliveries_size == 0){
+        output_array = build_final_array(drones, drone_size, input_list_deliveries, input_list_drones, *input_index, min);
         return output_array;
     }
 
-    struct darray_header* header_drones = ptr_offset_bytes(elements, -HEADER_SIZE);
-
-    double output_min = *min; //récupère le minimum actuel pour comparer et s'arreter suffisament tôt
-    struct Deliveries*** output_array; //construit la liste de sortie, ajout de la liste d'entrée
-    size_t output_index = input_index;
+    uint32_t output_min = *min;
+    size_t output_index = *input_index;
 
 
-    size_t size_deliveries_call = header_deliveries->size - 1;
-    struct Deliveries** deliveries_call = darray_create(header_deliveries->size - 1, sizeof(struct Deliveries*));
+    struct Delivery** deliveries_call = darray_create(deliveries_size - 1, sizeof(struct Delivery*));
 
     char at_least_one_solution = 0;
 
-    for (size_t i = 0; i < header_drones->size, i ++){
-        for (size_t j = 0; j < header_deliveries->size; j++){
+    for (size_t i = 0; i < drone_size; i ++){
+        for (size_t j = 0; j < deliveries_size; j++){
             //Create a black list to avoid some of theses tests
             if (can_handle_delivery(drones[i], deliveries[j]) == 0){
                 break;
@@ -70,31 +57,32 @@ struct Delivery*** choose_drone_naive_aux(struct Drone** drones, struct Delivery
                 at_least_one_solution += 1;
 
             //add the selected action to the list
-            input_list_deliveries[input_index] = deliveries[j];
-            input_list_drones[input_index] = i;
+            input_list_deliveries[*input_index] = deliveries[j];
+            input_list_drones[*input_index] = i;
 
             //create an array of all the deliveries left
             char offset = 0;
-            for (size_t k = 0; k < header_deliveries->size; k++){
+            for (size_t k = 0; k < deliveries_size; k++){
                 if (k == j)
                     offset = 1;
                 else
                     deliveries_call[k - offset] = deliveries[k];
             }
 
-            unsigned double actual_min = 0;
-            size_t index = input_index + 1;
+            uint32_t actual_min = 0;
+            size_t index = *input_index + 1;
 
-            struct Delivery*** actual_array = choose_drone_naive_aux(drones, deliveries_call, &actaul_min, input_list_deliveries, input_list_drones, &index);
+            struct Delivery*** actual_array = choose_drone_naive_aux(drones, drone_size, deliveries_call, deliveries_size - 1, &actual_min, input_list_deliveries, input_list_drones, &index);
 
-            if (index < output_index || output_min == 0 || (index == output_index && actaul_min < output_min)){
+            if (index < output_index || output_min == 0 || (index == output_index && actual_min < output_min)){
                 output_index = index;
                 output_min = actual_min;
 
-                if(at_least_one_solution == 2){
+                if (output_array  != NULL){
                     darray_clear(output_array);
                     darray_destroy(output_array);
                 }
+
                 output_array = actual_array;
             }
             else{
@@ -104,16 +92,19 @@ struct Delivery*** choose_drone_naive_aux(struct Drone** drones, struct Delivery
         }
     }
 
+    
+
+    if (at_least_one_solution == 0){
+        output_array = build_final_array(drones, drone_size, input_list_deliveries, input_list_drones, *input_index, min);
+    }
+    else{
+        *min = output_min;
+        *input_index = output_index;
+    }
+
     darray_clear(deliveries_call);
     darray_destroy(deliveries_call);
 
-    if (at_least_one_solution == 0){
-        output_array = build_final_array(drones, header_drones->size, input_list_deliveries, input_list_drones, *input_index, min);
-    }
-    else{
-        *min = min_weight;
-        *input_index = output_index;
-    }
     return output_array;
 
     
@@ -121,14 +112,15 @@ struct Delivery*** choose_drone_naive_aux(struct Drone** drones, struct Delivery
 
 
 
-struct Delivery*** choose_drone_naive(struct Drone** drones, struct Delivery** deliveries){
-    unsigned double min = 0;
+struct Delivery*** choose_drone_naive(struct Drone** drones, size_t drone_size, struct Delivery** deliveries, size_t deliveries_size){
+    uint32_t min = 0;
     size_t input_index = 0;
-    size_t size_deliveries = ptr_offset_bytes(deliveries, -HEADER_SIZE)->size;
-    struct Deliveries** input_list_deliveries = darray_create(size_deliveries, sizeof(struct Deliveries*));
-    struct size_t* input_list_drones = darray_create(size_deliveries, sizeof(struct size_t));
+    size_t size_deliveries = deliveries_size;
 
-    struct Deliveries*** output_array = choose_drone_naive_aux(drones, deliveries, &min, input_list_deliveries, &input_index);
+    struct Delivery** input_list_deliveries = darray_create(size_deliveries, sizeof(struct Delivery*));
+    size_t* input_list_drones = darray_create(size_deliveries, sizeof(size_t));
+
+    struct Delivery*** output_array = choose_drone_naive_aux(drones, drone_size, deliveries, deliveries_size, &min, input_list_deliveries, input_list_drones, &input_index);
 
     darray_clear(input_list_deliveries);
     darray_destroy(input_list_deliveries);
@@ -136,4 +128,36 @@ struct Delivery*** choose_drone_naive(struct Drone** drones, struct Delivery** d
     darray_destroy(input_list_drones);
 
     return output_array;
+}
+
+
+
+
+int main(){
+    struct Position position_drone = {0, 0, 0};
+    struct Drone* drone = new_drone(100, 100, 100, 100, 100, 100, 100, 100, &position_drone, darray_create(10,sizeof(Delivery*)), 0, 0);
+    Drone** array_drone = darray_create(10, sizeof(Drone*));
+    darray_add(array_drone, drone);
+
+
+    struct Position position_delivery = {100, 100, 100};
+    struct Item item_delivery = {"test", 1};
+    struct Delivery* delivery = new_delivery(&item_delivery, 1, 1, &position_delivery, 10);
+    Delivery** array_deliveries = darray_create(10, sizeof(Delivery*));
+    darray_add(array_deliveries, delivery);
+
+    choose_drone_naive(array_drone, 1, array_deliveries, 1);
+
+
+
+    darray_clear(array_deliveries);
+    darray_destroy(array_deliveries);
+
+    
+
+    darray_clear(drone->targets);
+    darray_destroy(drone->targets);
+
+    darray_clear(array_drone);
+    darray_destroy(array_drone);
 }

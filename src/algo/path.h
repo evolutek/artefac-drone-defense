@@ -1,16 +1,13 @@
-//What do we need
-
-//naive optimised function to find the best path
-
 #pragma once
 
-#include <utils.h>
+#include "utils.h"
+#include <stdio.h>
+#include <stdint.h>
 
-struct List{
-    void* elements;
-    void type;
-    size_t max_size;
-    size_t size;
-}
 
-void Add_element(struct List, void* element);
+struct Delivery*** build_final_array(struct Drone** drones, size_t size_drones, struct Delivery** input_list_deliveries, size_t* input_list_drones, size_t input_index, uint32_t* min);
+
+struct Delivery*** choose_drone_naive_aux(struct Drone** drones, size_t drone_size, struct Delivery** deliveries,
+     size_t deliveries_size, uint32_t* min, struct Delivery** input_list_deliveries, size_t* input_list_drones, size_t* input_index);
+
+struct Delivery*** choose_drone_naive(struct Drone** drones, size_t drone_size, struct Delivery** deliveries, size_t deliveries_size);

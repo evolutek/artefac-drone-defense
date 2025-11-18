@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "darray.h"
 #include <math.h>
 #include <stdlib.h>
 
@@ -38,7 +39,7 @@ Drone *new_drone(const uint32_t max_capacity, const uint8_t max_speed,
 		const uint8_t acceleration, const uint16_t energy,
 		const uint16_t max_flight_time, const uint16_t max_flight_time_speed,
 		const uint32_t payload, const uint16_t autonomy, Position *const position,
-		Delivery *const targets,
+		Delivery **const targets,
 		const uint8_t nb_targets, float cost) {
 	Drone *drone = malloc(sizeof(Drone));
 
@@ -75,34 +76,32 @@ uint32_t distance(const Position *pos1, const Position *pos2) {
 
 
 
-/*
-double weight(struct Drone* drone, struct Delivery* delivery, double distance){ // distance = 0 if not calculated before
-    double dist = drone->cost;
-    if (distance == 0)
-        dist += Distance(drone->position, delivery->position);
+double weight(struct Drone* drone, struct Delivery* delivery, uint32_t pre_calculated_dist){ // distance = 0 if not calculated before
+    uint32_t dist = drone->cost;
+    if (pre_calculated_dist == 0)
+        dist += distance(drone->position, delivery->position);
     else
-        dist += distance;
+        dist += pre_calculated_dist;
     return dist * (delivery->priority + 1) * 0.5f / drone->max_speed;
 }
 
 int add_target(struct Drone* drone, struct Delivery* delivery){
-    double dist = Distance(drone->position, delivery->position);
-    if (drone->actual_capacity < delivery->mass || drone->actual_autonomy < dist){
-        //add the delivery to the targets
-        drone->actual_capacity -= delivery->mass;
-        drone->actual_autonomy -= dist;
-        drone->targets[drone->nb_targets] = delivery;
-        drone->nb_targets++;
-        
-        drone->cost += Weight(drone, delivery, dist);
-        drone->position = delivery->position;
+    uint32_t dist = distance(drone->position, delivery->position);
 
-        return 1;
-    }
-    return 0; //fail
+	//add the delivery to the targets
+	drone->payload -= delivery->mass;
+	drone->autonomy -= dist;
+	darray_add(drone->targets, delivery);
+	drone->nb_targets ++;
+	
+	drone->cost += weight(drone, delivery, dist);
+	drone->position = delivery->position;
+
+	return 1;
 }
 
 int can_handle_delivery(struct Drone* drone, struct Delivery* delivery){
-    return drone->actual_capacity >= delivery->mass && drone->actual_autonomy >= Distance(drone->position, delivery->position);
+	return 1;
+    //return drone->payload >= delivery->mass && drone->autonomy >= Distance(drone->position, delivery->position);
 }
-*/
+
