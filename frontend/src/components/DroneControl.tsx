@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import { droneApi } from '../utils/api';
-import { useWebSocket } from '../hooks/useWebSocket';
+import { TelemetryData } from '../types';
 import axios from 'axios';
 
 interface DroneControlProps {
   droneId: string;
+  telemetry: TelemetryData | null;
+  isConnected: boolean;
 }
 
-export function DroneControl({ droneId }: DroneControlProps) {
+export function DroneControl({ droneId, telemetry }: DroneControlProps) {
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [altitude, setAltitude] = useState(5.0);
-  const { telemetry } = useWebSocket(droneId);
 
   // Get current armed state from telemetry
   const isArmed = telemetry?.type === 'state' ? telemetry.data.armed ?? false : false;

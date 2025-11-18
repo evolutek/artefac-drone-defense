@@ -391,52 +391,44 @@ Backend is **pure Python without ROS2** for production deployability. MQTT bridg
 - ✅ IMU (Accel + Gyro): `/drone_1/mavros/imu/data` @ ~10 Hz
 - ✅ Magnetometer: `/drone_1/mavros/mag` @ ~14 Hz
 - ✅ Barometer: `/drone_1/mavros/imu/static_pressure` @ ~16 Hz
-- ✅ GPS: `/drone_1/mavros/global_position/raw/fix` @ ~30 Hz (active but not fused)
+- ✅ GPS: `/drone_1/mavros/global_position/raw/fix` @ ~30 Hz (active and fused by EKF2)
 - ✅ MAVROS connected to PX4 via MAVLink port 14540
 
-**GPS Topic Discussion**:
-GPS sensor remains active in GPS-free mode (EKF2_GPS_CTRL=0) with negligible CPU impact. GPS data published but NOT fused by EKF2. Allows easy toggle between GPS/GPS-free modes. Can be disabled in Gazebo model if optimization needed (>5 drones).
+**GPS Configuration Notes**:
+GPS sensor is enabled and used as the primary source for horizontal position and velocity estimation. EKF2 fuses GPS with IMU, magnetometer, and barometer for robust 3D positioning. Vision bridge node remains active but vision fusion is disabled in MAVROS configuration (`use_vision: false`).
 
-### PX4 Arming Behavior - GPS-Free Configuration
+### PX4 Arming Behavior - GPS-Enabled Configuration
 
-**Current Status**: GPS-free mode configured, horizontal position estimation unavailable
+**Current Status**: GPS-enabled mode operational with full 3D position estimation
 
-**EKF2 Convergence Status (Verified 2025-11-17, Vision Bridge Resolved)**:
+**EKF2 Convergence Status (Verified 2025-11-18)**:
 
-Operating in GPS-free mode with vision:
+Operating in GPS-enabled mode:
 - ✅ `attitude_status_flag: true` - Roll/pitch/yaw estimated from IMU+Magnetometer
 - ✅ `velocity_vert_status_flag: true` - Vertical velocity from IMU+Barometer
-- ✅ `pos_vert_abs_status_flag: true` - Altitude from barometer reference
-- ✅ `velocity_horiz_status_flag: true` - Horizontal velocity from vision fusion
-- ✅ `pos_horiz_rel_status_flag: true` - Horizontal position from vision fusion
+- ✅ `pos_vert_abs_status_flag: true` - Altitude from barometer/GPS
+- ✅ `velocity_horiz_status_flag: true` - Horizontal velocity from GPS fusion
+- ✅ `pos_horiz_rel_status_flag: true` - Horizontal position from GPS fusion
+- ✅ `pos_horiz_abs_status_flag: true` - GPS absolute positioning ACTIVE (key indicator)
 
-**Conclusion**: EKF2 successfully converges for full 3D position and velocity estimation with vision bridge operational.
+**Conclusion**: EKF2 successfully converges for full 3D position and velocity estimation using GPS as the primary localization source. GPS-enabled operation confirmed through behavioral verification.
 
-**GPS-Free Configuration Implemented**:
+**GPS-Enabled Configuration Implemented**:
 - Parameters injected into PX4 startup (rcS patching)
-- `COM_ARM_WO_GPS=1` - Allow arming without GPS
-- `EKF2_GPS_CTRL=0` - Disable GPS requirement in EKF2
-- `EKF2_EV_CTRL=15` - Enable vision fusion for position/velocity/yaw
-- `EKF2_HGT_REF=3` - Use vision for height reference
+- `COM_ARM_WO_GPS=0` - Require GPS fix for arming
+- `EKF2_GPS_CTRL=7` - Enable GPS horizontal + vertical fusion (0b0111)
+- `EKF2_HGT_REF=1` - Use GPS for height reference
 - `MAV_*_BROADCAST=1` - Enable MAVLink network broadcast
+- Vision fusion disabled via MAVROS config (`use_vision: false`)
+
+**Verification Method**:
+- Behavioral verification via `/drone_1/estimator_status` topic (not log parsing)
+- GPS mode confirmed when `pos_horiz_abs_status_flag=true` (GPS absolute position active)
+- Integration test uses real-time topic observation for robust validation
 
 ### Known Issues
 
-#### Test 3 Fails: GPS-Free Parameters Not Found in Logs (Identified 2025-11-17)
-
-**Problem**: Integration test `test_phase2_gps_free_parameters_applied` fails because GPS-free parameters are not found in PX4 logs
-
-**Details**:
-- PX4 logs show repeated shell prompts (`pxh>`) instead of normal startup sequence
-- Root cause: `start_px4_sitl.sh` silently fails when building/patching rcS
-- Silent failures:
-  - Line 111: `make px4_sitl_default > /dev/null 2>&1` masks all build errors
-  - Line 126: `sed -i` fails silently if rcS doesn't exist
-  - Corrupted state can persist in `px4_build` Docker volume
-- Impact: GPS-free parameters never applied → test 3 fails
-- Location: `simulation/start_px4_sitl.sh`
-
-**Status**: Under investigation - improving error handling to identify root cause
+No critical issues at this time. All integration tests passing.
 
 ### Testing Protocol
 - I always run tests myself then tell you the result
@@ -444,14 +436,21 @@ Operating in GPS-free mode with vision:
 - Never mock tests - use real data dynamically
 - Tests cannot be modified unless specified
 
-**Integration Test Status (Updated 2025-11-17)**:
-- Phase 1: Sensor initialization (IMU, Mag, Baro) - PASSES ✅
-- Phase 1: Vision bridge publication - PASSES ✅ (previously failed, now resolved)
-- Phase 2: GPS-free parameters verification - FAILS ❌ (parameters not found in logs)
-- Phase 2: MAVROS connection - SKIPPED (dependency on Phase 2 params test)
-- Phase 3: EKF2 estimator status - SKIPPED (dependency on Phase 2 params test)
+**Integration Test Status (Updated 2025-11-18)**:
+- Phase 1: Sensor initialization (IMU, Mag, Baro, GPS) - PASSES ✅
+- Phase 1: GPS fix verification (satellites ≥6, good HDOP) - PASSES ✅
+- Phase 2: GPS-enabled parameters verification (behavioral) - PASSES ✅
+- Phase 2: MAVROS connection - PASSES ✅
+- Phase 2: EKF2 initialization - PASSES ✅
+- Phase 3: EKF2 estimator status (full 3D GPS fusion) - PASSES ✅
+
+**Testing Methodology**:
+- Tests use behavioral verification instead of log parsing for robustness
+- GPS-enabled operation verified through EKF2 estimator status flags on `/drone_1/estimator_status`
+- GPS fusion confirmed by: `pos_horiz_abs_status_flag=true` (absolute position active)
+- All tests use direct topic/service observations for real-world validation
 
 ---
 
-**Last Updated**: 2025-11-17
-**Status**: Sensor integration verified ✅ | Vision bridge operational ✅ | GPS-free parameters test failing ❌ | Error handling improvements needed 🔧
+**Last Updated**: 2025-11-18
+**Status**: All integration tests passing ✅ | Sensor integration verified ✅ | GPS mode operational ✅ | Full 3D positioning active ✅

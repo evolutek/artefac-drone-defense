@@ -83,9 +83,9 @@ cat > /root/PX4-Autopilot/build/px4_sitl_default/etc/extras.txt << 'EXTRAS'
 # MAVLink network broadcast parameters
 MAV_0_BROADCAST 1
 MAV_1_BROADCAST 1
-# GPS-free arming parameters
-COM_ARM_WO_GPS 1
-EKF2_GPS_CTRL 0
+# GPS-enabled arming parameters
+COM_ARM_WO_GPS 0
+EKF2_GPS_CTRL 7
 COM_PREARM_MODE 0
 NAV_RCL_ACT 0
 COM_RC_IN_MODE 1
@@ -96,13 +96,8 @@ COM_POS_FS_EPH 10.0
 COM_VEL_FS_EVH 2.0
 NAV_DLL_ACT 0
 COM_DL_LOSS_T -1
-# Vision fusion parameters
-EKF2_EV_CTRL 15
-EKF2_HGT_REF 3
-EKF2_EV_DELAY 0
-EKF2_EVP_NOISE 0.1
-EKF2_EVV_NOISE 0.1
-EKF2_EVA_NOISE 0.05
+# GPS height reference
+EKF2_HGT_REF 1
 EXTRAS
 
 # Build PX4 if rcS doesn't exist
@@ -138,8 +133,8 @@ else
     cp "$RCS_BACKUP" "$RCS_FILE"
 fi
 
-# Patch rcS with GPS-free and vision fusion parameters
-log_step "Patching rcS with GPS-free parameters"
+# Patch rcS with GPS-enabled parameters
+log_step "Patching rcS with GPS-enabled parameters"
 
 # Check if the pattern exists in rcS
 if ! grep -q '\. px4-rc\.mavlink' "$RCS_FILE"; then
@@ -150,9 +145,9 @@ if ! grep -q '\. px4-rc\.mavlink' "$RCS_FILE"; then
 fi
 
 sed -i '/\. px4-rc\.mavlink/i \
-# GPS-free and vision fusion parameters\
-param set COM_ARM_WO_GPS 1\
-param set EKF2_GPS_CTRL 0\
+# GPS-enabled parameters\
+param set COM_ARM_WO_GPS 0\
+param set EKF2_GPS_CTRL 7\
 param set COM_PREARM_MODE 0\
 param set NAV_RCL_ACT 0\
 param set COM_RC_IN_MODE 1\
@@ -165,17 +160,12 @@ param set NAV_DLL_ACT 0\
 param set COM_DL_LOSS_T -1\
 param set MAV_0_BROADCAST 1\
 param set MAV_1_BROADCAST 1\
-param set EKF2_EV_CTRL 15\
-param set EKF2_HGT_REF 3\
-param set EKF2_EV_DELAY 0\
-param set EKF2_EVP_NOISE 0.1\
-param set EKF2_EVV_NOISE 0.1\
-param set EKF2_EVA_NOISE 0.05\
+param set EKF2_HGT_REF 1\
 ' "$RCS_FILE"
 
 # Verify the patch was applied
 if grep -q "COM_ARM_WO_GPS" "$RCS_FILE"; then
-    log_info "GPS-free parameters successfully injected into rcS"
+    log_info "GPS-enabled parameters successfully injected into rcS"
 else
     log_error "Failed to inject parameters into rcS"
     log_error "Showing rcS around mavlink line:"

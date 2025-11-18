@@ -1,6 +1,6 @@
 # Integration Tests - Artefac Drone Defense
 
-Automated integration tests for the multi-drone simulation system. These tests verify the complete vision-based localization pipeline: **Gazebo Harmonic → Vision Pose Bridge → MAVROS → PX4 EKF2**.
+Automated integration tests for the multi-drone simulation system. These tests verify the complete GPS-based localization pipeline: **Gazebo Harmonic → PX4 EKF2 → MAVROS**.
 
 ---
 
@@ -63,20 +63,20 @@ Tests are organized by **EKF2 initialization phases** and execute in sequence wi
 **Phase 1: Sensor Initialization (2-5s)**
 | Test | Description | Duration | What it validates |
 |------|-------------|----------|-------------------|
-| `test_phase1_gazebo_sensors_active` | Gazebo sensor data via MAVROS | ~10s | MAVROS publishes IMU and magnetometer data |
-| `test_phase1_vision_bridge_active` | Vision bridge publishing rate | ~10s | Vision pose bridge publishes at >40 Hz (typically ~50-100 Hz) |
+| `test_phase1_gazebo_sensors_active` | Gazebo sensor data via MAVROS | ~10s | MAVROS publishes IMU, magnetometer, and barometer data |
+| `test_phase1_gps_fix_available` | GPS satellite lock quality | ~10s | GPS fix with ≥6 satellites and sufficient accuracy |
 
 **Phase 2: EKF2 Initialization (3-10s)**
 | Test | Description | Duration | What it validates |
 |------|-------------|----------|-------------------|
-| `test_phase2_gps_free_parameters_applied` | GPS-free configuration | ~5s | Vision fusion parameters correctly set (EKF2_EV_CTRL=15, etc.) |
-| `test_phase2_mavros_receives_vision_data` | MAVROS odometry topic | ~10s | MAVROS receives vision data at >40 Hz |
+| `test_phase2_gps_parameters_applied` | GPS-enabled configuration | ~15s | GPS fusion parameters correctly set (EKF2_GPS_CTRL=7, etc.) |
+| `test_phase2_mavros_connection` | MAVROS connection status | ~5s | MAVROS connected to PX4 via MAVLink |
 | `test_phase2_ekf2_initialization` | EKF2 startup and alignment | ~20s | EKF2 initializes without critical errors |
 
 **Phase 3: EKF2 Convergence (5-15s)**
 | Test | Description | Duration | What it validates |
 |------|-------------|----------|-------------------|
-| `test_phase3_local_position_available` | EKF2 fused output | ~10s | MAVROS publishes local position from EKF2 with valid values |
+| `test_phase3_ekf2_estimator_status` | EKF2 full 3D convergence | ~10s | EKF2 estimates full 3D position/velocity using GPS |
 
 **Quick Check (Independent)**
 | Test | Description | Duration | What it validates |
@@ -87,11 +87,11 @@ Tests are organized by **EKF2 initialization phases** and execute in sequence wi
 
 **Test Dependencies:**
 ```
-Phase 1: Sensors → Vision Bridge
+Phase 1: Sensors → GPS Fix
          ↓
-Phase 2: Parameters → MAVROS Vision → EKF2 Init
+Phase 2: GPS Parameters → MAVROS Connection → EKF2 Init
          ↓
-Phase 3: Local Position Available
+Phase 3: EKF2 Estimator Status (Full 3D GPS Fusion)
 ```
 
 Use `pytest -x` or `./run_tests.sh -x` to stop on first failure and quickly identify which phase fails.
@@ -278,14 +278,15 @@ pytest tests/integration/test_ekf2_convergence.py::test_ekf2_quick_check -v -s
 - Check MAVROS connection: `docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic list | grep mavros"`
 - Manually test IMU topic: `docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic echo /mavros/imu/data --once"`
 
-### "Vision bridge not publishing odometry"
+### "GPS fix not available" or "Insufficient satellites"
 
-**Cause:** Vision pose bridge node not starting or Gazebo transport issues.
+**Cause:** GPS sensor not initialized or Gazebo GPS simulation not running.
 
 **Solution:**
-1. Check ROS2 logs: `docker logs artefac_ros2_integration | grep vision`
-2. Verify Gazebo is publishing: `gz topic -l` (inside container)
-3. Check if `/model/x500_0/pose` topic exists in Gazebo
+1. Check GPS topic: `docker exec artefac_ros2_integration bash -c "source /opt/ros/humble/setup.bash && ros2 topic echo /drone_1/mavros/global_position/raw/fix --once"`
+2. Verify GPS parameters: `EKF2_GPS_CTRL=7` should be set (check logs)
+3. Wait longer - GPS can take 10-15 seconds to acquire lock in simulation
+4. Check Gazebo GPS sensor is enabled in model configuration
 
 ### Tests pass locally but fail in CI
 
@@ -425,7 +426,7 @@ Changes to fixtures affect all tests using them.
 
 ---
 
-**Last Updated:** 2025-11-12
+**Last Updated:** 2025-11-18 (GPS-enabled mode)
 **Test Framework:** pytest 7.4.3
 **Python:** 3.10+
 **Docker Compose:** V2

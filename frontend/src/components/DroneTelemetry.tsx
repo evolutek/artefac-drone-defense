@@ -1,8 +1,10 @@
-import { useWebSocket } from '../hooks/useWebSocket';
 import { useState, useEffect } from 'react';
+import { TelemetryData } from '../types';
 
 interface DroneTelemetryProps {
   droneId: string;
+  telemetry: TelemetryData | null;
+  isConnected: boolean;
 }
 
 interface TelemetryState {
@@ -21,8 +23,7 @@ interface TelemetryState {
   velocity_z?: number;
 }
 
-export function DroneTelemetry({ droneId }: DroneTelemetryProps) {
-  const { telemetry, isConnected } = useWebSocket(droneId);
+export function DroneTelemetry({ droneId, telemetry, isConnected }: DroneTelemetryProps) {
   const [aggregatedData, setAggregatedData] = useState<TelemetryState>({});
 
   // Aggregate all telemetry updates into a single state

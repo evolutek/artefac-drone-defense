@@ -1,12 +1,12 @@
 #!/bin/sh
-# Custom PX4 parameters for GPS-free operation and MAVLink broadcast
+# Custom PX4 parameters for GPS-enabled operation and MAVLink broadcast
 # This file is sourced during PX4 startup
 
-# Allow arming without GPS
-param set COM_ARM_WO_GPS 1
+# Require GPS fix for arming
+param set COM_ARM_WO_GPS 0
 
-# Disable GPS requirement for EKF2
-param set EKF2_GPS_CTRL 0
+# Enable GPS fusion for EKF2 (horizontal + vertical)
+param set EKF2_GPS_CTRL 7
 
 # Disable pre-arm mode (allows arming in more situations)
 param set COM_PREARM_MODE 0
@@ -34,4 +34,4 @@ param set COM_VEL_FS_EVH 2.0
 param set MAV_0_BROADCAST 1
 param set MAV_1_BROADCAST 1
 
-echo "[CUSTOM] PX4 configured for GPS-free operation with MAVLink broadcast"
+echo "[CUSTOM] PX4 configured for GPS-enabled operation with MAVLink broadcast"
