@@ -37,9 +37,12 @@ def init_db():
     """
     Initialize database by creating all tables
     Should be called at application startup
+
+    Note: Drone state is now managed in-memory (DroneStateManager)
+    Only missions and telemetry history are stored in database
     """
     # Import all models here to ensure they are registered with Base
-    from . import drone, mission, telemetry  # noqa: F401
+    from . import mission, telemetry  # noqa: F401
 
     # Create all tables
     Base.metadata.create_all(bind=engine)

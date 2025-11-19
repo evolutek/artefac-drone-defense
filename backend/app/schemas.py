@@ -15,26 +15,30 @@ class DroneCreate(BaseModel):
 
 
 class DroneResponse(BaseModel):
-    id: int
     drone_id: str
-    name: Optional[str]
-    model: str
-    status: str
-    battery_level: Optional[float]
-    latitude: Optional[float]
-    longitude: Optional[float]
-    altitude: Optional[float]
-    position_x: Optional[float]
-    position_y: Optional[float]
-    position_z: Optional[float]
-    is_armed: bool
-    flight_mode: Optional[str]
-    created_at: datetime
-    updated_at: datetime
-    last_heartbeat: Optional[datetime]
+    status: str = "connected"
+    battery_level: Optional[float] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    altitude: Optional[float] = None
+    position_x: Optional[float] = None
+    position_y: Optional[float] = None
+    position_z: Optional[float] = None
+    velocity_x: Optional[float] = None
+    velocity_y: Optional[float] = None
+    velocity_z: Optional[float] = None
+    orientation_x: Optional[float] = None
+    orientation_y: Optional[float] = None
+    orientation_z: Optional[float] = None
+    orientation_w: Optional[float] = None
+    is_armed: bool = False
+    flight_mode: Optional[str] = None
+    mavros_connected: Optional[bool] = None
+    last_update: Optional[datetime] = None
+    created_at: Optional[datetime] = None  # Kept for backward compatibility
 
     class Config:
-        from_attributes = True
+        from_attributes = False  # Data comes from dict, not SQLAlchemy model
 
 
 # ==================== Mission Schemas ====================
