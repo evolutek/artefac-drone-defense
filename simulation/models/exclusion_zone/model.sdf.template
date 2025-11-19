@@ -1,0 +1,41 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <model name="ZONE_NAME">
+    <static>true</static>
+    <pose>CENTER_X CENTER_Y CENTER_Z 0 0 0</pose>
+
+    <link name="visual_link">
+      <visual name="zone_marker">
+        <geometry>
+          <cylinder>
+            <radius>ZONE_RADIUS</radius>
+            <length>ZONE_HEIGHT</length>
+          </cylinder>
+        </geometry>
+
+        <material>
+          <ambient>ZONE_COLOR_R ZONE_COLOR_G ZONE_COLOR_B 0.3</ambient>
+          <diffuse>ZONE_COLOR_R ZONE_COLOR_G ZONE_COLOR_B 0.3</diffuse>
+          <specular>0.1 0.1 0.1 1.0</specular>
+        </material>
+
+        <transparency>0.7</transparency>
+      </visual>
+
+      <!-- Collision disabled - this is a visual marker only -->
+      <collision name="zone_collision">
+        <geometry>
+          <cylinder>
+            <radius>ZONE_RADIUS</radius>
+            <length>ZONE_HEIGHT</length>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <collide_bitmask>0x00</collide_bitmask>
+          </contact>
+        </surface>
+      </collision>
+    </link>
+  </model>
+</sdf>

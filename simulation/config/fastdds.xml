@@ -4,10 +4,19 @@
         <transport_descriptor>
             <transport_id>udp_transport</transport_id>
             <type>UDPv4</type>
-            <sendBufferSize>1048576</sendBufferSize>
-            <receiveBufferSize>4194304</receiveBufferSize>
+            <!-- Reduced buffer sizes for local simulation (was 1MB/4MB) -->
+            <sendBufferSize>262144</sendBufferSize>        <!-- 256KB -->
+            <receiveBufferSize>524288</receiveBufferSize>  <!-- 512KB -->
             <maxMessageSize>65500</maxMessageSize>
             <non_blocking_send>true</non_blocking_send>
+
+            <!-- CRITICAL: Only use loopback (127.0.0.1) and local network -->
+            <!-- This prevents DDS from flooding your internet interface -->
+            <interfaceWhiteList>
+                <address>127.0.0.1</address>      <!-- Loopback -->
+                <address>172.*</address>          <!-- Docker networks -->
+                <address>192.168.*</address>      <!-- Local LAN -->
+            </interfaceWhiteList>
         </transport_descriptor>
     </transport_descriptors>
 
@@ -17,15 +26,41 @@
             <builtin>
                 <discovery_config>
                     <discoveryProtocol>SIMPLE</discoveryProtocol>
+                    <!-- Reduce discovery heartbeat frequency -->
                     <leaseDuration>
-                        <sec>10</sec>
+                        <sec>30</sec>  <!-- Was 10s, now 30s -->
                     </leaseDuration>
+                    <!-- Limit discovery multicast to local interfaces -->
+                    <initialPeersList>
+                        <locator>
+                            <udpv4>
+                                <address>127.0.0.1</address>
+                                <port>7400</port>
+                            </udpv4>
+                        </locator>
+                    </initialPeersList>
                 </discovery_config>
             </builtin>
             <userTransports>
                 <transport_id>udp_transport</transport_id>
             </userTransports>
             <useBuiltinTransports>false</useBuiltinTransports>
+
+            <!-- Limit participant resources for multi-drone scenarios -->
+            <allocation>
+                <participants>
+                    <initial>10</initial>
+                    <maximum>20</maximum>
+                </participants>
+                <readers>
+                    <initial>50</initial>
+                    <maximum>200</maximum>
+                </readers>
+                <writers>
+                    <initial>50</initial>
+                    <maximum>200</maximum>
+                </writers>
+            </allocation>
         </rtps>
     </participant>
 </profiles>

@@ -104,12 +104,12 @@ class MQTTBridgeNode(Node):
 
         self.takeoff_client = self.create_client(
             CommandTOL,
-            f'/{self.namespace}/mavros_node/cmd/takeoff'
+            f'/{self.namespace}/mavros_node/takeoff'
         )
 
         self.land_client = self.create_client(
             CommandTOL,
-            f'/{self.namespace}/mavros_node/cmd/land'
+            f'/{self.namespace}/mavros_node/land'
         )
 
         # State cache
@@ -118,6 +118,9 @@ class MQTTBridgeNode(Node):
         self.current_global_position = None
         self.current_battery = None
         self.current_velocity = None
+
+        # Track previous connection state for presence detection
+        self.previous_connected_state = None
 
         # Wait for MAVROS services to be available
         self.get_logger().info('Waiting for MAVROS services to become available...')
@@ -205,7 +208,19 @@ class MQTTBridgeNode(Node):
     # ==================== ROS2 Callbacks ====================
 
     def state_callback(self, msg):
-        """MAVROS state callback"""
+        """MAVROS state callback - also detects connection changes for presence events"""
+        # Detect connection state change
+        if self.previous_connected_state is not None and self.previous_connected_state != msg.connected:
+            if msg.connected:
+                # MAVROS just connected
+                self.get_logger().info(f'MAVROS connected - publishing presence event')
+                self.publish_presence_event("connected", "mavros_ready")
+            else:
+                # MAVROS just disconnected
+                self.get_logger().warn(f'MAVROS disconnected - publishing presence event')
+                self.publish_presence_event("disconnected", "mavros_lost")
+
+        self.previous_connected_state = msg.connected
         self.current_state = msg
         self.get_logger().info(f'State received: connected={msg.connected}, armed={msg.armed}, mode={msg.mode}')
         self.publish_state()
@@ -300,6 +315,24 @@ class MQTTBridgeNode(Node):
         topic = f'drone/{self.drone_id}/command_result'
         self.mqtt_client.publish(topic, json.dumps(result), qos=1)
         self.get_logger().info(f'Published command result: {result}')
+
+    def publish_presence_event(self, event: str, reason: str = None):
+        """
+        Publish drone presence event to global drones/presence topic
+        Events: connected, disconnected
+        """
+        payload = {
+            'event': event,
+            'drone_id': self.drone_id,
+            'timestamp': self.get_clock().now().to_msg().sec,
+        }
+
+        if reason:
+            payload['reason'] = reason
+
+        topic = 'drones/presence'
+        self.mqtt_client.publish(topic, json.dumps(payload), qos=1)
+        self.get_logger().info(f'Published presence event: {event} (reason: {reason})')
 
     # ==================== Command Handlers ====================
 
