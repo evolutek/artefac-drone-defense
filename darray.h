@@ -93,6 +93,6 @@ size_t _darray_get_field(const void* darray, enum _DarrayField field);
 #define darray_size(darray) _darray_get_field(darray, DARRAY_FIELD_SIZE)
 #define darray_stride(darray) _darray_get_field(darray, DARRAY_FIELD_STRIDE)
 
-#define decl_darray(name, type, capacity) type* name = _darray_create(capacity, sizeof(type))
+#define decl_darray(name, type, capacity) type* name = darray_create(capacity, sizeof(type))
 
 #endif /* ! DARRAY_H */
