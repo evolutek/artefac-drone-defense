@@ -85,7 +85,7 @@ export function HealthDashboard() {
         </div>
 
         <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
-          <span className="font-semibold">Connected Drones</span>
+          <span className="font-semibold">Active Drones</span>
           <span className="px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
             {health?.drones_connected || 0}
           </span>

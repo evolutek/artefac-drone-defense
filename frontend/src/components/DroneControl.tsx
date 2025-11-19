@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { droneApi } from '../utils/api';
 import { TelemetryData } from '../types';
 import axios from 'axios';
@@ -14,8 +14,24 @@ export function DroneControl({ droneId, telemetry }: DroneControlProps) {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [altitude, setAltitude] = useState(5.0);
 
+  // Lock the armed state for 3 seconds after sending a command to prevent flickering
+  const [lockedArmedState, setLockedArmedState] = useState<boolean | null>(null);
+  const lockTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Get current armed state from telemetry
-  const isArmed = telemetry?.type === 'state' ? telemetry.data.armed ?? false : false;
+  const telemetryArmed = telemetry?.type === 'state' ? telemetry.data.armed ?? false : false;
+
+  // Use locked state if active, otherwise use telemetry
+  const isArmed = lockedArmedState !== null ? lockedArmedState : telemetryArmed;
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (lockTimeoutRef.current) {
+        clearTimeout(lockTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleCommand = async (command: string, action: () => Promise<any>) => {
     setLoading(command);
@@ -74,10 +90,27 @@ export function DroneControl({ droneId, telemetry }: DroneControlProps) {
   };
 
   const handleArmToggle = async () => {
-    if (isArmed) {
-      await handleCommand('DISARM', () => droneApi.disarm(droneId));
-    } else {
+    const targetState = !isArmed;
+
+    // Lock the UI state to prevent flickering during command execution
+    setLockedArmedState(targetState);
+
+    // Clear any existing lock timeout
+    if (lockTimeoutRef.current) {
+      clearTimeout(lockTimeoutRef.current);
+    }
+
+    // Unlock after 3 seconds - telemetry will take over
+    lockTimeoutRef.current = setTimeout(() => {
+      setLockedArmedState(null);
+      lockTimeoutRef.current = null;
+    }, 3000);
+
+    // Execute the command
+    if (targetState) {
       await handleCommand('ARM', () => droneApi.arm(droneId));
+    } else {
+      await handleCommand('DISARM', () => droneApi.disarm(droneId));
     }
   };
 
