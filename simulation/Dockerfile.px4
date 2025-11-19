@@ -24,10 +24,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Add ROS2 Humble repository
-RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
-    | tee /etc/apt/sources.list.d/ros2.list > /dev/null
+# Add ROS2 Humble repository using official ros2-apt-source package
+# Reference: https://github.com/osrf/docker_images/blob/master/ros/humble/ubuntu/jammy/ros-core/Dockerfile
+RUN curl -sSL https://github.com/ros-infrastructure/ros-apt-source/releases/download/1.1.0/ros2-apt-source_1.1.0.jammy_all.deb -o /tmp/ros2-apt-source.deb \
+    && dpkg -i /tmp/ros2-apt-source.deb \
+    && rm /tmp/ros2-apt-source.deb
 
 # Install ROS2 Humble base
 RUN apt-get update && apt-get install -y --no-install-recommends \

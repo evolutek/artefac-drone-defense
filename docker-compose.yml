@@ -61,6 +61,7 @@ services:
       - FASTRTPS_DEFAULT_PROFILES_FILE=/root/fastdds.xml
       - ROS_LOCALHOST_ONLY=0
       - DISPLAY=${DISPLAY:-:0}
+      - FLASK_PORT=8080
     volumes:
       # ROS2 workspace
       - ./simulation/src:/root/ros2_ws/src:rw
@@ -72,6 +73,11 @@ services:
       - ./logs/ros2:/root/.ros/log:rw
       # FastDDS config
       - ./simulation/config/fastdds.xml:/root/fastdds.xml:ro
+      # Simulation control scripts (mounted for live updates)
+      - ./simulation/spawn_drone.sh:/root/spawn_drone.sh:rw
+      - ./simulation/despawn_drone.sh:/root/despawn_drone.sh:rw
+      - ./simulation/spawn_zone.sh:/root/spawn_zone.sh:rw
+      - ./simulation/despawn_zone.sh:/root/despawn_zone.sh:rw
     working_dir: /root/ros2_ws
     depends_on:
       simulation:
@@ -99,7 +105,21 @@ services:
         ros2 param set /drone_1/mavros_node global_position.use_vision true &&
         echo 'Vision pose enabled! ✓' &&
         echo 'MAVROS services ready! Launching MQTT Bridge...' &&
-        ros2 launch mqtt_bridge mqtt_bridge.launch.py drone_id:=drone_1 mqtt_broker:=localhost &&
+        ros2 launch mqtt_bridge mqtt_bridge.launch.py drone_id:=drone_1 mqtt_broker:=localhost &
+        MQTT_PID=\$$! &&
+        echo 'Waiting for MAVROS to publish state topic...' &&
+        until source /opt/ros/humble/setup.bash && ros2 topic list 2>/dev/null | grep -q 'drone_1/state'; do
+          echo 'Still waiting for /drone_1/state topic...' &&
+          sleep 1;
+        done &&
+        echo 'MAVROS state topic ready! ✓' &&
+        echo 'Launching Simulation Control Server on port 8080...' &&
+        python3 /root/simulation_control_server.py &
+        FLASK_PID=\$$! &&
+        echo 'All services started!' &&
+        echo '  - MAVROS (PID: '\$$MAVROS_PID')' &&
+        echo '  - MQTT Bridge (PID: '\$$MQTT_PID')' &&
+        echo '  - Simulation Control Server (PID: '\$$FLASK_PID')' &&
         wait \$$MAVROS_PID
       "
     healthcheck:

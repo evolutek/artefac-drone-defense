@@ -60,10 +60,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Installation GeographicLib datasets (pour MAVROS)
-RUN wget https://raw.githubusercontent.com/mavlink/mavros/ros2/mavros/scripts/install_geographiclib_datasets.sh \
-    && chmod +x install_geographiclib_datasets.sh \
-    && ./install_geographiclib_datasets.sh \
-    && rm install_geographiclib_datasets.sh
+# Use the script provided by the MAVROS package instead of downloading from GitHub
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
+    && ros2 run mavros install_geographiclib_datasets.sh
+
+# Install Flask for simulation control server
+RUN pip3 install --no-cache-dir flask flask-cors
 
 # Setup workspace
 WORKDIR /root/ros2_ws
@@ -74,6 +76,17 @@ COPY src/ src/
 
 # Configuration FastDDS (optimisé pour multi-drones)
 COPY config/fastdds.xml /root/fastdds.xml
+
+# Copy simulation control scripts and server
+COPY spawn_drone.sh /root/spawn_drone.sh
+COPY despawn_drone.sh /root/despawn_drone.sh
+COPY spawn_zone.sh /root/spawn_zone.sh
+COPY despawn_zone.sh /root/despawn_zone.sh
+COPY simulation_control_server.py /root/simulation_control_server.py
+RUN chmod +x /root/*.sh /root/simulation_control_server.py
+
+# Copy exclusion zone SDF model
+COPY models/exclusion_zone /root/models/exclusion_zone
 
 # Initialisation rosdep
 RUN rosdep update && \

@@ -1,0 +1,772 @@
+#!/usr/bin/env python3
+"""
+Simulation Control Server - Artefac Drone Defense
+Provides REST API to control Gazebo simulation (spawn/despawn drones and zones)
+
+This server runs inside the ros2_integration container and has direct access
+to spawn_drone.sh, despawn_drone.sh scripts and Gazebo gz commands.
+
+Port: 8080
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
+
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+import paho.mqtt.publish as publish
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for Expo app
+
+# Configuration
+SCRIPTS_DIR = Path("/root")  # spawn_drone.sh and despawn_drone.sh location
+ACTIVE_DRONES_FILE = Path("/tmp/active_drones.json")
+ACTIVE_ZONES_FILE = Path("/tmp/active_zones.json")
+MAX_DRONES = 10
+MQTT_BROKER = os.getenv("MQTT_BROKER_HOST", "mqtt")
+MQTT_PORT = int(os.getenv("MQTT_BROKER_PORT", "1883"))
+
+
+# ============================================================================
+# MQTT Helper Functions
+# ============================================================================
+
+def publish_drone_presence(drone_id: str, event: str, reason: str = None):
+    """
+    Publish drone presence event to global MQTT topic drones/presence
+
+    Args:
+        drone_id: Drone identifier (e.g., "drone_1")
+        event: Event type ("connected" or "disconnected")
+        reason: Optional reason (e.g., "spawn", "despawn", "mavros_lost")
+    """
+    payload = {
+        'event': event,
+        'drone_id': drone_id,
+        'timestamp': int(time.time()),
+    }
+
+    if reason:
+        payload['reason'] = reason
+
+    try:
+        publish.single(
+            "drones/presence",
+            payload=json.dumps(payload),
+            hostname=MQTT_BROKER,
+            port=MQTT_PORT,
+            qos=1
+        )
+        print(f"[MQTT] Published presence event: {event} for {drone_id} (reason: {reason})")
+    except Exception as e:
+        print(f"[MQTT] Error publishing presence event: {e}")
+
+
+# ============================================================================
+# Helper Functions - Drone Management
+# ============================================================================
+
+def load_active_drones() -> Dict[int, dict]:
+    """Load active drones from JSON file. Returns dict {drone_num: metadata}"""
+    if not ACTIVE_DRONES_FILE.exists():
+        return {}
+    try:
+        with open(ACTIVE_DRONES_FILE, 'r') as f:
+            return {int(k): v for k, v in json.load(f).items()}
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
+def save_active_drones(drones: Dict[int, dict]):
+    """Save active drones to JSON file"""
+    with open(ACTIVE_DRONES_FILE, 'w') as f:
+        json.dump(drones, f, indent=2)
+
+
+def discover_active_drones_from_gazebo() -> Dict[int, dict]:
+    """
+    Query Gazebo directly to get list of active drone models (x500_*).
+    This is the source of truth - always reflects what's actually in the simulation.
+
+    Merges with JSON metadata (position, timestamps) if available.
+
+    Returns: Dict {drone_num: metadata} of all active drones in Gazebo
+    """
+    discovered = {}
+
+    try:
+        # Query Gazebo for all models
+        result = subprocess.run(
+            ["gz", "model", "--list"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+
+        if result.returncode == 0:
+            # Parse output to find x500_* models
+            # Example output:
+            # Requesting state for world [default]...
+            #
+            # Available models:
+            #     - ground_plane
+            #     - x500_0
+            #     - x500_1
+            pattern = re.compile(r'^\s*-\s*x500_(\d+)$', re.MULTILINE)
+            matches = pattern.findall(result.stdout)
+
+            for drone_num_str in matches:
+                drone_num = int(drone_num_str)
+                discovered[drone_num] = {
+                    'drone_id': f'drone_{drone_num + 1}',
+                    'model_name': f'x500_{drone_num}',
+                    'position': None,  # Unknown for discovered drones
+                    'spawned_at': None,  # Unknown
+                    'discovered': True  # Flag to indicate auto-discovered
+                }
+        else:
+            print(f"Warning: gz model --list failed: {result.stderr}")
+
+    except subprocess.TimeoutExpired:
+        print("Warning: gz model --list timeout")
+    except Exception as e:
+        print(f"Warning: Gazebo discovery failed: {e}")
+
+    # Load existing metadata from JSON
+    existing = load_active_drones()
+
+    # Merge: keep metadata from JSON for drones that exist in Gazebo
+    merged = {}
+    for drone_num, gazebo_data in discovered.items():
+        if drone_num in existing:
+            # Drone exists in both - use JSON metadata (more complete)
+            merged[drone_num] = existing[drone_num]
+        else:
+            # Drone only in Gazebo - use discovered data
+            merged[drone_num] = gazebo_data
+
+    # Sync JSON with Gazebo reality (remove ghost entries)
+    if merged != existing:
+        save_active_drones(merged)
+        print(f"Synchronized active_drones.json with Gazebo (removed {len(existing) - len(merged)} ghost entries)")
+
+    return merged
+
+
+def find_next_drone_number() -> Optional[int]:
+    """Find the next available drone number (0-9). Returns None if all slots full."""
+    active = load_active_drones()
+    used_numbers = set(active.keys())
+    for num in range(MAX_DRONES):
+        if num not in used_numbers:
+            return num
+    return None
+
+
+def execute_spawn_drone(drone_num: int, x: Optional[float] = None,
+                       y: Optional[float] = None, z: Optional[float] = None) -> dict:
+    """
+    Execute spawn_drone.sh script
+    Returns: {'success': bool, 'message': str, 'drone_id': str, 'drone_num': int}
+    """
+    script_path = SCRIPTS_DIR / "spawn_drone.sh"
+
+    # Build command
+    cmd = ["bash", str(script_path), str(drone_num)]
+    if x is not None and y is not None and z is not None:
+        cmd.extend([str(x), str(y), str(z)])
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=str(SCRIPTS_DIR)
+        )
+
+        drone_id = f"drone_{drone_num + 1}"
+
+        if result.returncode == 0:
+            # Store drone metadata
+            active_drones = load_active_drones()
+            active_drones[drone_num] = {
+                'drone_id': drone_id,
+                'model_name': f'x500_{drone_num}',
+                'position': {'x': x, 'y': y, 'z': z} if x is not None else None,
+                'spawned_at': datetime.now().isoformat(),
+            }
+            save_active_drones(active_drones)
+
+            # Publish presence event to MQTT
+            publish_drone_presence(drone_id, "connected", reason="spawn")
+
+            return {
+                'success': True,
+                'message': f'Drone {drone_id} spawned successfully',
+                'drone_id': drone_id,
+                'drone_num': drone_num
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Failed to spawn drone: {result.stderr}',
+                'drone_id': drone_id,
+                'drone_num': drone_num
+            }
+
+    except subprocess.TimeoutExpired:
+        return {'success': False, 'message': 'Spawn timeout (>30s)', 'drone_num': drone_num}
+    except Exception as e:
+        return {'success': False, 'message': f'Error: {str(e)}', 'drone_num': drone_num}
+
+
+def execute_despawn_drone(drone_num: int) -> dict:
+    """
+    Execute despawn_drone.sh script
+    Returns: {'success': bool, 'message': str, 'drone_id': str}
+    """
+    script_path = SCRIPTS_DIR / "despawn_drone.sh"
+    drone_id = f"drone_{drone_num + 1}"
+
+    try:
+        result = subprocess.run(
+            ["bash", str(script_path), str(drone_num)],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            cwd=str(SCRIPTS_DIR)
+        )
+
+        if result.returncode == 0:
+            # Remove from active drones
+            active_drones = load_active_drones()
+            if drone_num in active_drones:
+                del active_drones[drone_num]
+                save_active_drones(active_drones)
+
+            # Publish presence event to MQTT
+            publish_drone_presence(drone_id, "disconnected", reason="despawn")
+
+            return {
+                'success': True,
+                'message': f'Drone {drone_id} removed successfully',
+                'drone_id': drone_id
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Failed to remove drone: {result.stderr}',
+                'drone_id': drone_id
+            }
+
+    except subprocess.TimeoutExpired:
+        return {'success': False, 'message': 'Despawn timeout (>15s)', 'drone_id': drone_id}
+    except Exception as e:
+        return {'success': False, 'message': f'Error: {str(e)}', 'drone_id': drone_id}
+
+
+# ============================================================================
+# Helper Functions - Zone Management
+# ============================================================================
+
+def load_active_zones() -> Dict[str, dict]:
+    """Load active zones from JSON file. Returns dict {zone_id: metadata}"""
+    if not ACTIVE_ZONES_FILE.exists():
+        return {}
+    try:
+        with open(ACTIVE_ZONES_FILE, 'r') as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return {}
+
+
+def save_active_zones(zones: Dict[str, dict]):
+    """Save active zones to JSON file"""
+    with open(ACTIVE_ZONES_FILE, 'w') as f:
+        json.dump(zones, f, indent=2)
+
+
+def find_next_zone_id() -> str:
+    """Find next available zone ID (zone_0, zone_1, ...)"""
+    active = load_active_zones()
+    used_numbers = set()
+    for zone_id in active.keys():
+        if zone_id.startswith('zone_'):
+            try:
+                num = int(zone_id.split('_')[1])
+                used_numbers.add(num)
+            except (IndexError, ValueError):
+                pass
+
+    next_num = 0
+    while next_num in used_numbers:
+        next_num += 1
+
+    return f"zone_{next_num}"
+
+
+def execute_spawn_zone(zone_id: str, name: str, zone_type: str,
+                      center_x: float, center_y: float, center_z: float,
+                      radius: float) -> dict:
+    """
+    Execute spawn_zone.sh script
+    Returns: {'success': bool, 'message': str, 'zone_id': str}
+    """
+    script_path = SCRIPTS_DIR / "spawn_zone.sh"
+
+    try:
+        result = subprocess.run(
+            ["bash", str(script_path), zone_id, name, zone_type,
+             str(center_x), str(center_y), str(center_z), str(radius)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(SCRIPTS_DIR)
+        )
+
+        if result.returncode == 0:
+            # Store zone metadata
+            active_zones = load_active_zones()
+            active_zones[zone_id] = {
+                'name': name,
+                'type': zone_type,
+                'center': {'x': center_x, 'y': center_y, 'z': center_z},
+                'radius': radius,
+                'created_at': datetime.now().isoformat(),
+            }
+            save_active_zones(active_zones)
+
+            return {
+                'success': True,
+                'message': f'Zone {name} ({zone_id}) created successfully',
+                'zone_id': zone_id
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Failed to create zone: {result.stderr}',
+                'zone_id': zone_id
+            }
+
+    except subprocess.TimeoutExpired:
+        return {'success': False, 'message': 'Zone spawn timeout (>10s)', 'zone_id': zone_id}
+    except Exception as e:
+        return {'success': False, 'message': f'Error: {str(e)}', 'zone_id': zone_id}
+
+
+def execute_despawn_zone(zone_id: str) -> dict:
+    """
+    Execute despawn_zone.sh script
+    Returns: {'success': bool, 'message': str, 'zone_id': str}
+    """
+    script_path = SCRIPTS_DIR / "despawn_zone.sh"
+
+    try:
+        result = subprocess.run(
+            ["bash", str(script_path), zone_id],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(SCRIPTS_DIR)
+        )
+
+        if result.returncode == 0:
+            # Remove from active zones
+            active_zones = load_active_zones()
+            if zone_id in active_zones:
+                zone_name = active_zones[zone_id].get('name', zone_id)
+                del active_zones[zone_id]
+                save_active_zones(active_zones)
+            else:
+                zone_name = zone_id
+
+            return {
+                'success': True,
+                'message': f'Zone {zone_name} removed successfully',
+                'zone_id': zone_id
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Failed to remove zone: {result.stderr}',
+                'zone_id': zone_id
+            }
+
+    except subprocess.TimeoutExpired:
+        return {'success': False, 'message': 'Zone despawn timeout (>10s)', 'zone_id': zone_id}
+    except Exception as e:
+        return {'success': False, 'message': f'Error: {str(e)}', 'zone_id': zone_id}
+
+
+# ============================================================================
+# REST API Endpoints
+# ============================================================================
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    active_drones = discover_active_drones_from_gazebo()
+    active_zones = load_active_zones()
+
+    return jsonify({
+        'status': 'healthy',
+        'service': 'simulation-control',
+        'active_drones_count': len(active_drones),
+        'active_zones_count': len(active_zones),
+        'max_drones': MAX_DRONES
+    })
+
+
+@app.route('/drones/active', methods=['GET'])
+def get_active_drones():
+    """Get list of active drones (dynamically queried from Gazebo)"""
+    active_drones = discover_active_drones_from_gazebo()
+
+    drones_list = []
+    for drone_num, metadata in active_drones.items():
+        drones_list.append({
+            'drone_num': drone_num,
+            'drone_id': metadata['drone_id'],
+            'model_name': metadata['model_name'],
+            'position': metadata.get('position'),
+            'spawned_at': metadata.get('spawned_at')
+        })
+
+    return jsonify({
+        'drones': drones_list,
+        'count': len(drones_list)
+    })
+
+
+@app.route('/drones/refresh', methods=['POST'])
+def refresh_drones():
+    """
+    Manually trigger ROS2 topic scan to discover active drones.
+    Useful if drones were spawned after the server started.
+    """
+    try:
+        print("Manual drone refresh triggered...")
+        discovered_drones = discover_active_drones_from_gazebo()
+
+        # Save to JSON (already done inside discover function)
+        # save_active_drones(discovered_drones)
+
+        drones_list = []
+        for drone_num, metadata in discovered_drones.items():
+            drones_list.append({
+                'drone_num': drone_num,
+                'drone_id': metadata['drone_id'],
+                'model_name': metadata['model_name'],
+                'position': metadata.get('position'),
+                'spawned_at': metadata.get('spawned_at'),
+                'discovered': metadata.get('discovered', False)
+            })
+
+        print(f"✓ Refresh complete: {len(drones_list)} active drone(s)")
+
+        return jsonify({
+            'success': True,
+            'message': f'Discovered {len(drones_list)} active drone(s)',
+            'drones': drones_list,
+            'count': len(drones_list)
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Refresh failed: {str(e)}'
+        }), 500
+
+
+@app.route('/drones/spawn', methods=['POST'])
+def spawn_drone():
+    """
+    Spawn a new drone
+    Body: {
+        "x": float (optional),
+        "y": float (optional),
+        "z": float (optional)
+    }
+    """
+    data = request.get_json() or {}
+
+    # Find next available drone number
+    drone_num = find_next_drone_number()
+    if drone_num is None:
+        return jsonify({
+            'success': False,
+            'message': f'Maximum number of drones ({MAX_DRONES}) reached'
+        }), 400
+
+    # Get position (optional)
+    x = data.get('x')
+    y = data.get('y')
+    z = data.get('z')
+
+    # Validate position (if provided, all coordinates must be present)
+    if any(coord is not None for coord in [x, y, z]):
+        if not all(coord is not None for coord in [x, y, z]):
+            return jsonify({
+                'success': False,
+                'message': 'If position is provided, x, y, and z must all be specified'
+            }), 400
+
+    # Execute spawn
+    result = execute_spawn_drone(drone_num, x, y, z)
+
+    status_code = 200 if result['success'] else 500
+    return jsonify(result), status_code
+
+
+@app.route('/drones/batch-delete', methods=['POST'])
+def batch_despawn_drones():
+    """
+    Remove multiple drones at once
+    Body: {
+        "drone_nums": [0, 1, 2, ...]
+    }
+    Returns: {
+        "success": bool,
+        "message": str,
+        "results": [{"drone_num": int, "success": bool, "message": str}, ...],
+        "succeeded_count": int,
+        "failed_count": int
+    }
+    """
+    data = request.get_json()
+
+    # Validate request
+    if not data or 'drone_nums' not in data:
+        return jsonify({
+            'success': False,
+            'message': 'Missing required field: drone_nums'
+        }), 400
+
+    drone_nums = data['drone_nums']
+
+    if not isinstance(drone_nums, list):
+        return jsonify({
+            'success': False,
+            'message': 'drone_nums must be an array'
+        }), 400
+
+    if len(drone_nums) == 0:
+        return jsonify({
+            'success': False,
+            'message': 'drone_nums cannot be empty'
+        }), 400
+
+    # Load active drones
+    active_drones = load_active_drones()
+
+    # Execute deletions
+    results = []
+    succeeded_count = 0
+    failed_count = 0
+
+    for drone_num in drone_nums:
+        if drone_num not in active_drones:
+            results.append({
+                'drone_num': drone_num,
+                'success': False,
+                'message': f'Drone {drone_num} not found (not active)'
+            })
+            failed_count += 1
+        else:
+            result = execute_despawn_drone(drone_num)
+            results.append({
+                'drone_num': drone_num,
+                'success': result['success'],
+                'message': result['message']
+            })
+            if result['success']:
+                succeeded_count += 1
+            else:
+                failed_count += 1
+
+    # Determine overall success
+    all_succeeded = failed_count == 0
+    overall_message = f'Deleted {succeeded_count}/{len(drone_nums)} drone(s)'
+    if failed_count > 0:
+        overall_message += f' ({failed_count} failed)'
+
+    return jsonify({
+        'success': all_succeeded,
+        'message': overall_message,
+        'results': results,
+        'succeeded_count': succeeded_count,
+        'failed_count': failed_count
+    }), 200
+
+
+@app.route('/drones/<int:drone_num>', methods=['DELETE'])
+def despawn_drone(drone_num: int):
+    """Remove a drone by drone_num (0, 1, 2, ...)"""
+    active_drones = load_active_drones()
+
+    if drone_num not in active_drones:
+        return jsonify({
+            'success': False,
+            'message': f'Drone {drone_num} not found (not active)'
+        }), 404
+
+    result = execute_despawn_drone(drone_num)
+
+    status_code = 200 if result['success'] else 500
+    return jsonify(result), status_code
+
+
+@app.route('/zones', methods=['GET'])
+def get_zones():
+    """Get list of active exclusion zones"""
+    active_zones = load_active_zones()
+
+    zones_list = []
+    for zone_id, metadata in active_zones.items():
+        zones_list.append({
+            'zone_id': zone_id,
+            'name': metadata['name'],
+            'type': metadata['type'],
+            'center': metadata['center'],
+            'radius': metadata['radius'],
+            'created_at': metadata.get('created_at')
+        })
+
+    return jsonify({
+        'zones': zones_list,
+        'count': len(zones_list)
+    })
+
+
+@app.route('/zones', methods=['POST'])
+def create_zone():
+    """
+    Create a new exclusion zone
+    Body: {
+        "name": string,
+        "type": "jamming" | "no-fly" | "restricted",
+        "center": {"x": float, "y": float, "z": float},
+        "radius": float
+    }
+    """
+    data = request.get_json()
+
+    # Validate required fields
+    required_fields = ['name', 'type', 'center', 'radius']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({
+                'success': False,
+                'message': f'Missing required field: {field}'
+            }), 400
+
+    # Validate center coordinates
+    center = data['center']
+    if not all(coord in center for coord in ['x', 'y', 'z']):
+        return jsonify({
+            'success': False,
+            'message': 'Center must contain x, y, and z coordinates'
+        }), 400
+
+    # Validate type
+    valid_types = ['jamming', 'no-fly', 'restricted']
+    if data['type'] not in valid_types:
+        return jsonify({
+            'success': False,
+            'message': f'Invalid type. Must be one of: {", ".join(valid_types)}'
+        }), 400
+
+    # Find next zone ID
+    zone_id = find_next_zone_id()
+
+    # Execute spawn
+    result = execute_spawn_zone(
+        zone_id,
+        data['name'],
+        data['type'],
+        center['x'],
+        center['y'],
+        center['z'],
+        data['radius']
+    )
+
+    status_code = 200 if result['success'] else 500
+    return jsonify(result), status_code
+
+
+@app.route('/zones/<zone_id>', methods=['DELETE'])
+def delete_zone(zone_id: str):
+    """Remove an exclusion zone by zone_id"""
+    active_zones = load_active_zones()
+
+    if zone_id not in active_zones:
+        return jsonify({
+            'success': False,
+            'message': f'Zone {zone_id} not found (not active)'
+        }), 404
+
+    result = execute_despawn_zone(zone_id)
+
+    status_code = 200 if result['success'] else 500
+    return jsonify(result), status_code
+
+
+# ============================================================================
+# Main
+# ============================================================================
+
+if __name__ == '__main__':
+    print("=" * 60)
+    print("Simulation Control Server - Artefac Drone Defense")
+    print("=" * 60)
+    print(f"Scripts directory: {SCRIPTS_DIR}")
+    print(f"Active drones file: {ACTIVE_DRONES_FILE}")
+    print(f"Active zones file: {ACTIVE_ZONES_FILE}")
+    print(f"Max drones: {MAX_DRONES}")
+    print("=" * 60)
+
+    # Initialize ROS2
+    print("Initializing ROS2 context...")
+    try:
+        rclpy.init()
+        print("✓ ROS2 initialized successfully")
+    except Exception as e:
+        print(f"✗ ROS2 initialization failed: {e}")
+        print("  (Server will continue but auto-discovery disabled)")
+
+    # Discover existing drones from Gazebo
+    print("Scanning Gazebo for active drones...")
+    discovered_drones = discover_active_drones_from_gazebo()
+    if discovered_drones:
+        print(f"✓ Discovered {len(discovered_drones)} active drone(s):")
+        for drone_num, metadata in discovered_drones.items():
+            drone_id = metadata['drone_id']
+            is_discovered = metadata.get('discovered', False)
+            source = "ROS2 auto-discovery" if is_discovered else "existing JSON"
+            print(f"  - {drone_id} (drone_num={drone_num}) from {source}")
+
+        # Save merged list to JSON
+        save_active_drones(discovered_drones)
+        print(f"✓ Updated {ACTIVE_DRONES_FILE}")
+    else:
+        print("  No active drones found")
+
+    print("=" * 60)
+    print("Starting server on port 8080...")
+    print("=" * 60)
+
+    try:
+        app.run(host='0.0.0.0', port=8080, debug=False)
+    finally:
+        # Cleanup ROS2
+        if rclpy.ok():
+            rclpy.shutdown()

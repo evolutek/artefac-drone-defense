@@ -40,7 +40,7 @@ DRONE_ID="drone_$((DRONE_NUM + 1))"  # drone_1, drone_2, drone_3, ...
 MODEL_NAME="x500_${DRONE_NUM}"        # x500_0, x500_1, x500_2, ...
 
 # Position (defaults to grid pattern)
-X=${2:-$(echo "$DRONE_NUM * 3" | bc)}  # 0, 3, 6, 9, ...
+X=${2:-$((DRONE_NUM * 3))}  # 0, 3, 6, 9, ... (using bash arithmetic)
 Y=${3:-0}
 Z=${4:-0.5}
 
@@ -67,28 +67,21 @@ echo "=================================================="
 echo ""
 echo "[1/3] Spawning model in Gazebo..."
 
-# Check if Gazebo is running
-if ! pgrep -x "gz sim" > /dev/null; then
-    echo "ERROR: Gazebo simulation is not running!"
+# Check if Gazebo server is accessible (works across containers with network_mode: host)
+if ! timeout 5 gz service --list > /dev/null 2>&1; then
+    echo "ERROR: Gazebo simulation is not accessible!"
+    echo "  (Gazebo server might be running in a different container)"
     exit 1
 fi
 
-# Construct SDF for spawn (using x500 base model)
-SDF_CONTENT="<?xml version='1.0'?>
-<sdf version='1.9'>
-  <model name='${MODEL_NAME}'>
-    <pose>${X} ${Y} ${Z} 0 0 0</pose>
-    <include>
-      <uri>model://x500</uri>
-    </include>
-  </model>
-</sdf>"
+# Construct SDF as single-line string (protobuf text format doesn't support multiline)
+SDF_CONTENT="<?xml version=\\\"1.0\\\"?><sdf version=\\\"1.9\\\"><model name=\\\"${MODEL_NAME}\\\"><pose>${X} ${Y} ${Z} 0 0 0</pose><include><uri>model://x500</uri></include></model></sdf>"
 
 # Spawn via gz service
-echo "$SDF_CONTENT" | gz service -s /world/default/create \
+gz service -s /world/default/create \
   --reqtype gz.msgs.EntityFactory \
   --reptype gz.msgs.Boolean \
-  --req "sdf: \"-\", name: \"${MODEL_NAME}\""
+  --req "sdf: \"${SDF_CONTENT}\", name: \"${MODEL_NAME}\""
 
 if [ $? -eq 0 ]; then
     echo "✓ Model ${MODEL_NAME} spawned in Gazebo at ($X, $Y, $Z)"
@@ -127,19 +120,22 @@ fi
 echo ""
 echo "[3/3] Launching ROS2 nodes (MAVROS + bridges)..."
 
-# Check if ROS2 is sourced
-if ! command -v ros2 &> /dev/null; then
-    echo "ERROR: ROS2 not found. Please source ROS2 workspace first."
-    exit 1
-fi
-
-# Source ROS2 workspace
+# Source ROS2 workspace (required when called via subprocess)
 if [ -f "/opt/ros/humble/setup.bash" ]; then
     source /opt/ros/humble/setup.bash
+else
+    echo "ERROR: ROS2 Humble not found at /opt/ros/humble/setup.bash"
+    exit 1
 fi
 
 if [ -f "/root/ros2_ws/install/setup.bash" ]; then
     source /root/ros2_ws/install/setup.bash
+fi
+
+# Verify ROS2 is now available
+if ! command -v ros2 &> /dev/null; then
+    echo "ERROR: ROS2 command not available after sourcing"
+    exit 1
 fi
 
 # Launch MAVROS

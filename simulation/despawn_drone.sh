@@ -58,25 +58,49 @@ if [ -f "/tmp/bridges_${DRONE_NUM}.pid" ]; then
     BRIDGES_PID=$(cat /tmp/bridges_${DRONE_NUM}.pid)
 fi
 
-# Kill processes
+# Kill processes (children first to avoid orphans)
 KILLED=0
 
-if [ -n "$MAVROS_PID" ] && kill -0 $MAVROS_PID 2>/dev/null; then
-    echo "  → Killing MAVROS (PID: $MAVROS_PID)..."
-    kill -SIGINT $MAVROS_PID 2>/dev/null || true
-    KILLED=$((KILLED + 1))
-fi
-
+# Step 1: Kill children of BRIDGES process first (vision_pose_bridge, bridge_node)
 if [ -n "$BRIDGES_PID" ] && kill -0 $BRIDGES_PID 2>/dev/null; then
-    echo "  → Killing bridges (PID: $BRIDGES_PID)..."
+    echo "  → Killing bridge children processes (PID: $BRIDGES_PID)..."
+    # Kill all child processes of the ros2 launch command
+    pkill -P $BRIDGES_PID 2>/dev/null || true
+    sleep 1
+    # Force kill children if still alive
+    pkill -9 -P $BRIDGES_PID 2>/dev/null || true
+    # Now kill the parent
+    echo "  → Killing bridges parent (PID: $BRIDGES_PID)..."
     kill -SIGINT $BRIDGES_PID 2>/dev/null || true
     KILLED=$((KILLED + 1))
 fi
 
-# Fallback: kill by namespace pattern (if PIDs not found)
+# Step 2: Kill children of MAVROS process
+if [ -n "$MAVROS_PID" ] && kill -0 $MAVROS_PID 2>/dev/null; then
+    echo "  → Killing MAVROS children processes (PID: $MAVROS_PID)..."
+    pkill -P $MAVROS_PID 2>/dev/null || true
+    sleep 1
+    pkill -9 -P $MAVROS_PID 2>/dev/null || true
+    # Now kill the parent
+    echo "  → Killing MAVROS parent (PID: $MAVROS_PID)..."
+    kill -SIGINT $MAVROS_PID 2>/dev/null || true
+    KILLED=$((KILLED + 1))
+fi
+
+# Step 3: Fallback - find orphaned processes by parameter files
 if [ $KILLED -eq 0 ]; then
-    echo "  → PIDs not found, killing by namespace pattern..."
-    pkill -f "namespace:=${DRONE_ID}" 2>/dev/null || true
+    echo "  → PIDs not found, searching for orphaned processes..."
+    # Find all processes using launch_params files that contain this drone_id
+    for param_file in /tmp/launch_params_*; do
+        if [ -f "$param_file" ] && grep -q "drone_id: ${DRONE_ID}" "$param_file" 2>/dev/null; then
+            # Find processes using this param file
+            ORPHAN_PIDS=$(ps aux | grep "$param_file" | grep -v grep | awk '{print $2}')
+            for pid in $ORPHAN_PIDS; do
+                echo "  → Killing orphaned process (PID: $pid)..."
+                kill -9 $pid 2>/dev/null || true
+            done
+        fi
+    done
 fi
 
 # Wait for graceful shutdown
@@ -123,29 +147,33 @@ rm -f /tmp/px4_${DRONE_NUM}.pid
 echo ""
 echo "[3/3] Removing model from Gazebo..."
 
-# Check if Gazebo is running
-if ! pgrep -x "gz sim" > /dev/null; then
-    echo "⚠ Gazebo simulation is not running, skipping model removal"
-else
-    # Remove via gz service
-    gz service -s /world/default/remove \
-      --reqtype gz.msgs.Entity \
-      --reptype gz.msgs.Boolean \
-      --req "name: \"${MODEL_NAME}\", type: 2" 2>/dev/null || true
+# Remove via gz service (ignore errors if model doesn't exist)
+REMOVE_OUTPUT=$(gz service -s /world/default/remove \
+  --reqtype gz.msgs.Entity \
+  --reptype gz.msgs.Boolean \
+  --req "name: \"${MODEL_NAME}\", type: 2" 2>&1)
 
-    if [ $? -eq 0 ]; then
-        echo "✓ Model ${MODEL_NAME} removed from Gazebo"
-    else
-        echo "⚠ Failed to remove model from Gazebo (may not exist)"
-    fi
+# Check result
+if echo "$REMOVE_OUTPUT" | grep -q "data: true"; then
+    echo "✓ Model ${MODEL_NAME} removed from Gazebo"
+else
+    echo "⚠ Model ${MODEL_NAME} not found in Gazebo (may have been removed already)"
 fi
 
-# Cleanup log files (optional)
+# Cleanup log files and param files (optional)
 echo ""
-echo "Cleaning up log files..."
+echo "Cleaning up log files and parameter files..."
 rm -f /tmp/mavros_${DRONE_ID}.log
 rm -f /tmp/bridges_${DRONE_ID}.log
 rm -f /root/.ros/log/px4_${MODEL_NAME}.log
+
+# Cleanup orphaned parameter files for this drone
+for param_file in /tmp/launch_params_*; do
+    if [ -f "$param_file" ] && grep -q "drone_id: ${DRONE_ID}" "$param_file" 2>/dev/null; then
+        echo "  → Removing parameter file: $(basename $param_file)"
+        rm -f "$param_file"
+    fi
+done
 
 echo ""
 echo "=================================================="
