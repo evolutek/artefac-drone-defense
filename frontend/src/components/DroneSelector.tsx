@@ -117,7 +117,7 @@ export function DroneSelector({ connectedDroneIds, onConnect, onDisconnect }: Dr
                         : 'bg-gray-300 text-gray-700'
                     }`}
                   >
-                    {isConnected ? '● Connected' : '○ Disconnected'}
+                    {isConnected ? '● Monitoring' : '○ Not Monitoring'}
                   </span>
                 </div>
 
@@ -186,7 +186,7 @@ export function DroneSelector({ connectedDroneIds, onConnect, onDisconnect }: Dr
       {availableDrones.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-200">
           <p className="text-sm text-gray-600">
-            Connected: <span className="font-semibold text-green-600">{connectedDroneIds.size}</span>
+            Monitoring: <span className="font-semibold text-green-600">{connectedDroneIds.size}</span>
             {' / '}
             Total: <span className="font-semibold">{availableDrones.length}</span>
           </p>
