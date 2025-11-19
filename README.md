@@ -246,15 +246,18 @@ MAVROS + Simulation
 - python:3.10-slim base
 - FastAPI + Uvicorn
 - Pydantic (data validation)
-- SQLAlchemy + aiosqlite (database)
+- SQLAlchemy + aiosqlite (database for historical data only)
+- paho-mqtt (MQTT client)
 
 **Runtime**:
 - uvicorn ASGI server
-- SQLite database (volume mounted)
+- SQLite database (volume mounted) - stores missions and telemetry history only
+- In-memory state manager (DroneStateManager) - ephemeral drone state
+- MQTT client - listens to drone telemetry and presence events
 
-**Depends on**: None (independent, communicates via future bridge service)
+**Depends on**: MQTT broker (mosquitto)
 
-**Exposes**: HTTP API on port 8000
+**Exposes**: HTTP API on port 8000, WebSocket on `/ws/*`
 
 ---
 
