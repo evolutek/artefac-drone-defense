@@ -11,7 +11,7 @@ from datetime import datetime
 import logging
 
 from .models.database import init_db, get_db
-from .models import Drone, Mission, Telemetry
+from .models import Mission, Telemetry
 from . import crud
 from .schemas import (
     DroneCreate,
@@ -79,66 +79,78 @@ app.add_middleware(
 # ==================== Health Check ====================
 
 @app.get("/health", response_model=HealthResponse)
-def health_check(db: Session = Depends(get_db)):
+def health_check():
     """
     Health check endpoint
-    Returns status of backend, database, MQTT connection, and connected drones
+    Returns status of backend, MQTT connection, and active drones
     """
+    from .drone_state_manager import drone_state_manager
+
     # Check MQTT connection
     mqtt_status = mqtt_client.is_connected()
 
-    # Count connected drones (any status except disconnected)
-    drones = crud.get_drones(db)
-    connected_drones = len([d for d in drones if d.status != "disconnected"])
+    # Count active drones from in-memory state manager
+    active_drones = drone_state_manager.get_active_drones(timeout_seconds=30)
+    connected_drones = len(active_drones)
 
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow(),
         "mqtt_connected": mqtt_status,
-        "database": "operational",
+        "database": "operational",  # Keep for compatibility, but missions/telemetry still in DB
         "drones_connected": connected_drones,
     }
 
 
 # ==================== Drone Endpoints ====================
-
-@app.post("/drones", response_model=DroneResponse)
-def register_drone(drone: DroneCreate, db: Session = Depends(get_db)):
-    """
-    Register a new drone
-    """
-    # Check if drone already exists
-    existing = crud.get_drone(db, drone.drone_id)
-    if existing:
-        raise HTTPException(status_code=400, detail="Drone already registered")
-
-    db_drone = crud.create_drone(
-        db,
-        drone_id=drone.drone_id,
-        name=drone.name,
-        model=drone.model,
-    )
-    logger.info(f"Registered drone: {drone.drone_id}")
-    return db_drone
-
+# Note: Drone registration is automatic via MQTT telemetry
+# No POST /drones endpoint needed - drones auto-register when they start publishing
 
 @app.get("/drones", response_model=List[DroneResponse])
-def list_drones(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def list_drones(
+    skip: int = 0,
+    limit: int = 100,
+    only_active: bool = True,
+    timeout_seconds: int = 30
+):
     """
-    List all registered drones
+    List drones from in-memory state manager
+
+    Args:
+        skip: Pagination offset (not used with in-memory state)
+        limit: Maximum number of results
+        only_active: If True, only return drones with recent heartbeat (default: True)
+        timeout_seconds: Heartbeat timeout in seconds (default: 30)
     """
-    drones = crud.get_drones(db, skip=skip, limit=limit)
-    return drones
+    from .drone_state_manager import drone_state_manager
+
+    if only_active:
+        drones_dict = drone_state_manager.get_active_drones(timeout_seconds=timeout_seconds)
+    else:
+        drones_dict = drone_state_manager.get_all_drones()
+
+    # Convert dict to list and apply limit
+    drones_list = list(drones_dict.values())
+
+    # Apply pagination (skip not really useful with in-memory, but keep for API compatibility)
+    if skip > 0:
+        drones_list = drones_list[skip:]
+    if limit > 0:
+        drones_list = drones_list[:limit]
+
+    return drones_list
 
 
 @app.get("/drones/{drone_id}", response_model=DroneResponse)
-def get_drone(drone_id: str, db: Session = Depends(get_db)):
+def get_drone(drone_id: str):
     """
-    Get drone details
+    Get drone details from in-memory state manager
     """
-    drone = crud.get_drone(db, drone_id)
+    from .drone_state_manager import drone_state_manager
+
+    drone = drone_state_manager.get_drone(drone_id)
     if not drone:
-        raise HTTPException(status_code=404, detail="Drone not found")
+        raise HTTPException(status_code=404, detail="Drone not found or inactive")
     return drone
 
 
@@ -154,15 +166,12 @@ def get_drone_telemetry(drone_id: str, db: Session = Depends(get_db)):
 
 
 @app.post("/drones/{drone_id}/arm")
-def arm_drone(drone_id: str, db: Session = Depends(get_db)):
+def arm_drone(drone_id: str):
     """
     Arm drone motors
     Publishes ARM command to MQTT and waits for result
+    No DB check needed - if drone publishes on MQTT, it exists
     """
-    drone = crud.get_drone(db, drone_id)
-    if not drone:
-        raise HTTPException(status_code=404, detail="Drone not found")
-
     # Publish ARM command via MQTT
     success = mqtt_client.publish_command(drone_id, "ARM")
     if not success:
@@ -192,15 +201,12 @@ def arm_drone(drone_id: str, db: Session = Depends(get_db)):
 
 
 @app.post("/drones/{drone_id}/disarm")
-def disarm_drone(drone_id: str, db: Session = Depends(get_db)):
+def disarm_drone(drone_id: str):
     """
     Disarm drone motors
     Publishes DISARM command to MQTT and waits for result
+    No DB check needed - if drone publishes on MQTT, it exists
     """
-    drone = crud.get_drone(db, drone_id)
-    if not drone:
-        raise HTTPException(status_code=404, detail="Drone not found")
-
     # Publish DISARM command via MQTT
     success = mqtt_client.publish_command(drone_id, "DISARM")
     if not success:
@@ -230,15 +236,12 @@ def disarm_drone(drone_id: str, db: Session = Depends(get_db)):
 
 
 @app.post("/drones/{drone_id}/takeoff")
-def takeoff_drone(drone_id: str, altitude: float = 5.0, db: Session = Depends(get_db)):
+def takeoff_drone(drone_id: str, altitude: float = 5.0):
     """
     Command drone to takeoff
     Publishes TAKEOFF command to MQTT with altitude parameter and waits for result
+    No DB check needed - if drone publishes on MQTT, it exists
     """
-    drone = crud.get_drone(db, drone_id)
-    if not drone:
-        raise HTTPException(status_code=404, detail="Drone not found")
-
     # Publish TAKEOFF command via MQTT
     success = mqtt_client.publish_command(drone_id, "TAKEOFF", {"altitude": altitude})
     if not success:
@@ -269,15 +272,12 @@ def takeoff_drone(drone_id: str, altitude: float = 5.0, db: Session = Depends(ge
 
 
 @app.post("/drones/{drone_id}/land")
-def land_drone(drone_id: str, db: Session = Depends(get_db)):
+def land_drone(drone_id: str):
     """
     Command drone to land
     Publishes LAND command to MQTT and waits for result
+    No DB check needed - if drone publishes on MQTT, it exists
     """
-    drone = crud.get_drone(db, drone_id)
-    if not drone:
-        raise HTTPException(status_code=404, detail="Drone not found")
-
     # Publish LAND command via MQTT
     success = mqtt_client.publish_command(drone_id, "LAND")
     if not success:
@@ -313,10 +313,11 @@ def create_mission(mission: MissionCreate, db: Session = Depends(get_db)):
     """
     Create new mission
     """
-    # Verify drone exists
-    drone = crud.get_drone(db, mission.drone_id)
+    # Verify drone exists in state manager
+    from .drone_state_manager import drone_state_manager
+    drone = drone_state_manager.get_drone(mission.drone_id)
     if not drone:
-        raise HTTPException(status_code=404, detail="Drone not found")
+        raise HTTPException(status_code=404, detail="Drone not found or inactive")
 
     # Convert waypoints to JSON string if needed
     import json

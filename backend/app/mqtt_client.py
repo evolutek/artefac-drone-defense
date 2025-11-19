@@ -36,11 +36,12 @@ class MQTTClient:
             self.connected = True
             logger.info(f"Connected to MQTT broker at {self.broker_host}:{self.broker_port}")
 
-            # Subscribe to all drone telemetry, state, and command result topics
+            # Subscribe to all drone telemetry, state, command result topics, and global presence events
             client.subscribe("drone/+/telemetry")
             client.subscribe("drone/+/state")
             client.subscribe("drone/+/command_result")
-            logger.info("Subscribed to drone/+/telemetry, drone/+/state, and drone/+/command_result")
+            client.subscribe("drones/presence")
+            logger.info("Subscribed to drone topics (telemetry, state, command_result) and drones/presence")
         else:
             self.connected = False
             logger.error(f"Failed to connect to MQTT broker, return code: {rc}")
@@ -61,6 +62,11 @@ class MQTTClient:
 
             logger.debug(f"Received MQTT message on {topic}: {payload}")
 
+            # Handle global presence topic
+            if topic == "drones/presence":
+                self._handle_presence_event(payload)
+                return
+
             # Parse topic to get drone_id
             # Format: drone/{drone_id}/telemetry or drone/{drone_id}/state or drone/{drone_id}/command_result
             parts = topic.split("/")
@@ -71,7 +77,7 @@ class MQTTClient:
             drone_id = parts[1]
             message_type = parts[2]
 
-            # Handle telemetry messages
+            # Handle drone-specific messages
             if message_type == "telemetry":
                 self._handle_telemetry(drone_id, payload)
             elif message_type == "state":
@@ -88,32 +94,16 @@ class MQTTClient:
         """Handle telemetry message"""
         logger.debug(f"Telemetry from {drone_id}: {payload}")
 
-        # Import here to avoid circular dependency
+        # Update in-memory state (fast, no DB latency)
+        from .drone_state_manager import drone_state_manager
+        drone_state_manager.update_telemetry(drone_id, payload)
+
+        # Store telemetry history in database (async, for post-flight analysis)
         from .models.database import SessionLocal
         from . import crud
 
-        # Update database with telemetry
         db = SessionLocal()
         try:
-            # Check if drone exists, create if not
-            drone = crud.get_drone(db, drone_id)
-            if not drone:
-                logger.info(f"Auto-registering drone {drone_id}")
-                crud.create_drone(db, drone_id=drone_id)
-
-            # Update drone with latest telemetry
-            crud.update_drone_telemetry(
-                db,
-                drone_id=drone_id,
-                position_x=payload.get("position_x"),
-                position_y=payload.get("position_y"),
-                position_z=payload.get("position_z"),
-                latitude=payload.get("latitude"),
-                longitude=payload.get("longitude"),
-                altitude=payload.get("altitude"),
-                battery_level=payload.get("battery"),
-            )
-
             # Store telemetry history
             crud.create_telemetry(
                 db,
@@ -136,7 +126,7 @@ class MQTTClient:
 
             db.commit()
         except Exception as e:
-            logger.error(f"Error updating telemetry in database: {e}")
+            logger.error(f"Error storing telemetry history: {e}")
             db.rollback()
         finally:
             db.close()
@@ -149,38 +139,9 @@ class MQTTClient:
         """Handle state message"""
         logger.debug(f"State from {drone_id}: {payload}")
 
-        # Import here to avoid circular dependency
-        from .models.database import SessionLocal
-        from . import crud
-
-        # Update database with state
-        db = SessionLocal()
-        try:
-            # Check if drone exists, create if not
-            drone = crud.get_drone(db, drone_id)
-            if not drone:
-                logger.info(f"Auto-registering drone {drone_id}")
-                crud.create_drone(db, drone_id=drone_id)
-
-            # Update drone state
-            status = "connected" if payload.get("connected") else "disconnected"
-            if payload.get("armed"):
-                status = "armed"
-
-            crud.update_drone(
-                db,
-                drone_id=drone_id,
-                is_armed=payload.get("armed", False),
-                flight_mode=payload.get("mode"),
-                status=status,
-            )
-
-            db.commit()
-        except Exception as e:
-            logger.error(f"Error updating state in database: {e}")
-            db.rollback()
-        finally:
-            db.close()
+        # Update in-memory state (fast, no DB latency)
+        from .drone_state_manager import drone_state_manager
+        drone_state_manager.update_state(drone_id, payload)
 
         # Notify WebSocket clients
         if self.state_callback:
@@ -207,6 +168,38 @@ class MQTTClient:
         # Notify WebSocket clients
         if self.command_result_callback:
             self.command_result_callback(drone_id, payload)
+
+    def _handle_presence_event(self, payload: Dict[str, Any]):
+        """
+        Handle drone presence events from global drones/presence topic
+        Events: connected, disconnected
+        """
+        event = payload.get("event")
+        drone_id = payload.get("drone_id")
+        reason = payload.get("reason", "unknown")
+
+        if not event or not drone_id:
+            logger.warning(f"Invalid presence event: missing event or drone_id: {payload}")
+            return
+
+        from .drone_state_manager import drone_state_manager
+
+        if event == "connected":
+            logger.info(f"Drone {drone_id} connected (reason: {reason})")
+            # No action needed - drone will start publishing telemetry/state automatically
+            # State manager will auto-register on first telemetry message
+
+        elif event == "disconnected":
+            logger.info(f"Drone {drone_id} disconnected (reason: {reason})")
+            # Immediately remove drone from state manager
+            removed = drone_state_manager.remove_drone(drone_id)
+            if removed:
+                logger.info(f"Removed {drone_id} from state manager due to disconnection")
+            else:
+                logger.warning(f"Tried to remove {drone_id} but it was not in state manager")
+
+        else:
+            logger.warning(f"Unknown presence event type: {event} for {drone_id}")
 
     def wait_for_command_result(self, drone_id: str, command: str, timeout: float = 5.0) -> Optional[Dict[str, Any]]:
         """

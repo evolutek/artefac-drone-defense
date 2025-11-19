@@ -2,7 +2,7 @@
 Telemetry database model for storing drone telemetry history
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime
 from .database import Base
 
 
@@ -10,7 +10,7 @@ class Telemetry(Base):
     __tablename__ = "telemetry"
 
     id = Column(Integer, primary_key=True, index=True)
-    drone_id = Column(String, ForeignKey("drones.drone_id"), nullable=False, index=True)
+    drone_id = Column(String, nullable=False, index=True)  # Reference to in-memory drone (no FK constraint)
 
     # Position
     latitude = Column(Float, nullable=True)

@@ -2,8 +2,7 @@
 Mission database model
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, DateTime, Text
 from .database import Base
 
 
@@ -11,7 +10,7 @@ class Mission(Base):
     __tablename__ = "missions"
 
     id = Column(Integer, primary_key=True, index=True)
-    drone_id = Column(String, ForeignKey("drones.drone_id"), nullable=False)
+    drone_id = Column(String, nullable=False)  # Reference to in-memory drone (no FK constraint)
     mission_type = Column(String, nullable=False)  # delivery, surveillance, patrol
     status = Column(String, default="pending")  # pending, assigned, in_progress, completed, failed
     priority = Column(Integer, default=1)  # 1=low, 2=medium, 3=high
