@@ -915,6 +915,7 @@ def send_command_result(self, future, action):
 | `drone/{id}/telemetry` | ROS2 → MQTT | JSON | 10 Hz | Position, orientation, batterie |
 | `drone/{id}/command` | MQTT → ROS2 | JSON | On-demand | ARM, DISARM, TAKEOFF, LAND |
 | `drone/{id}/command_result` | ROS2 → MQTT | JSON | On-demand | Succès/échec commande |
+| `drones/presence` | ROS2 + SimControl → MQTT | JSON | On-event | Événements de présence globaux (connected/disconnected) |
 
 **Exemple Payload** :
 
