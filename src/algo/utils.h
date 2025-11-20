@@ -5,9 +5,9 @@
 // Structures
 
 typedef struct Position {
-	uint32_t x;
-	uint32_t y;
-	uint32_t z;
+	int32_t x;
+	int32_t y;
+	int32_t z;
 } Position;
 
 typedef struct Item {
@@ -16,7 +16,7 @@ typedef struct Item {
 } Item;
 
 typedef struct Delivery {
-	Item *items;
+	Item *item;
 	uint16_t quantity;
 	uint8_t priority;	// 0 -> Max priority | 5 -> Min priority
 	Position *position;
@@ -44,13 +44,18 @@ typedef struct Drone {
 	float cost;
 } Drone;
 
+typedef struct Route_constraint {
+	Position *center;
+	uint32_t radius;
+} Route_constraint;
+
 // Functions
 
 Position *new_position(uint32_t x, uint32_t y, uint32_t z);
 
 Item *new_item(char *name, uint32_t mass);
 
-Delivery *new_delivery(Item *const items, const uint16_t quantity,
+Delivery *new_delivery(Item *const item, const uint16_t quantity,
 		const uint8_t priority, Position *const position, const uint32_t mass);
 
 Drone *new_drone(const uint32_t max_capacity, const uint8_t max_speed,
@@ -59,4 +64,9 @@ Drone *new_drone(const uint32_t max_capacity, const uint8_t max_speed,
 		const uint32_t payload, const float autonomy, Position *const position,
 		Delivery *const targets, const uint8_t nb_targets, float cost);
 
-uint32_t distance(const Position *pos1, const Position *pos2);
+uint32_t distance_2D(const Position *pos1, const Position *pos2);
+
+float consumption(Drone *drone, uint32_t distance, uint8_t speed, uint32_t charge);
+
+float can_handle(Drone *drone, uint8_t nb_deliveries, Delivery *deliveries[nb_deliveries], 
+		uint8_t speed);
