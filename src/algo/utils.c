@@ -76,12 +76,14 @@ uint32_t distance(const Position *pos1, const Position *pos2) {
 
 
 
-double weight(struct Drone* drone, struct Delivery* delivery, uint32_t pre_calculated_dist){ // distance = 0 if not calculated before
+float weight(struct Drone* drone, struct Delivery* delivery, uint32_t pre_calculated_dist){ // distance = 0 if not calculated before
     uint32_t dist = drone->cost;
     if (pre_calculated_dist == 0)
         dist += distance(drone->position, delivery->position);
     else
         dist += pre_calculated_dist;
+
+	printf("add = %f\n", dist * (delivery->priority + 1) * 0.5f / drone->max_speed);
     return dist * (delivery->priority + 1) * 0.5f / drone->max_speed;
 }
 

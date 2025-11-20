@@ -41,7 +41,7 @@ typedef struct Drone {
 	uint8_t nb_targets;
 
 	// Algorithm internal attributes
-	uint32_t cost;
+	float cost;
 } Drone;
 
 // Functions
@@ -62,7 +62,7 @@ Drone *new_drone(const uint32_t max_capacity, const uint8_t max_speed,
 
 uint32_t distance(const Position *pos1, const Position *pos2);
 
-double weight(struct Drone* drone, struct Delivery* delivery, uint32_t pre_calculated_dist);
+float weight(struct Drone* drone, struct Delivery* delivery, uint32_t pre_calculated_dist);
 
 int add_target(struct Drone* drone, struct Delivery* delivery);
 
