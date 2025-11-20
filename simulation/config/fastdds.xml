@@ -30,15 +30,7 @@
                     <leaseDuration>
                         <sec>30</sec>  <!-- Was 10s, now 30s -->
                     </leaseDuration>
-                    <!-- Limit discovery multicast to local interfaces -->
-                    <initialPeersList>
-                        <locator>
-                            <udpv4>
-                                <address>127.0.0.1</address>
-                                <port>7400</port>
-                            </udpv4>
-                        </locator>
-                    </initialPeersList>
+                    <!-- Using automatic multicast discovery (default behavior) -->
                 </discovery_config>
             </builtin>
             <userTransports>
@@ -48,18 +40,21 @@
 
             <!-- Limit participant resources for multi-drone scenarios -->
             <allocation>
-                <participants>
+                <total_participants>
                     <initial>10</initial>
                     <maximum>20</maximum>
-                </participants>
-                <readers>
+                    <increment>1</increment>
+                </total_participants>
+                <total_readers>
                     <initial>50</initial>
                     <maximum>200</maximum>
-                </readers>
-                <writers>
+                    <increment>1</increment>
+                </total_readers>
+                <total_writers>
                     <initial>50</initial>
                     <maximum>200</maximum>
-                </writers>
+                    <increment>1</increment>
+                </total_writers>
             </allocation>
         </rtps>
     </participant>

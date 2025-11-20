@@ -27,10 +27,23 @@ export interface Zone {
   created_at?: string;
 }
 
+export interface DroneModel {
+  id: string;
+  description: string;
+  details: string;
+  type: string;
+}
+
+export interface ModelsResponse {
+  models: DroneModel[];
+  default_model: string;
+}
+
 export interface SpawnDroneRequest {
   x?: number;
   y?: number;
   z?: number;
+  model?: string;
 }
 
 export interface CreateZoneRequest {
@@ -120,6 +133,11 @@ class SimulationControlApi {
 
   async health(): Promise<HealthResponse> {
     const response = await this.client.get<HealthResponse>('/health');
+    return response.data;
+  }
+
+  async getAvailableModels(): Promise<ModelsResponse> {
+    const response = await this.client.get<ModelsResponse>('/models');
     return response.data;
   }
 

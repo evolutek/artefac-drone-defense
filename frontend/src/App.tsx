@@ -2,16 +2,24 @@ import { HealthDashboard } from './components/HealthDashboard';
 import { DroneControl } from './components/DroneControl';
 import { DroneTelemetry } from './components/DroneTelemetry';
 import { DroneSelector } from './components/DroneSelector';
+import { DroneEventToast } from './components/DroneEventToast';
 import { useMultiDroneWebSocket } from './hooks/useMultiDroneWebSocket';
+import { useGlobalDroneEvents } from './hooks/useGlobalDroneEvents';
 
 function App() {
   const { connections, connect, disconnect } = useMultiDroneWebSocket();
+  const { initializingDrones, latestEvent } = useGlobalDroneEvents();
+
+  console.log('[App] Initializing drones:', initializingDrones.size, 'Latest event:', latestEvent?.type);
 
   // Get array of connected drone IDs for easier iteration
   const connectedDroneIds = Array.from(connections.keys());
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Toast Notifications */}
+      <DroneEventToast latestEvent={latestEvent} />
+
       {/* Header */}
       <header className="bg-blue-600 text-white shadow-lg">
         <div className="container mx-auto px-4 py-6">
@@ -31,6 +39,8 @@ function App() {
             connectedDroneIds={new Set(connectedDroneIds)}
             onConnect={connect}
             onDisconnect={disconnect}
+            initializingDrones={initializingDrones}
+            latestEvent={latestEvent}
           />
 
           {/* Info Section - Show only if no drones connected */}

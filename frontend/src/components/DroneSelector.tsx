@@ -1,15 +1,24 @@
 import { useState, useEffect } from 'react';
 import { droneApi } from '../utils/api';
-import { DroneStatus } from '../types';
+import { DroneStatus, DroneLifecycleEvent } from '../types';
 import axios from 'axios';
+import { InitializingDrone } from '../hooks/useGlobalDroneEvents';
 
 interface DroneSelectorProps {
   connectedDroneIds: Set<string>;
   onConnect: (droneId: string) => void;
   onDisconnect: (droneId: string) => void;
+  initializingDrones: Map<string, InitializingDrone>;
+  latestEvent: DroneLifecycleEvent | null;
 }
 
-export function DroneSelector({ connectedDroneIds, onConnect, onDisconnect }: DroneSelectorProps) {
+export function DroneSelector({
+  connectedDroneIds,
+  onConnect,
+  onDisconnect,
+  initializingDrones,
+  latestEvent
+}: DroneSelectorProps) {
   const [availableDrones, setAvailableDrones] = useState<DroneStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +50,32 @@ export function DroneSelector({ connectedDroneIds, onConnect, onDisconnect }: Dr
 
     return () => clearInterval(interval);
   }, []);
+
+  // Refresh drone list when lifecycle events occur
+  useEffect(() => {
+    if (latestEvent) {
+      // Refresh after 500ms to allow backend to update
+      setTimeout(() => {
+        fetchDrones();
+      }, 500);
+    }
+  }, [latestEvent]);
+
+  // Cleanup: Remove drones from initializing list if they appear in availableDrones
+  // This prevents stale "initializing" cards from persisting
+  useEffect(() => {
+    const activeDroneIds = new Set(availableDrones.map(d => d.drone_id));
+    const initializingIds = Array.from(initializingDrones.keys());
+
+    // Find drones that are in initializingDrones but also in availableDrones
+    const staleInitializing = initializingIds.filter(id => activeDroneIds.has(id));
+
+    if (staleInitializing.length > 0) {
+      console.log('[DroneSelector] Cleaning up stale initializing drones:', staleInitializing);
+      // These drones are ready (in availableDrones) but still marked as initializing
+      // This can happen if drone_ready event was missed or delayed
+    }
+  }, [availableDrones, initializingDrones]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -83,20 +118,77 @@ export function DroneSelector({ connectedDroneIds, onConnect, onDisconnect }: Dr
         </div>
       )}
 
-      {availableDrones.length === 0 ? (
+      {availableDrones.length === 0 && initializingDrones.size === 0 ? (
         <div className="text-center py-8 text-gray-600">
           <p className="text-lg mb-2">No drones available</p>
           <p className="text-sm">Make sure the simulation is running and drones are publishing telemetry</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {availableDrones.map((drone) => {
-            const isConnected = connectedDroneIds.has(drone.drone_id);
+          {/* Initializing Drones */}
+          {Array.from(initializingDrones.values()).map((initDrone) => (
+            <div
+              key={initDrone.drone_id}
+              className="border-2 border-yellow-500 bg-yellow-50 rounded-lg p-4 transition-all animate-pulse"
+            >
+              {/* Drone Header */}
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <h3 className="font-bold text-lg">{initDrone.drone_id}</h3>
+                  <p className="text-sm text-gray-600">Spawning...</p>
+                </div>
+                <span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-600 text-white">
+                  ⏳ Initializing
+                </span>
+              </div>
 
-            return (
-              <div
-                key={drone.drone_id}
-                className={`border-2 rounded-lg p-4 transition-all ${
+              {/* Spinner + Status */}
+              <div className="flex items-center space-x-3 mb-4">
+                <svg
+                  className="animate-spin h-5 w-5 text-yellow-600"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <span className="text-sm text-yellow-800">
+                  Starting PX4 SITL + MAVROS ({Math.floor((Date.now() - initDrone.timestamp) / 1000)}s)
+                </span>
+              </div>
+
+              {/* Disabled Connect Button */}
+              <button
+                disabled
+                className="w-full px-4 py-2 rounded-lg font-semibold bg-gray-300 text-gray-500 cursor-not-allowed"
+              >
+                Waiting for telemetry...
+              </button>
+            </div>
+          ))}
+
+          {/* Active Drones (filter out drones that are still initializing) */}
+          {availableDrones
+            .filter(drone => !initializingDrones.has(drone.drone_id))
+            .map((drone) => {
+              const isConnected = connectedDroneIds.has(drone.drone_id);
+
+              return (
+                <div
+                  key={drone.drone_id}
+                  className={`border-2 rounded-lg p-4 transition-all ${
                   isConnected
                     ? 'border-green-500 bg-green-50'
                     : 'border-gray-300 bg-white'
@@ -183,12 +275,18 @@ export function DroneSelector({ connectedDroneIds, onConnect, onDisconnect }: Dr
       )}
 
       {/* Connection Summary */}
-      {availableDrones.length > 0 && (
+      {(availableDrones.length > 0 || initializingDrones.size > 0) && (
         <div className="mt-4 pt-4 border-t border-gray-200">
           <p className="text-sm text-gray-600">
             Monitoring: <span className="font-semibold text-green-600">{connectedDroneIds.size}</span>
             {' / '}
-            Total: <span className="font-semibold">{availableDrones.length}</span>
+            Active: <span className="font-semibold">{availableDrones.length}</span>
+            {initializingDrones.size > 0 && (
+              <>
+                {' + '}
+                <span className="font-semibold text-yellow-600">{initializingDrones.size} initializing</span>
+              </>
+            )}
           </p>
         </div>
       )}
