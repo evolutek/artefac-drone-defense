@@ -16,10 +16,10 @@ typedef struct Item {
 } Item;
 
 typedef struct Delivery {
-	Item **items;
+	const Item *items;
 	uint16_t quantity;
 	uint8_t priority;	// 0 -> Max priority | 5 -> Min priority
-	Position *position;
+	Position position;
 	uint32_t mass;		// In grams
 } Delivery;
 
@@ -51,7 +51,7 @@ Position *new_position(uint32_t x, uint32_t y, uint32_t z);
 Item *new_item(char *name, uint32_t mass);
 
 Delivery *new_delivery(Item *const items, const uint16_t quantity,
-		const uint8_t priority, Position *const position, const uint32_t mass);
+		const uint8_t priority, Position position, const uint32_t mass);
 
 Drone *new_drone(const uint32_t max_capacity, const uint8_t max_speed,
 		const uint8_t acceleration, const uint16_t energy,

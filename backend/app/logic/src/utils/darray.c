@@ -1,5 +1,6 @@
 #include "darray.h"
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -41,8 +42,10 @@ static struct darray_header* darray_grow(struct darray_header* header) {
     size_t new_cap                  = header_cpy.capacity * 1.5;
 
     header = realloc(header, HEADER_SIZE + new_cap * header_cpy.stride);
-    if (!header)
-        return NULL;
+    if (!header) {
+        fputs("Failed to grow a dynamic array", stderr);
+        abort();
+    }
 
     header->capacity = new_cap;
     return header;
@@ -52,9 +55,8 @@ void* _darray_add(void* elements, const void* obj) {
     struct darray_header* header = ptr_offset_bytes(elements, -HEADER_SIZE);
 
     if (header->size == header->capacity) {
-        header = darray_grow(header);
-        if (!header)
-            return NULL;
+        header   = darray_grow(header);
+        elements = ptr_offset_bytes(header, HEADER_SIZE);
     }
 
     size_t stride = header->stride;
@@ -64,7 +66,7 @@ void* _darray_add(void* elements, const void* obj) {
     memcpy(new_elem_ptr, obj, stride);
     header->size++;
 
-    return ptr_offset_bytes(elements, HEADER_SIZE);
+    return elements;
 }
 
 static bool compute_actual_index(ssize_t index, size_t array_size, size_t* out_actual_index) {
@@ -89,9 +91,8 @@ void* _darray_insert(void* elements, ssize_t index, const void* obj) {
         return false;
 
     if (size == header->capacity) {
-        header = darray_grow(header);
-        if (!header)
-            return NULL;
+        header   = darray_grow(header);
+        elements = ptr_offset_bytes(header, HEADER_SIZE);
     }
 
     size_t stride = header->stride;
@@ -100,7 +101,7 @@ void* _darray_insert(void* elements, ssize_t index, const void* obj) {
     memmove(ptr_offset_bytes(new_elem_ptr, stride), new_elem_ptr, size - actual_index);
     memcpy(new_elem_ptr, obj, stride);
     header->size++;
-    return ptr_offset_bytes(elements, HEADER_SIZE);
+    return elements;
 }
 
 bool darray_pop(void* darray, void* out_elem) {
@@ -138,7 +139,7 @@ bool darray_remove(void* darray, ssize_t index, void* out_elem) {
 
 void darray_clear(void* darray) {
     struct darray_header* header = ptr_offset_bytes(darray, -HEADER_SIZE);
-    header->size = 0;
+    header->size                 = 0;
 }
 
 size_t _darray_get_field(const void* darray, enum _DarrayField field) {

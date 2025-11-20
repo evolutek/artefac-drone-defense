@@ -22,7 +22,7 @@ Item *new_item(char *name, uint32_t mass) {
 }
 
 Delivery *new_delivery(Item *const items, const uint16_t quantity,
-		const uint8_t priority, Position *const position, const uint32_t mass) {
+		const uint8_t priority, Position position, const uint32_t mass) {
 	struct Delivery* del = malloc(sizeof(Delivery));
 
 	del->items = items;
