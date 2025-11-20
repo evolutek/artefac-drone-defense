@@ -26,12 +26,19 @@ RUN wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pk
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
     | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
 
+# Add Docker repository for Docker CLI (needed for simulation_control_server.py to call docker exec)
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+    | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
 # Installation dépendances système
 RUN apt-get update && apt-get install -y \
     # Build tools
     build-essential \
     cmake \
     git \
+    # Docker CLI (for cross-container spawn orchestration)
+    docker-ce-cli \
     # Python
     python3-pip \
     python3-colcon-common-extensions \
@@ -83,6 +90,7 @@ COPY despawn_drone.sh /root/despawn_drone.sh
 COPY spawn_zone.sh /root/spawn_zone.sh
 COPY despawn_zone.sh /root/despawn_zone.sh
 COPY simulation_control_server.py /root/simulation_control_server.py
+COPY models_config.json /root/models_config.json
 RUN chmod +x /root/*.sh /root/simulation_control_server.py
 
 # Copy exclusion zone SDF model

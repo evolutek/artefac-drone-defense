@@ -14,6 +14,7 @@ services:
       - DISPLAY=${DISPLAY:-:0}
       - QT_X11_NO_MITSHM=1
       - XAUTHORITY=/root/.docker.xauth
+      - XDG_RUNTIME_DIR=/tmp/runtime-root
       - PX4_HOME_LAT=${PX4_HOME_LAT:-43.6047}
       - PX4_HOME_LON=${PX4_HOME_LON:-1.4442}
       - PX4_HOME_ALT=${PX4_HOME_ALT:-0}
@@ -34,6 +35,8 @@ services:
       - ./logs/px4:/root/.ros/log:rw
       # Custom startup script
       - ./simulation/start_px4_sitl.sh:/root/start_px4_sitl.sh:ro
+      # Dynamic spawn scripts
+      - ./simulation/spawn_px4.sh:/root/spawn_px4.sh:rw
     working_dir: /root/PX4-Autopilot
     command: ["bash", "/root/start_px4_sitl.sh"]
     healthcheck:
@@ -63,6 +66,8 @@ services:
       - DISPLAY=${DISPLAY:-:0}
       - FLASK_PORT=8080
     volumes:
+      # Docker socket for spawning PX4 in simulation container
+      - /var/run/docker.sock:/var/run/docker.sock
       # ROS2 workspace
       - ./simulation/src:/root/ros2_ws/src:rw
       - ./simulation/config:/root/config:ro
@@ -74,7 +79,7 @@ services:
       # FastDDS config
       - ./simulation/config/fastdds.xml:/root/fastdds.xml:ro
       # Simulation control scripts (mounted for live updates)
-      - ./simulation/spawn_drone.sh:/root/spawn_drone.sh:rw
+      - ./simulation/spawn_ros2.sh:/root/spawn_ros2.sh:rw
       - ./simulation/despawn_drone.sh:/root/despawn_drone.sh:rw
       - ./simulation/spawn_zone.sh:/root/spawn_zone.sh:rw
       - ./simulation/despawn_zone.sh:/root/despawn_zone.sh:rw

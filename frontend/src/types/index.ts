@@ -49,3 +49,15 @@ export interface TelemetryData {
     mode?: string;
   };
 }
+
+export interface DroneLifecycleEvent {
+  type: 'drone_spawning' | 'drone_ready' | 'drone_removed';
+  drone_id: string;
+  data: {
+    status?: string;
+    reason?: string;
+    message?: string;
+  };
+}
+
+export type WebSocketMessage = TelemetryData | DroneLifecycleEvent;

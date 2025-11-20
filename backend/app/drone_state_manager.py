@@ -31,6 +31,34 @@ class DroneStateManager:
         self._default_timeout = default_timeout_seconds
         logger.info(f"DroneStateManager initialized (timeout: {default_timeout_seconds}s)")
 
+    def register_drone(self, drone_id: str, status: str = "initializing") -> bool:
+        """
+        Register a new drone in state manager (called when drone spawn is detected)
+
+        Args:
+            drone_id: Unique drone identifier (e.g., "drone_1")
+            status: Initial status ("initializing" for spawning, "connected" for ready)
+
+        Returns:
+            True if drone was newly registered, False if already exists
+        """
+        with self._lock:
+            if drone_id in self._drones:
+                logger.debug(f"Drone {drone_id} already registered, skipping")
+                return False
+
+            self._drones[drone_id] = {
+                "drone_id": drone_id,
+                "status": status,
+                "is_armed": False,
+                "flight_mode": None,
+                "mavros_connected": False,
+                "created_at": datetime.utcnow(),
+                "last_update": datetime.utcnow(),
+            }
+            logger.info(f"Registered drone {drone_id} with status '{status}'")
+            return True
+
     def update_telemetry(self, drone_id: str, telemetry_data: Dict[str, Any]):
         """
         Update drone telemetry from MQTT message
@@ -49,6 +77,11 @@ class DroneStateManager:
                     "created_at": datetime.utcnow(),
                 }
                 logger.info(f"Auto-registered drone {drone_id} in state manager")
+
+            # Transition from initializing to connected when first telemetry arrives
+            if self._drones[drone_id].get("status") == "initializing":
+                self._drones[drone_id]["status"] = "connected"
+                logger.info(f"Drone {drone_id} transitioned from 'initializing' to 'connected' (telemetry ready)")
 
             # Update telemetry fields
             self._drones[drone_id].update({

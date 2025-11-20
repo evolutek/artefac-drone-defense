@@ -78,6 +78,25 @@ class WebSocketManager:
         if drone_id in self.drone_connections:
             await self._send_to_connections(self.drone_connections[drone_id], message)
 
+    async def broadcast_drone_event(self, event_type: str, drone_id: str, data: Optional[Dict[str, Any]] = None):
+        """
+        Broadcast drone lifecycle events (spawning, ready, removed)
+
+        Args:
+            event_type: Event type ("drone_spawning", "drone_ready", "drone_removed")
+            drone_id: Drone identifier
+            data: Optional additional data (status, reason, etc.)
+        """
+        message = json.dumps({
+            "type": event_type,
+            "drone_id": drone_id,
+            "data": data or {},
+        })
+
+        # Broadcast to all connections only (drone-specific connections may not exist yet)
+        await self._send_to_connections(self.active_connections, message)
+        logger.info(f"Broadcast {event_type} event for {drone_id}")
+
     async def _send_to_connections(self, connections: List[WebSocket], message: str):
         """Send message to list of connections, removing dead connections"""
         dead_connections = []
@@ -133,6 +152,18 @@ def setup_mqtt_callbacks(event_loop):
         except Exception as e:
             logger.error(f"Error broadcasting state: {e}")
 
+    def drone_event_callback(event_type: str, drone_id: str, data: Dict[str, Any]):
+        """Called when drone lifecycle event occurs (runs in MQTT thread)"""
+        try:
+            # Schedule coroutine in the main event loop from MQTT thread
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast_drone_event(event_type, drone_id, data),
+                event_loop
+            )
+        except Exception as e:
+            logger.error(f"Error broadcasting drone event: {e}")
+
     mqtt_client.telemetry_callback = telemetry_callback
     mqtt_client.state_callback = state_callback
+    mqtt_client.drone_event_callback = drone_event_callback
     logger.info("MQTT callbacks registered with WebSocket manager")

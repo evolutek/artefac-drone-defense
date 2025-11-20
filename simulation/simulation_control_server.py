@@ -30,9 +30,34 @@ CORS(app)  # Enable CORS for Expo app
 SCRIPTS_DIR = Path("/root")  # spawn_drone.sh and despawn_drone.sh location
 ACTIVE_DRONES_FILE = Path("/tmp/active_drones.json")
 ACTIVE_ZONES_FILE = Path("/tmp/active_zones.json")
+MODELS_CONFIG_FILE = Path("/root/models_config.json")  # Drone models configuration
 MAX_DRONES = 10
 MQTT_BROKER = os.getenv("MQTT_BROKER_HOST", "mqtt")
 MQTT_PORT = int(os.getenv("MQTT_BROKER_PORT", "1883"))
+
+# Load models configuration
+def load_models_config() -> dict:
+    """Load drone models configuration from JSON file"""
+    try:
+        with open(MODELS_CONFIG_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Warning: Failed to load models config: {e}")
+        # Fallback to default model only
+        return {
+            "models": {
+                "gz_x500": {
+                    "gazebo_model": "x500",
+                    "autostart_id": 4001,
+                    "type": "multirotor",
+                    "description": "Standard Quadcopter",
+                    "details": "Basic x500 quadcopter"
+                }
+            },
+            "default_model": "gz_x500"
+        }
+
+MODELS_CONFIG = load_models_config()
 
 
 # ============================================================================
@@ -172,61 +197,135 @@ def find_next_drone_number() -> Optional[int]:
 
 
 def execute_spawn_drone(drone_num: int, x: Optional[float] = None,
-                       y: Optional[float] = None, z: Optional[float] = None) -> dict:
+                       y: Optional[float] = None, z: Optional[float] = None,
+                       model: Optional[str] = None) -> dict:
     """
-    Execute spawn_drone.sh script
+    Execute spawn_px4.sh (in simulation container) + spawn_ros2.sh (in ros2_integration container)
+
+    Args:
+        drone_num: Drone number (0-9)
+        x, y, z: Optional spawn position
+        model: Optional model type (e.g., "gz_x500", "gz_x500_depth"). Defaults to gz_x500.
+
     Returns: {'success': bool, 'message': str, 'drone_id': str, 'drone_num': int}
     """
-    script_path = SCRIPTS_DIR / "spawn_drone.sh"
+    drone_id = f"drone_{drone_num + 1}"
 
-    # Build command
-    cmd = ["bash", str(script_path), str(drone_num)]
+    # Validate and get model configuration
+    if model is None:
+        model = MODELS_CONFIG.get('default_model', 'gz_x500')
+
+    if model not in MODELS_CONFIG['models']:
+        return {
+            'success': False,
+            'message': f'Invalid model: {model}. Available models: {", ".join(MODELS_CONFIG["models"].keys())}',
+            'drone_id': drone_id,
+            'drone_num': drone_num
+        }
+
+    model_config = MODELS_CONFIG['models'][model]
+    gazebo_model = model_config['gazebo_model']
+    autostart_id = model_config['autostart_id']
+
+    # ========================================================================
+    # STEP 1: Spawn PX4 + Gazebo model (in simulation container)
+    # ========================================================================
+    print(f"[Spawn {drone_id}] Step 1/2: Launching PX4 with model {model} in simulation container...")
+
+    px4_cmd = [
+        "docker", "exec", "artefac_simulation",
+        "bash", "/root/spawn_px4.sh", str(drone_num)
+    ]
     if x is not None and y is not None and z is not None:
-        cmd.extend([str(x), str(y), str(z)])
+        px4_cmd.extend([str(x), str(y), str(z)])
+
+    # Add model parameters (gazebo_model and autostart_id)
+    px4_cmd.extend([gazebo_model, str(autostart_id)])
 
     try:
-        result = subprocess.run(
-            cmd,
+        px4_result = subprocess.run(
+            px4_cmd,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=30
+        )
+
+        if px4_result.returncode != 0:
+            return {
+                'success': False,
+                'message': f'PX4 spawn failed: {px4_result.stderr}',
+                'drone_id': drone_id,
+                'drone_num': drone_num
+            }
+
+        print(f"[Spawn {drone_id}] ✓ PX4 component spawned successfully")
+
+    except subprocess.TimeoutExpired:
+        return {'success': False, 'message': 'PX4 spawn timeout (>30s)', 'drone_num': drone_num}
+    except FileNotFoundError:
+        return {'success': False, 'message': 'Docker command not found (is Docker socket mounted?)', 'drone_num': drone_num}
+    except Exception as e:
+        return {'success': False, 'message': f'PX4 spawn error: {str(e)}', 'drone_num': drone_num}
+
+    # ========================================================================
+    # STEP 2: Launch ROS2 components (MAVROS + bridges) - local execution
+    # ========================================================================
+    print(f"[Spawn {drone_id}] Step 2/2: Launching ROS2 components locally...")
+
+    ros2_script_path = SCRIPTS_DIR / "spawn_ros2.sh"
+    ros2_cmd = ["bash", str(ros2_script_path), str(drone_num)]
+
+    try:
+        ros2_result = subprocess.run(
+            ros2_cmd,
+            capture_output=True,
+            text=True,
+            timeout=40,  # Longer timeout for MAVROS to connect
             cwd=str(SCRIPTS_DIR)
         )
 
-        drone_id = f"drone_{drone_num + 1}"
-
-        if result.returncode == 0:
-            # Store drone metadata
-            active_drones = load_active_drones()
-            active_drones[drone_num] = {
-                'drone_id': drone_id,
-                'model_name': f'x500_{drone_num}',
-                'position': {'x': x, 'y': y, 'z': z} if x is not None else None,
-                'spawned_at': datetime.now().isoformat(),
-            }
-            save_active_drones(active_drones)
-
-            # Publish presence event to MQTT
-            publish_drone_presence(drone_id, "connected", reason="spawn")
-
-            return {
-                'success': True,
-                'message': f'Drone {drone_id} spawned successfully',
-                'drone_id': drone_id,
-                'drone_num': drone_num
-            }
-        else:
+        if ros2_result.returncode != 0:
+            # PX4 is running but ROS2 failed - need cleanup?
+            print(f"[Spawn {drone_id}] ⚠ ROS2 spawn failed, but PX4 is running")
             return {
                 'success': False,
-                'message': f'Failed to spawn drone: {result.stderr}',
+                'message': f'ROS2 spawn failed: {ros2_result.stderr}',
                 'drone_id': drone_id,
                 'drone_num': drone_num
             }
 
+        print(f"[Spawn {drone_id}] ✓ ROS2 component spawned successfully")
+
+        # ====================================================================
+        # SUCCESS: Both components spawned
+        # ====================================================================
+
+        # Store drone metadata
+        active_drones = load_active_drones()
+        active_drones[drone_num] = {
+            'drone_id': drone_id,
+            'model_name': f'{gazebo_model}_{drone_num}',
+            'model_type': model,
+            'gazebo_model': gazebo_model,
+            'position': {'x': x, 'y': y, 'z': z} if x is not None else None,
+            'spawned_at': datetime.now().isoformat(),
+        }
+        save_active_drones(active_drones)
+
+        # Publish presence event to MQTT
+        publish_drone_presence(drone_id, "connected", reason="spawn")
+
+        return {
+            'success': True,
+            'message': f'Drone {drone_id} spawned successfully (PX4 + ROS2)',
+            'drone_id': drone_id,
+            'drone_num': drone_num
+        }
+
     except subprocess.TimeoutExpired:
-        return {'success': False, 'message': 'Spawn timeout (>30s)', 'drone_num': drone_num}
+        return {'success': False, 'message': 'ROS2 spawn timeout (>40s)', 'drone_num': drone_num}
     except Exception as e:
-        return {'success': False, 'message': f'Error: {str(e)}', 'drone_num': drone_num}
+        return {'success': False, 'message': f'ROS2 spawn error: {str(e)}', 'drone_num': drone_num}
 
 
 def execute_despawn_drone(drone_num: int) -> dict:
@@ -426,6 +525,38 @@ def health_check():
     })
 
 
+@app.route('/models', methods=['GET'])
+def get_available_models():
+    """
+    Get list of available drone models
+    Returns: {
+        "models": [
+            {
+                "id": "gz_x500",
+                "description": "Standard Quadcopter",
+                "details": "Basic x500 quadcopter...",
+                "type": "multirotor"
+            },
+            ...
+        ],
+        "default_model": "gz_x500"
+    }
+    """
+    models_list = []
+    for model_id, config in MODELS_CONFIG['models'].items():
+        models_list.append({
+            'id': model_id,
+            'description': config['description'],
+            'details': config['details'],
+            'type': config['type']
+        })
+
+    return jsonify({
+        'models': models_list,
+        'default_model': MODELS_CONFIG.get('default_model', 'gz_x500')
+    })
+
+
 @app.route('/drones/active', methods=['GET'])
 def get_active_drones():
     """Get list of active drones (dynamically queried from Gazebo)"""
@@ -494,7 +625,8 @@ def spawn_drone():
     Body: {
         "x": float (optional),
         "y": float (optional),
-        "z": float (optional)
+        "z": float (optional),
+        "model": string (optional, defaults to "gz_x500")
     }
     """
     data = request.get_json() or {}
@@ -512,6 +644,9 @@ def spawn_drone():
     y = data.get('y')
     z = data.get('z')
 
+    # Get model (optional, defaults to gz_x500)
+    model = data.get('model')
+
     # Validate position (if provided, all coordinates must be present)
     if any(coord is not None for coord in [x, y, z]):
         if not all(coord is not None for coord in [x, y, z]):
@@ -521,7 +656,7 @@ def spawn_drone():
             }), 400
 
     # Execute spawn
-    result = execute_spawn_drone(drone_num, x, y, z)
+    result = execute_spawn_drone(drone_num, x, y, z, model)
 
     status_code = 200 if result['success'] else 500
     return jsonify(result), status_code

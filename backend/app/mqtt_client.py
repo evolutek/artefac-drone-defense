@@ -26,6 +26,7 @@ class MQTTClient:
         self.telemetry_callback = None
         self.state_callback = None
         self.command_result_callback = None
+        self.drone_event_callback = None  # For drone lifecycle events (spawn/ready/removed)
 
         # Command result storage (for synchronous command waiting)
         self.command_results = {}  # {drone_id: {command: result}}
@@ -60,7 +61,7 @@ class MQTTClient:
             topic = msg.topic
             payload = json.loads(msg.payload.decode())
 
-            logger.debug(f"Received MQTT message on {topic}: {payload}")
+            logger.info(f"Received MQTT message on {topic}: {payload}")
 
             # Handle global presence topic
             if topic == "drones/presence":
@@ -94,9 +95,25 @@ class MQTTClient:
         """Handle telemetry message"""
         logger.debug(f"Telemetry from {drone_id}: {payload}")
 
-        # Update in-memory state (fast, no DB latency)
+        # Check if drone was initializing before update (for transition detection)
         from .drone_state_manager import drone_state_manager
+        drone_before = drone_state_manager.get_drone(drone_id)
+        was_initializing = drone_before and drone_before.get("status") == "initializing"
+
+        # Update in-memory state (fast, no DB latency)
         drone_state_manager.update_telemetry(drone_id, payload)
+
+        # If drone transitioned from initializing to connected, notify clients
+        if was_initializing:
+            drone_after = drone_state_manager.get_drone(drone_id)
+            if drone_after and drone_after.get("status") == "connected":
+                if self.drone_event_callback:
+                    self.drone_event_callback(
+                        event_type="drone_ready",
+                        drone_id=drone_id,
+                        data={"status": "connected", "message": "Drone telemetry operational"}
+                    )
+                logger.info(f"Notified clients that {drone_id} is ready (telemetry operational)")
 
         # Store telemetry history in database (async, for post-flight analysis)
         from .models.database import SessionLocal
@@ -186,15 +203,40 @@ class MQTTClient:
 
         if event == "connected":
             logger.info(f"Drone {drone_id} connected (reason: {reason})")
-            # No action needed - drone will start publishing telemetry/state automatically
-            # State manager will auto-register on first telemetry message
+
+            # Register drone immediately with "initializing" status
+            newly_registered = drone_state_manager.register_drone(drone_id, status="initializing")
+
+            # ALWAYS notify WebSocket clients about presence events (even for reconnections)
+            # This ensures the frontend is aware of all connection events
+            if self.drone_event_callback:
+                self.drone_event_callback(
+                    event_type="drone_spawning",
+                    drone_id=drone_id,
+                    data={"status": "initializing", "reason": reason}
+                )
+                logger.info(f"Notified clients of {drone_id} connection (newly_registered={newly_registered})")
+
+            if newly_registered:
+                logger.info(f"Registered {drone_id} with status 'initializing'")
+            else:
+                logger.debug(f"Drone {drone_id} already existed, updated to 'initializing'")
 
         elif event == "disconnected":
             logger.info(f"Drone {drone_id} disconnected (reason: {reason})")
+
             # Immediately remove drone from state manager
             removed = drone_state_manager.remove_drone(drone_id)
+
             if removed:
-                logger.info(f"Removed {drone_id} from state manager due to disconnection")
+                # Notify WebSocket clients that drone was removed
+                if self.drone_event_callback:
+                    self.drone_event_callback(
+                        event_type="drone_removed",
+                        drone_id=drone_id,
+                        data={"reason": reason}
+                    )
+                logger.info(f"Removed {drone_id} from state manager and notified clients")
             else:
                 logger.warning(f"Tried to remove {drone_id} but it was not in state manager")
 

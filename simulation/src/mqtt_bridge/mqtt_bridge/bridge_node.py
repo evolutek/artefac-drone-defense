@@ -120,7 +120,8 @@ class MQTTBridgeNode(Node):
         self.current_velocity = None
 
         # Track previous connection state for presence detection
-        self.previous_connected_state = None
+        # Initialize to False so first connection triggers presence event
+        self.previous_connected_state = False
 
         # Wait for MAVROS services to be available
         self.get_logger().info('Waiting for MAVROS services to become available...')

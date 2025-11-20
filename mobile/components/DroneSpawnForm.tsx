@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
   Alert,
   Switch,
 } from 'react-native';
-import api from '../services/api';
+import { Picker } from '@react-native-picker/picker';
+import api, { DroneModel } from '../services/api';
 
 export default function DroneSpawnForm({ onSpawnSuccess }: { onSpawnSuccess?: () => void }) {
   const [loading, setLoading] = useState(false);
@@ -17,12 +18,34 @@ export default function DroneSpawnForm({ onSpawnSuccess }: { onSpawnSuccess?: ()
   const [x, setX] = useState('');
   const [y, setY] = useState('');
   const [z, setZ] = useState('0.5');
+  const [availableModels, setAvailableModels] = useState<DroneModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('gz_x500');
+  const [loadingModels, setLoadingModels] = useState(true);
+
+  // Fetch available models on component mount
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const modelsResponse = await api.getAvailableModels();
+        setAvailableModels(modelsResponse.models);
+        setSelectedModel(modelsResponse.default_model);
+      } catch (error) {
+        console.error('Failed to fetch models:', error);
+        Alert.alert('Warning', 'Failed to load drone models. Using default (x500).');
+      } finally {
+        setLoadingModels(false);
+      }
+    };
+
+    fetchModels();
+  }, []);
 
   const handleSpawn = async () => {
     try {
       setLoading(true);
 
-      let position;
+      let request: any = { model: selectedModel };
+
       if (useCustomPosition) {
         // Validate coordinates
         const xNum = parseFloat(x);
@@ -34,10 +57,12 @@ export default function DroneSpawnForm({ onSpawnSuccess }: { onSpawnSuccess?: ()
           return;
         }
 
-        position = { x: xNum, y: yNum, z: zNum };
+        request.x = xNum;
+        request.y = yNum;
+        request.z = zNum;
       }
 
-      const result = await api.spawnDrone(position);
+      const result = await api.spawnDrone(request);
 
       if (result.success) {
         Alert.alert('Success', result.message);
@@ -60,6 +85,38 @@ export default function DroneSpawnForm({ onSpawnSuccess }: { onSpawnSuccess?: ()
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Spawn New Drone</Text>
+
+      {/* Model Selector */}
+      <View style={styles.modelSection}>
+        <Text style={styles.label}>Drone Model</Text>
+        {loadingModels ? (
+          <ActivityIndicator size="small" color="#3b82f6" />
+        ) : (
+          <>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={selectedModel}
+                onValueChange={(itemValue) => setSelectedModel(itemValue)}
+                style={styles.picker}
+                enabled={!loading}
+              >
+                {availableModels.map((model) => (
+                  <Picker.Item
+                    key={model.id}
+                    label={model.description}
+                    value={model.id}
+                  />
+                ))}
+              </Picker>
+            </View>
+            {selectedModel && (
+              <Text style={styles.modelDetails}>
+                {availableModels.find((m) => m.id === selectedModel)?.details}
+              </Text>
+            )}
+          </>
+        )}
+      </View>
 
       {/* Custom Position Toggle */}
       <View style={styles.switchRow}>
@@ -150,6 +207,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 16,
     color: '#1f2937',
+  },
+  modelSection: {
+    marginBottom: 16,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 6,
+    backgroundColor: '#f9fafb',
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 50,
+  },
+  modelDetails: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   switchRow: {
     flexDirection: 'row',

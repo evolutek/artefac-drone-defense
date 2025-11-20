@@ -1,0 +1,54 @@
+{
+  "models": {
+    "gz_x500": {
+      "gazebo_model": "x500",
+      "autostart_id": 4001,
+      "type": "multirotor",
+      "description": "Standard Quadcopter",
+      "details": "Basic x500 quadcopter - ideal for general missions"
+    },
+    "gz_x500_depth": {
+      "gazebo_model": "x500_depth",
+      "autostart_id": 4002,
+      "type": "multirotor",
+      "description": "Quadcopter with Depth Camera",
+      "details": "Equipped with depth camera for obstacle avoidance"
+    },
+    "gz_x500_vision": {
+      "gazebo_model": "x500_vision",
+      "autostart_id": 4005,
+      "type": "multirotor",
+      "description": "Quadcopter with Vision System",
+      "details": "Advanced vision-based navigation system"
+    },
+    "gz_x500_mono_cam": {
+      "gazebo_model": "x500_mono_cam",
+      "autostart_id": 4010,
+      "type": "multirotor",
+      "description": "Quadcopter with Mono Camera",
+      "details": "Forward-facing monocular camera for imaging"
+    },
+    "gz_x500_lidar_2d": {
+      "gazebo_model": "x500_lidar_2d",
+      "autostart_id": 4013,
+      "type": "multirotor",
+      "description": "Quadcopter with 2D LIDAR",
+      "details": "360° 2D LIDAR for mapping and obstacle detection"
+    },
+    "gz_x500_gimbal": {
+      "gazebo_model": "x500_gimbal",
+      "autostart_id": 4019,
+      "type": "multirotor",
+      "description": "Quadcopter with Gimbal",
+      "details": "Stabilized camera gimbal for smooth video capture"
+    },
+    "gz_x500_flow": {
+      "gazebo_model": "x500_flow",
+      "autostart_id": 4021,
+      "type": "multirotor",
+      "description": "Quadcopter with Optical Flow",
+      "details": "Optical flow sensor for precise indoor positioning"
+    }
+  },
+  "default_model": "gz_x500"
+}
