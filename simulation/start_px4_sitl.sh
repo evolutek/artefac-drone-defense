@@ -68,6 +68,7 @@ export PATH="/usr/local/bin:$PATH"
 # PX4 environment setup
 cd /root/PX4-Autopilot
 export PX4_GZ_WORLD=${PX4_GZ_WORLD:-default}
+echo $PX4_GZ_WORLD
 export PX4_SIM_MODEL=${PX4_SIM_MODEL:-gz_x500}
 export PX4_SYS_AUTOSTART=4001
 export PX4_SIM_SPEED_FACTOR=1
