@@ -147,10 +147,19 @@ rm -f /tmp/px4_${DRONE_NUM}.pid
 echo ""
 echo "[3/3] Removing model from Gazebo..."
 
+# Detect world name dynamically (same as spawn script)
+WORLD_NAME=$(gz service --list | grep -oP '/world/\K[^/]+' | head -1)
+if [ -z "$WORLD_NAME" ]; then
+    echo "ERROR: Could not detect Gazebo world name"
+    exit 1
+fi
+echo "Detected Gazebo world: $WORLD_NAME"
+
 # Remove via gz service (ignore errors if model doesn't exist)
-REMOVE_OUTPUT=$(gz service -s /world/default/remove \
+REMOVE_OUTPUT=$(gz service -s /world/${WORLD_NAME}/remove \
   --reqtype gz.msgs.Entity \
   --reptype gz.msgs.Boolean \
+  --timeout 5000 \
   --req "name: \"${MODEL_NAME}\", type: 2" 2>&1)
 
 # Check result
