@@ -200,7 +200,7 @@ def execute_spawn_drone(drone_num: int, x: Optional[float] = None,
                        y: Optional[float] = None, z: Optional[float] = None,
                        model: Optional[str] = None) -> dict:
     """
-    Execute spawn_px4.sh (in simulation container) + spawn_ros2.sh (in ros2_integration container)
+    Execute spawn_drone.sh (unified script) to spawn Gazebo model + PX4 + ROS2 components
 
     Args:
         drone_num: Drone number (0-9)
@@ -225,79 +225,43 @@ def execute_spawn_drone(drone_num: int, x: Optional[float] = None,
 
     model_config = MODELS_CONFIG['models'][model]
     gazebo_model = model_config['gazebo_model']
-    autostart_id = model_config['autostart_id']
 
     # ========================================================================
-    # STEP 1: Spawn PX4 + Gazebo model (in simulation container)
+    # Execute unified spawn_drone.sh script (Gazebo + PX4 + ROS2)
     # ========================================================================
-    print(f"[Spawn {drone_id}] Step 1/2: Launching PX4 with model {model} in simulation container...")
+    print(f"[Spawn {drone_id}] Launching drone with model {model} using unified spawn script...")
 
-    px4_cmd = [
-        "docker", "exec", "artefac_simulation",
-        "bash", "/root/spawn_px4.sh", str(drone_num)
-    ]
+    spawn_script_path = SCRIPTS_DIR / "spawn_drone.sh"
+    spawn_cmd = ["bash", str(spawn_script_path), str(drone_num)]
+
+    # Add position if provided
     if x is not None and y is not None and z is not None:
-        px4_cmd.extend([str(x), str(y), str(z)])
-
-    # Add model parameters (gazebo_model and autostart_id)
-    px4_cmd.extend([gazebo_model, str(autostart_id)])
+        spawn_cmd.extend([str(x), str(y), str(z)])
 
     try:
-        px4_result = subprocess.run(
-            px4_cmd,
+        result = subprocess.run(
+            spawn_cmd,
             capture_output=True,
             text=True,
-            timeout=30
-        )
-
-        if px4_result.returncode != 0:
-            return {
-                'success': False,
-                'message': f'PX4 spawn failed: {px4_result.stderr}',
-                'drone_id': drone_id,
-                'drone_num': drone_num
-            }
-
-        print(f"[Spawn {drone_id}] ✓ PX4 component spawned successfully")
-
-    except subprocess.TimeoutExpired:
-        return {'success': False, 'message': 'PX4 spawn timeout (>30s)', 'drone_num': drone_num}
-    except FileNotFoundError:
-        return {'success': False, 'message': 'Docker command not found (is Docker socket mounted?)', 'drone_num': drone_num}
-    except Exception as e:
-        return {'success': False, 'message': f'PX4 spawn error: {str(e)}', 'drone_num': drone_num}
-
-    # ========================================================================
-    # STEP 2: Launch ROS2 components (MAVROS + bridges) - local execution
-    # ========================================================================
-    print(f"[Spawn {drone_id}] Step 2/2: Launching ROS2 components locally...")
-
-    ros2_script_path = SCRIPTS_DIR / "spawn_ros2.sh"
-    ros2_cmd = ["bash", str(ros2_script_path), str(drone_num)]
-
-    try:
-        ros2_result = subprocess.run(
-            ros2_cmd,
-            capture_output=True,
-            text=True,
-            timeout=40,  # Longer timeout for MAVROS to connect
+            timeout=60,  # Unified script needs more time (Gazebo + PX4 + ROS2)
             cwd=str(SCRIPTS_DIR)
         )
 
-        if ros2_result.returncode != 0:
-            # PX4 is running but ROS2 failed - need cleanup?
-            print(f"[Spawn {drone_id}] ⚠ ROS2 spawn failed, but PX4 is running")
+        if result.returncode != 0:
+            print(f"[Spawn {drone_id}] ✗ Spawn failed")
+            print(f"STDOUT: {result.stdout}")
+            print(f"STDERR: {result.stderr}")
             return {
                 'success': False,
-                'message': f'ROS2 spawn failed: {ros2_result.stderr}',
+                'message': f'Spawn failed: {result.stderr or result.stdout}',
                 'drone_id': drone_id,
                 'drone_num': drone_num
             }
 
-        print(f"[Spawn {drone_id}] ✓ ROS2 component spawned successfully")
+        print(f"[Spawn {drone_id}] ✓ Drone spawned successfully (Gazebo + PX4 + ROS2)")
 
         # ====================================================================
-        # SUCCESS: Both components spawned
+        # SUCCESS: All components spawned
         # ====================================================================
 
         # Store drone metadata
@@ -323,9 +287,11 @@ def execute_spawn_drone(drone_num: int, x: Optional[float] = None,
         }
 
     except subprocess.TimeoutExpired:
-        return {'success': False, 'message': 'ROS2 spawn timeout (>40s)', 'drone_num': drone_num}
+        return {'success': False, 'message': 'Spawn timeout (>60s)', 'drone_id': drone_id, 'drone_num': drone_num}
+    except FileNotFoundError:
+        return {'success': False, 'message': 'spawn_drone.sh not found', 'drone_id': drone_id, 'drone_num': drone_num}
     except Exception as e:
-        return {'success': False, 'message': f'ROS2 spawn error: {str(e)}', 'drone_num': drone_num}
+        return {'success': False, 'message': f'Spawn error: {str(e)}', 'drone_id': drone_id, 'drone_num': drone_num}
 
 
 def execute_despawn_drone(drone_num: int) -> dict:

@@ -74,14 +74,24 @@ if ! timeout 5 gz service --list > /dev/null 2>&1; then
     exit 1
 fi
 
-# Construct SDF as single-line string (protobuf text format doesn't support multiline)
-SDF_CONTENT="<?xml version=\\\"1.0\\\"?><sdf version=\\\"1.9\\\"><model name=\\\"${MODEL_NAME}\\\"><pose>${X} ${Y} ${Z} 0 0 0</pose><include><uri>model://x500</uri></include></model></sdf>"
+# Detect world name dynamically
+WORLD_NAME=$(gz service --list | grep -oP '/world/\K[^/]+' | head -1)
+if [ -z "$WORLD_NAME" ]; then
+    echo "ERROR: Could not detect Gazebo world name"
+    exit 1
+fi
+echo "Detected Gazebo world: $WORLD_NAME"
 
-# Spawn via gz service
-gz service -s /world/default/create \
+# Construct SDF without XML declaration (Gazebo doesn't need it and it causes protobuf parsing issues)
+# Use escaped double quotes for proper protobuf text format parsing
+SDF_CONTENT="<sdf version=\\\"1.9\\\"><model name=\\\"${MODEL_NAME}\\\"><pose>${X} ${Y} ${Z} 0 0 0</pose><include><uri>model://x500</uri></include></model></sdf>"
+
+# Spawn via gz service (using detected world name)
+gz service -s /world/${WORLD_NAME}/create \
   --reqtype gz.msgs.EntityFactory \
   --reptype gz.msgs.Boolean \
-  --req "sdf: \"${SDF_CONTENT}\", name: \"${MODEL_NAME}\""
+  --timeout 5000 \
+  --req "sdf: \"${SDF_CONTENT}\""
 
 if [ $? -eq 0 ]; then
     echo "✓ Model ${MODEL_NAME} spawned in Gazebo at ($X, $Y, $Z)"

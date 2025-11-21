@@ -88,7 +88,7 @@ export default function DroneSpawnForm({ onSpawnSuccess }: { onSpawnSuccess?: ()
 
       {/* Model Selector */}
       <View style={styles.modelSection}>
-        <Text style={styles.label}>Drone Model</Text>
+        <Text style={styles.modelLabel}>Drone Model</Text>
         {loadingModels ? (
           <ActivityIndicator size="small" color="#3b82f6" />
         ) : (
@@ -246,6 +246,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  modelLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
   },
   label: {
     width: 40,
