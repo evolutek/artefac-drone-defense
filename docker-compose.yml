@@ -20,6 +20,7 @@ services:
       - PX4_SIM_MODEL=${PX4_SIM_MODEL:-gz_x500}
       - HEADLESS=${HEADLESS:-0}
       - PX4_GZ_WORLD=${PX4_GZ_WORLD:-default}
+      - GZ_SIM_RESOURCE_PATH=/root/PX4-Autopilot/Tools/simulation/gz/models:/root/PX4-Autopilot/Tools/simulation/gz/worlds:/root/.gz/sim/models:/root/.gz/sim/worlds
     volumes:
       # X11 for GUI
       - /tmp/.X11-unix:/tmp/.X11-unix:rw

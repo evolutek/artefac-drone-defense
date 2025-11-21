@@ -108,11 +108,8 @@ RUN git clone https://github.com/PX4/PX4-Autopilot.git \
 # Copy custom x500 model with odometry plugin
 COPY models/x500/model.sdf /tmp/x500_model_custom.sdf
 # Copy custom configuration files BEFORE build
-COPY config/px4_params_no_gps.params /root/config/px4_params_no_gps.params
-COPY config/rcS_no_gps /root/config/rcS_no_gps
 COPY models/ /root/PX4-Autopilot/Tools/simulation/gz/models/
 COPY gazebo_worlds/ /root/PX4-Autopilot/Tools/simulation/gz/worlds/
-RUN chmod +x /root/config/rcS_no_gps
 
 # Inject GPS-enabled parameters into PX4 startup (before build)
 WORKDIR /root/PX4-Autopilot
@@ -134,7 +131,6 @@ ENV PX4_HOME_ALT=0
 ENV GZ_SIM_RESOURCE_PATH=/root/PX4-Autopilot/Tools/simulation/gz/models:/root/PX4-Autopilot/Tools/simulation/gz/worlds
 ENV GZ_SIM_SYSTEM_PLUGIN_PATH=/root/PX4-Autopilot/build/px4_sitl_default/build_gz
 ENV LD_LIBRARY_PATH=/root/PX4-Autopilot/build/px4_sitl_default/build_gz
-ENV GAZEBO_WORLD=/root/PX4-Autopilot/Tools/simulation/gz/worlds/simple_city.worlds
 
 # Create entrypoint script
 RUN echo '#!/bin/bash\n\
