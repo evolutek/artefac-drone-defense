@@ -1,0 +1,22 @@
+# MAVROS Configuration Override for GPS-enabled Operation
+# This file overrides px4_config.yaml - vision fusion disabled for GPS mode
+
+/**:
+  ros__parameters:
+    # Global position config - VISION DISABLED (GPS MODE)
+    global_position:
+      use_vision: false        # Vision fusion disabled - using GPS for localization
+      tf.listen: false
+      tf.send: false
+      tf.frame_id: "map"
+      tf.child_frame_id: "base_link"
+      tf.rate_limit: 10.0      # Standard GPS rate
+      eph: 2.0
+      epv: 2.0
+
+    # Vision pose estimate plugin configuration
+    vision_pose:
+      tf.listen: false           # We publish directly to /mavros/vision_pose/pose
+      tf.frame_id: "map"         # Match vision_pose_bridge frame_id
+      tf.child_frame_id: "vision_estimate"
+      tf.rate_limit: 50.0        # Match vision data rate
