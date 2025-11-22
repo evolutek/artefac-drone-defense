@@ -1,4 +1,5 @@
 #include "darray.h"
+#include "pointers.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,10 +12,6 @@ struct darray_header {
 };
 
 #define HEADER_SIZE sizeof(struct darray_header)
-
-static void* ptr_offset_bytes(const void* ptr, ssize_t offset) {
-    return (void*) ((char*) ptr) + offset;
-}
 
 void* darray_create(size_t initial_capacity, size_t stride) {
     if (initial_capacity < 4)

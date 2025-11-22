@@ -1,6 +1,7 @@
 #include "cutter.h"
 #include "utils.h"
 #include "utils/darray.h"
+#include "utils/pool.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,48 +10,58 @@ typedef struct {
     size_t count;
 } ItemStack;
 
-typedef struct {
-    Delivery* deliveries_darray;
-    Warehouse* warehouses_darray;
-    Drone* drones_darray;
-} Ctx;
-
 static Ctx ctx;
 
-typedef struct {
-    Delivery** deliveries_darray;
+struct archetype_search_data {
+    ssize_t archetype_idx;
     const Item* item;
-} Archetype;
+};
 
-static Archetype* generate_archetypes(void) {
-    size_t delivery_count = darray_size(ctx.deliveries_darray);
+static bool find_archetype_loop(const void* obj, size_t idx, void* data) {
+    const Archetype* arch                     = obj;
+    struct archetype_search_data* search_data = data;
 
-    decl_darray(archetypes, Archetype, 2);
-
-    for (size_t i = 0; i < delivery_count; i++) {
-        Delivery* delivery     = &ctx.deliveries_darray[i];
-        size_t archetype_count = darray_size(archetypes);
-        bool found_archetype   = false;
-        for (size_t j = 0; j < archetype_count; j++) {
-            Archetype* arch = &archetypes[i];
-            if (arch->item == delivery->items) {
-                // Add delivery to archetype
-                darray_add(arch->deliveries_darray, delivery);
-                found_archetype = true;
-                break;
-            }
-        }
-        if (!found_archetype) {
-            Archetype new_arch = {
-                .item              = delivery->items,
-                .deliveries_darray = darray_create(4, sizeof(Delivery*)),
-            };
-            darray_add(new_arch.deliveries_darray, delivery);
-            darray_add(archetypes, new_arch);
-        }
+    if (arch->item == search_data->item) {
+        search_data->archetype_idx = idx;
+        return false;
     }
+    return true;
+}
 
-    return archetypes;
+static ssize_t find_archetype(Pool* archetype_pool, const Item* item) {
+    struct archetype_search_data data = {
+        .item          = item,
+        .archetype_idx = -1,
+    };
+
+    pool_foreach(archetype_pool, find_archetype_loop, &data);
+
+    return data.archetype_idx;
+}
+
+static bool categorize_delivery(const void* obj, size_t idx, void* data) {
+    (void) idx;
+    (void) data;
+    const Delivery* delivery = obj;
+
+    ssize_t archetype_idx = find_archetype(&ctx.archetype_pool, delivery->items);
+    Archetype* arch;
+    if (archetype_idx == -1) {
+        arch  = pool_alloc(&ctx.archetype_pool, NULL);
+        *arch = (Archetype) {
+            .item              = delivery->items,
+            .deliveries_darray = darray_create(4, sizeof(size_t)),
+        };
+    } else {
+        arch = pool_query(&ctx.archetype_pool, archetype_idx);
+    }
+    size_t* idx_ptr = pool_alloc(&ctx.archetype_pool, NULL);
+    *idx_ptr = idx;
+    return true;
+}
+
+static void generate_archetypes(void) {
+    pool_foreach(&ctx.delivery_pool, categorize_delivery, NULL);
 }
 
 bool is_item_in_warehouse(const Item* item, const Item* const* items, size_t item_count) {
@@ -61,46 +72,75 @@ bool is_item_in_warehouse(const Item* item, const Item* const* items, size_t ite
     return false;
 }
 
-Cluster* cut(size_t* out_cluster_count) {
-    Archetype* archetypes  = generate_archetypes();
-    size_t archetype_count = darray_size(archetypes);
+struct archetype_dispatch_data {
+    size_t** cluster_archetype_darray;
+    const Item** warehouse_items;
+    size_t warehouse_item_count;
+};
 
-    size_t cluster_size = darray_size(ctx.warehouses_darray);
+static bool dispatch_archetype(const void* obj, size_t idx, void* user_data) {
+    const Archetype* arch = obj;
+
+    struct archetype_dispatch_data* data = user_data;
+
+    if (is_item_in_warehouse(arch->item, data->warehouse_items, data->warehouse_item_count))
+        darray_add(*data->cluster_archetype_darray, idx);
+
+    return true;
+}
+
+struct cluter_dispatch_data {
+    Cluster* clusters;
+    size_t cluster_idx;
+};
+
+static bool dispatch_archetypes(const void* obj, size_t idx, void* user_data) {
+    const Warehouse* wh = obj;
+
+    struct cluter_dispatch_data* super_data = user_data;
+
+    super_data->clusters[super_data->cluster_idx] = (Cluster) {
+        .warehouse_idx     = idx,
+        .archetypes_darray = darray_create(4, sizeof(size_t)),
+    };
+
+    struct archetype_dispatch_data data = {
+        .cluster_archetype_darray = &super_data->clusters[super_data->cluster_idx].archetypes_darray,
+        .warehouse_items          = wh->items,
+        .warehouse_item_count     = wh->item_count,
+    };
+    pool_foreach(&ctx.archetype_pool, dispatch_archetype, &data);
+
+    super_data->cluster_idx++;
+
+    return true;
+}
+
+Cluster* cut(size_t* out_cluster_count) {
+    generate_archetypes();
+
+    size_t cluster_size = ctx.warehouse_pool.size;
     Cluster* clusters   = calloc(cluster_size, sizeof *clusters);
 
-    for (size_t i = 0; i < cluster_size; i++) {
-        Warehouse* wh                 = &ctx.warehouses_darray[i];
-        Cluster* cluster              = &clusters[i];
-        Delivery** cluster_deliveries = darray_create(16, sizeof *cluster_deliveries);
-        for (size_t j = 0; j < archetype_count; j++) {
-            Archetype* arch = &archetypes[j];
-            if (is_item_in_warehouse(arch->item, wh->items, wh->item_count)) {
-                for (size_t k = 0; k < darray_size(arch->deliveries_darray); k++) {
-                    darray_add(cluster_deliveries, arch->deliveries_darray[k]);
-                }
-            }
-        }
-        *cluster = (Cluster) {
-            .warehouse      = wh,
-            .deliveries     = malloc(darray_size(cluster_deliveries) * sizeof(Delivery*)),
-            .delivery_count = darray_size(cluster_deliveries),
-        };
-        memcpy(cluster->deliveries, cluster_deliveries, darray_size(cluster_deliveries));
-    }
-
+    struct cluter_dispatch_data data = {
+        .clusters    = clusters,
+        .cluster_idx = 0,
+    };
+    pool_foreach(&ctx.warehouse_pool, dispatch_archetypes, &data);
     *out_cluster_count = cluster_size;
 
     return clusters;
 }
 
 void add_warehouse(Warehouse wh) {
-  darray_add(ctx.warehouses_darray, wh);
+    pool_add(&ctx.warehouse_pool, wh, NULL);
 }
 void add_delivery(Delivery del) {
-  darray_add(ctx.deliveries_darray, del);
+    pool_add(&ctx.delivery_pool, del, NULL);
 }
 
 void init_cutter(void) {
-  ctx.deliveries_darray = darray_create(16, sizeof(Delivery));
-  ctx.warehouses_darray = darray_create(16, sizeof(Delivery));
+    pool_init(&ctx.delivery_pool, 16, sizeof(Delivery));
+    pool_init(&ctx.warehouse_pool, 16, sizeof(Warehouse));
+    pool_init(&ctx.archetype_pool, 16, sizeof(Archetype));
 }

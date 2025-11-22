@@ -1,7 +1,7 @@
 CC = gcc
 CPPFLAGS := -I src
-CFLAGS := -Wall -Wextra -Werror -g #-fsanitize=address 
-LDFLAGS := -lm 
+CFLAGS := -Wall -Wextra -Werror -g -march=native -fsanitize=address 
+LDFLAGS := -lm
 
 SRC = $(wildcard src/**/*.c)
 OBJ = $(SRC:.c=.o)

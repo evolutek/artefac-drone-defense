@@ -1,12 +1,13 @@
 #include "path.h"
 #include "cutter.h"
 #include "utils.h"
+#include "utils/darray.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 #define ITEM_COUNT 200
-#define WH_COUNT 50
-#define DEL_COUNT 40000
+#define WH_COUNT 5
+#define DEL_COUNT 4000
 
 static Item items[ITEM_COUNT];
 
@@ -66,7 +67,7 @@ int main() {
     for (size_t i = 0; i < cluster_count; i++) {
         Cluster* cluster = &clusters[i];
         printf("Cluster %zu:\n", i);
-        printf("  Delivery count: %zu\n", cluster->delivery_count);
+        printf("  Archetype count: %zu\n", darray_size(cluster->archetypes_darray));
     }
 
     return 0;
