@@ -81,6 +81,7 @@ float consumption(Drone *drone, uint32_t distance, uint8_t speed, uint32_t charg
 	return distance && speed && drone->max_capacity ? (f1 / f2 + charge / f3) * drone->energy : 0;
 }
 
+// TODO: Add return to base
 // Return the remaining autonomy of the drone after delivering or
 // a negative value if it can not be delivered.
 // nb_deliveries must be strictly higher than 0

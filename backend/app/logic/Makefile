@@ -2,13 +2,13 @@ CC = gcc
 DB-CFLAGS = -Wall -Wextra -fsanitize=address -g
 CFLAGS = -lm
 
-SRC_ALGO = src/algo/utils.c src/algo/pretraitement.c
+SRC_ALGO = utils.c pretraitement.c
 OBJ = ${SRC:.c=.o}
 
 all: algo
 
 algo:
-	${CC} ${SRC_ALGO} -o build/$@ ${CFLAGS} ${DB-CFLAGS}
+	${CC} ${SRC_ALGO} -o $@ ${CFLAGS} ${DB-CFLAGS}
 
 .PHONY: clean
 
