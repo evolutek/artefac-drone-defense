@@ -29,128 +29,66 @@
 
 set -e
 
-# Check arguments
-if [ $# -lt 7 ]; then
-    echo "Usage: $0 <zone_id> <name> <type> <x> <y> <z> <radius>"
-    echo "Example: $0 zone_0 \"Jamming Alpha\" jamming 10 10 0 15"
-    echo ""
-    echo "Types:"
-    echo "  jamming    - Red cylinder (1.0 0.0 0.0)"
-    echo "  no-fly     - Orange cylinder (1.0 0.5 0.0)"
-    echo "  restricted - Yellow cylinder (1.0 1.0 0.0)"
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <zone_num> [x] [y] [z]"
+    echo "Example: $0 0        # Spawn zone_1 at default position"
+    echo "Example: $0 1 5 5 0.5  # Spawn zone_2 at (5, 5, 0.5)"
     exit 1
 fi
 
-ZONE_ID=$1
-ZONE_NAME=$2
-ZONE_TYPE=$3
-CENTER_X=$4
-CENTER_Y=$5
-CENTER_Z=$6
-RADIUS=$7
+ZONE_NUM=$1
+ZONE_ID="zone_$((ZONE_NUM + 1))"  # zone_1, zone_2, zone_3, ...
+ZONE_NAME="zone_${ZONE_NUM}"        # zone_0, zone_1, zone_2, ...
 
-# Zone visual settings
-HEIGHT=50.0  # Fixed height (tall cylinder for visibility)
+# Position (defaults to grid pattern)
+X=${2:-$((ZONE_NUM * 3))}  # 0, 3, 6, 9, ... (using bash arithmetic)
+Y=${3:-0}
+Z=${4:-0.5}
 
-# Determine color based on type
-case "$ZONE_TYPE" in
-    jamming)
-        COLOR_R="1.0"
-        COLOR_G="0.0"
-        COLOR_B="0.0"
-        ;;
-    no-fly)
-        COLOR_R="1.0"
-        COLOR_G="0.5"
-        COLOR_B="0.0"
-        ;;
-    restricted)
-        COLOR_R="1.0"
-        COLOR_G="1.0"
-        COLOR_B="0.0"
-        ;;
-    *)
-        echo "ERROR: Invalid zone type '$ZONE_TYPE'"
-        echo "Valid types: jamming, no-fly, restricted"
-        exit 1
-        ;;
-esac
+# MAVLink ports
+FCU_PORT=$((14540 + ZONE_NUM))
+GCS_PORT=$((14580 + ZONE_NUM))
+SYSTEM_ID=$((ZONE_NUM + 1))
+
+# MQTT broker
+MQTT_BROKER=${MQTT_BROKER:-localhost}
 
 echo "=================================================="
-echo "  Spawning Exclusion Zone"
+echo "  Spawning Zone ${ZONE_ID}"
 echo "=================================================="
-echo "Zone ID:     $ZONE_ID"
-echo "Name:        $ZONE_NAME"
-echo "Type:        $ZONE_TYPE"
-echo "Center:      ($CENTER_X, $CENTER_Y, $CENTER_Z)"
-echo "Radius:      ${RADIUS}m"
-echo "Height:      ${HEIGHT}m"
-echo "Color:       RGB($COLOR_R, $COLOR_G, $COLOR_B)"
+echo "Model Name:  $ZONE_NAME"
+echo "Position:    ($X, $Y, $Z)"
+echo "System ID:   $SYSTEM_ID"
+echo "FCU Port:    $FCU_PORT"
+echo "GCS Port:    $GCS_PORT"
+echo "Namespace:   /${ZONE_ID}/"
 echo "=================================================="
 
-# Path to SDF template
-TEMPLATE_PATH="/root/models/exclusion_zone/model.sdf.template"
-if [ ! -f "$TEMPLATE_PATH" ]; then
-    # Try alternative path in case we're not in container
-    TEMPLATE_PATH="$(dirname "$0")/models/exclusion_zone/model.sdf.template"
-fi
+# Step 1: Spawn model in Gazebo
+echo -e "\n[1/3] Spawning model in Gazebo..."
 
-if [ ! -f "$TEMPLATE_PATH" ]; then
-    echo "ERROR: SDF template not found at $TEMPLATE_PATH"
+# Check if Gazebo server is accessible (works across containers with network_mode: host)
+if ! timeout 5 gz service --list > /dev/null 2>&1; then
+    echo "ERROR: Gazebo simulation is not accessible!"
+    echo "  (Gazebo server might be running in a different container)"
     exit 1
 fi
 
-# Generate SDF from template with variable substitution
-SDF_CONTENT=$(cat "$TEMPLATE_PATH" | \
-    sed "s/ZONE_NAME/$ZONE_ID/g" | \
-    sed "s/CENTER_X/$CENTER_X/g" | \
-    sed "s/CENTER_Y/$CENTER_Y/g" | \
-    sed "s/CENTER_Z/$CENTER_Z/g" | \
-    sed "s/ZONE_RADIUS/$RADIUS/g" | \
-    sed "s/ZONE_HEIGHT/$HEIGHT/g" | \
-    sed "s/ZONE_COLOR_R/$COLOR_R/g" | \
-    sed "s/ZONE_COLOR_G/$COLOR_G/g" | \
-    sed "s/ZONE_COLOR_B/$COLOR_B/g")
+# Construct SDF as single-line string (protobuf text format doesn't support multiline)
+SDF_CONTENT="<?xml version=\\\"1.0\\\"?><sdf version=\\\"1.9\\\"><model name=\\\"${MODEL_NAME}\\\"><pose>${X} ${Y} ${Z} 0 0 0</pose><include><uri>model://Sphere</uri></include></model></sdf>"
 
-# Save generated SDF to temp file
-TMP_SDF="/tmp/${ZONE_ID}.sdf"
-echo "$SDF_CONTENT" > "$TMP_SDF"
+# Spawn via gz service
+gz service -s /world/default/create \
+  --reqtype gz.msgs.EntityFactory \
+  --reptype gz.msgs.Boolean \
+  --req "sdf: \"${SDF_CONTENT}\", name: \"${MODEL_NAME}\""
 
-echo ""
-echo "[1/1] Spawning zone in Gazebo..."
-
-# Spawn model in Gazebo using gz service
-# Note: We pass the file path to gz service
-if gz service -s /world/default/create \
-    --reqtype gz.msgs.EntityFactory \
-    --reptype gz.msgs.Boolean \
-    --timeout 5000 \
-    --req "sdf_filename: \"$TMP_SDF\"" 2>&1 | grep -q "data: true"; then
-
-    echo "✓ Zone spawned successfully in Gazebo"
-
-    # Clean up temp SDF
-    rm -f "$TMP_SDF"
-
-    echo ""
-    echo "=================================================="
-    echo "  Zone $ZONE_ID Created Successfully!"
-    echo "=================================================="
-    echo "The ${ZONE_TYPE} zone '$ZONE_NAME' is now visible"
-    echo "in Gazebo as a ${COLOR_R} ${COLOR_G} ${COLOR_B} cylinder."
-    echo "=================================================="
-
-    exit 0
+if [ $? -eq 0 ]; then
+    echo "✓ Model ${MODEL_NAME} spawned in Gazebo at ($X, $Y, $Z)"
 else
-    echo "✗ Failed to spawn zone in Gazebo"
-    echo ""
-    echo "Check that:"
-    echo "  1. Gazebo simulation is running"
-    echo "  2. 'gz service' command is available"
-    echo "  3. World name is 'default'"
-
-    # Clean up temp SDF
-    rm -f "$TMP_SDF"
-
+    echo "✗ Failed to spawn model in Gazebo"
     exit 1
 fi
+
+#TODO comunication avec le backend
+>>>>>>> f843fcf (add spawn zone)

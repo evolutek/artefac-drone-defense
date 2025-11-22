@@ -1,0 +1,15 @@
+<?xml version='1.0' ?>
+<sdf version="1.6">
+  <model name="sphere">
+    <static>true</static>
+    <link name="sphere_link">
+      <visual name="sphere_visual">
+        <geometry>
+          <sphere>
+            <radius>0.5</radius>
+          </sphere>
+        </geometry>
+      </visual>
+    </link>
+  </model>
+</sdf>
