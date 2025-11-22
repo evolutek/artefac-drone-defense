@@ -4,7 +4,7 @@
 # Creates a visual marker for exclusion zones in Gazebo simulation
 #
 # Usage:
-#   bash spawn_zone.sh <zone_id> <name> <type> <x> <y> <z> <radius>
+#   bash spawn_zone.sh <zone_num>  <x> <y> <z> <radius> <R> <G> <B>
 #
 # Arguments:
 #   zone_id : Unique zone identifier (e.g., "zone_0", "zone_alpha")
@@ -30,9 +30,9 @@
 set -e
 
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <zone_num> [x] [y] [z]"
+    echo "Usage: $0 <zone_num> [x] [y] [z] <radius>"
     echo "Example: $0 0        # Spawn zone_1 at default position"
-    echo "Example: $0 1 5 5 0.5  # Spawn zone_2 at (5, 5, 0.5)"
+    echo "Example: $0 1 5 5 0.5 2  # Spawn zone_2 at (5, 5, 0.5)"
     exit 1
 fi
 
@@ -44,6 +44,11 @@ ZONE_NAME="zone_${ZONE_NUM}"        # zone_0, zone_1, zone_2, ...
 X=${2:-$((ZONE_NUM * 3))}  # 0, 3, 6, 9, ... (using bash arithmetic)
 Y=${3:-0}
 Z=${4:-0.5}
+RADIUS=$5
+R=$6
+G=$7
+B=$8
+A=$9
 
 # MAVLink ports
 FCU_PORT=$((14540 + ZONE_NUM))
@@ -65,7 +70,7 @@ echo "Namespace:   /${ZONE_ID}/"
 echo "=================================================="
 
 # Step 1: Spawn model in Gazebo
-echo -e "\n[1/3] Spawning model in Gazebo..."
+echo -e "\n[1/1] Spawning model in Gazebo..."
 
 # Check if Gazebo server is accessible (works across containers with network_mode: host)
 if ! timeout 5 gz service --list > /dev/null 2>&1; then
@@ -74,21 +79,26 @@ if ! timeout 5 gz service --list > /dev/null 2>&1; then
     exit 1
 fi
 
+WORLD_NAME=$(gz service --list | grep -oP '/world/\K[^/]+' | head -1)
+if [ -z "$WORLD_NAME" ]; then
+    echo "ERROR: Could not detect Gazebo world name"
+    exit 1
+fi
+
 # Construct SDF as single-line string (protobuf text format doesn't support multiline)
-SDF_CONTENT="<?xml version=\\\"1.0\\\"?><sdf version=\\\"1.9\\\"><model name=\\\"${MODEL_NAME}\\\"><pose>${X} ${Y} ${Z} 0 0 0</pose><include><uri>model://Sphere</uri></include></model></sdf>"
+SDF_CONTENT="<?xml version=\\\"1.0\\\"?><sdf version=\\\"1.9\\\"><model name=\\\"${ZONE_NAME}\\\"><pose>${X} ${Y} ${Z} 0 0 0</pose><model name=\\\"sphere\\\"><static>true</static><link name=\\\"sphere_link\\\"><visual name=\\\"sphere_visual\\\"><geometry><sphere><radius>${RADIUS}</radius></sphere></geometry><material><ambient>$R $G $B $A</ambient><diffuse>$R $G $B $A</diffuse><specular>0.2 0.2 0.2 1</specular><emissive>0 0 0 1</emissive></material></visual></link></model></model></sdf>"
 
 # Spawn via gz service
-gz service -s /world/default/create \
+gz service -s /world/$WORLD_NAME/create \
   --reqtype gz.msgs.EntityFactory \
   --reptype gz.msgs.Boolean \
-  --req "sdf: \"${SDF_CONTENT}\", name: \"${MODEL_NAME}\""
+  --req "sdf: \"${SDF_CONTENT}\", name: \"${ZONE_NAME}\""
 
 if [ $? -eq 0 ]; then
-    echo "✓ Model ${MODEL_NAME} spawned in Gazebo at ($X, $Y, $Z)"
+    echo "✓ Model ${ZONE_NAME} spawned in Gazebo at ($X, $Y, $Z)"
 else
     echo "✗ Failed to spawn model in Gazebo"
     exit 1
 fi
 
 #TODO comunication avec le backend
->>>>>>> f843fcf (add spawn zone)
