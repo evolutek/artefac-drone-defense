@@ -18,7 +18,8 @@ typedef struct Item {
 typedef struct Delivery {
 	Item *item;
 	uint16_t quantity;
-	uint8_t priority;	// 0 -> Max priority | 5 -> Min priority
+	uint8_t priority;	// 0 -> Max priority | 5 -> Min priority : priority of the delivery
+	uint8_t precedence; // 0 -> Max precedence | 5 -> Min precedence : if a delevery must be delivered before another one in the same trip
 	Position *position;
 	uint32_t mass;		// In grams
 } Delivery;
@@ -70,3 +71,5 @@ float consumption(Drone *drone, uint32_t distance, uint8_t speed, uint32_t charg
 
 float can_handle(Drone *drone, uint8_t nb_deliveries, Delivery *deliveries[nb_deliveries], 
 		uint8_t speed);
+
+Position* is_constrained(Route_constraint *cnst, Position *pos1, Position *pos2);

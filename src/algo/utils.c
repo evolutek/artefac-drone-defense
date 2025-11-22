@@ -103,14 +103,26 @@ float can_handle(Drone *drone, uint8_t nb_deliveries, Delivery *deliveries[nb_de
 
 	distance = distance_2D(drone->position, deliveries[0]->position);
 	cons += consumption(drone, distance, speed, payload);
-	
+		
 	return drone->autonomy - cons;
 }
 
 // Calculate and return the distance added by conturning the constraint
-uint32_t is_constrained(Route_constraint *cnst, Position *pos1, Position *pos2) {
+Position* is_constrained(Route_constraint *cnst, Position *pos1, Position *pos2) {
+	Position p12, p1C, intersect; // Vectors 1 -> 2, 1 -> cnsc->center
 	
-	return 0;
+	p12.x = pos2->x - pos1->x;
+	p12.y = pos2->y - pos1->y;
+
+	p1C.x = (cnst->center)->x - pos1->x;
+	p1C.y = (cnst->center)->y - pos1->y;
+
+	float i = (float)(p12.x * p1C.x + p12.y * p1C.y) / (float)(p12.x * p12.x + p12.y * p12.y);
+
+	intersect.x = p12.x * i + pos1->x;
+	intersect.y = p12.y * i + pos1->y;
+
+	return new_position(p12.x * i + pos1->x, p12.y * i + pos1->y, 0);
 }
 
 // TODO :
