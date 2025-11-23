@@ -32,11 +32,11 @@ if [ $# -lt 1 ]; then
 fi
 
 LIVR_NUM=$1
-LIVR_ID="livraison_$((LIVR_NUM + 1))"
-LIVR_NAME="livraison_${LIVR_NUM}"
+LIVR_ID="entrepot_$((LIVR_NUM + 1))"
+LIVR_NAME="entrepot_${LIVR_NUM}"
 
 echo "=================================================="
-echo "  Despawning Livraison ${LIVR_ID}"
+echo "  Despawning entrepot ${LIVR_ID}"
 echo "=================================================="
 echo "Model Name:  $LIVR_NAME"
 echo "Namespace:   /${LIVR_ID}/"
