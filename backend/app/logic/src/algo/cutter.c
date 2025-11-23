@@ -44,12 +44,12 @@ static bool categorize_delivery(const void* obj, size_t idx, void* data) {
     (void) data;
     const Delivery* delivery = obj;
 
-    ssize_t archetype_idx = find_archetype(&ctx.archetype_pool, delivery->items);
+    ssize_t archetype_idx = find_archetype(&ctx.archetype_pool, delivery->item);
     Archetype* arch;
     if (archetype_idx == -1) {
         arch  = pool_alloc(&ctx.archetype_pool, NULL);
         *arch = (Archetype) {
-            .item              = delivery->items,
+            .item              = delivery->item,
             .deliveries_darray = darray_create(4, sizeof(size_t)),
         };
     } else {
