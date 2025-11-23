@@ -42,8 +42,15 @@ echo "=================================================="
 echo ""
 echo "[1/2] Removing zone from Gazebo..."
 
+# Detect Gazebo world name dynamically
+WORLD_NAME=$(gz service --list | grep -oP '/world/\K[^/]+' | head -1)
+if [ -z "$WORLD_NAME" ]; then
+    echo "ERROR: Could not detect Gazebo world name"
+    exit 1
+fi
+
 # Remove model from Gazebo using gz service
-if gz service -s /world/default/remove \
+if gz service -s /world/$WORLD_NAME/remove \
     --reqtype gz.msgs.Entity \
     --reptype gz.msgs.Boolean \
     --timeout 5000 \

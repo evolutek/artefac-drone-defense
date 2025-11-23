@@ -294,7 +294,7 @@ def execute_spawn_drone(drone_num: int, x: Optional[float] = None,
         return {'success': False, 'message': f'Spawn error: {str(e)}', 'drone_id': drone_id, 'drone_num': drone_num}
 
 
-def execute_spawn_zone(zone_num: int, x: Optional[float] = None,
+def execute_spawn_zone(zone_num: int, name: str, x: Optional[float] = None,
                        y: Optional[float] = None, z: Optional[float] = None,
                        radius: Optional[float] = None, type: str="jamming", A: Optional[float] = None) -> dict:
     """
@@ -330,26 +330,25 @@ def execute_spawn_zone(zone_num: int, x: Optional[float] = None,
 
 
     # ========================================================================
-    # Execute unified spawn_drone.sh script (Gazebo + PX4 + ROS2)
+    # Execute unified spawn_zone.sh script (Gazebo)
     # ========================================================================
-    print(f"[Spawn {zoneid}] Launching zone using unified spawn script...")
+    print(f"[Spawn {zone_id}] Launching zone using unified spawn script...")
 
     spawn_script_path = SCRIPTS_DIR / "spawn_zone.sh"
-    spawn_cmd = ["bash", str(spawn_script_path), str(zone_num)]
-
-    # Add position if provided
-    if x is not None and y is not None and z is not None:
-        spawn_cmd.extend([str(x), str(y), str(z)])
-    else:
-        spawn_cmd.extend(str(5), str(5), str(5))
-    if radius is not None:
-        spawn_cmd.extend(str(radius))
-    else:
-        spawn_cmd.extend(str(1))
-    if A is not None:
-        spawn_cmd.extend(str(A))
-    else:
-        spawn_cmd.extend(0.75)
+    # spawn_zone.sh <zone_num> <name> <x> <y> <z> <radius> <R> <G> <B> <A>
+    spawn_cmd = [
+        "bash", str(spawn_script_path),
+        str(zone_num),
+        name,  # Zone name
+        str(x) if x is not None else "5",
+        str(y) if y is not None else "5",
+        str(z) if z is not None else "0",
+        str(radius) if radius is not None else "1",
+        str(R),
+        str(G),
+        str(B),
+        str(A) if A is not None else "0.75"
+    ]
     try:
         result = subprocess.run(
             spawn_cmd,
@@ -360,7 +359,7 @@ def execute_spawn_zone(zone_num: int, x: Optional[float] = None,
         )
 
         if result.returncode != 0:
-            print(f"[Spawn {drone_id}] ✗ Spawn failed")
+            print(f"[Spawn {zone_id}] ✗ Spawn failed")
             print(f"STDOUT: {result.stdout}")
             print(f"STDERR: {result.stderr}")
             return {
@@ -370,26 +369,33 @@ def execute_spawn_zone(zone_num: int, x: Optional[float] = None,
                 'zone_num': zone_num
             }
 
-        print(f"[Spawn {zone_id}] ✓ zone spawned successfully (Gazebo)")
+        print(f"[Spawn {zone_id}] ✓ Zone spawned successfully (Gazebo)")
 
         # ====================================================================
         # SUCCESS: All components spawned
         # ====================================================================
 
-        # Store drone metadata
+        # Normalize zone name for Gazebo model (same logic as bash script)
+        normalized_name = name.lower().replace(' ', '_')
+        # Remove non-alphanumeric characters except underscore
+        normalized_name = ''.join(c for c in normalized_name if c.isalnum() or c == '_')
+        zone_model_name = f"zone_{normalized_name}"
+
+        # Store zone metadata
         active_zones = load_active_zones()
-        active_zones[zone_num] = {
+        active_zones[zone_id] = {
             'zone_id': zone_id,
-            'zone_name': "zone_" + str(zone_num),
-            'type': type,  
+            'zone_name': name,
+            'zone_model_name': zone_model_name,  # Gazebo model name for discovery
+            'type': type,
             'position': {'x': x, 'y': y, 'z': z} if x is not None else None,
             'radius': radius,
             'spawned_at': datetime.now().isoformat(),
         }
-        save_active_zones(active_drones)
+        save_active_zones(active_zones)
 
         # Publish presence event to MQTT
-        publish_zone_presence(drone_id, "connected", reason="spawn") #TODO
+        publish_zone_presence(zone_id, "connected", reason="spawn")
 
         return {
             'success': True,
@@ -399,11 +405,11 @@ def execute_spawn_zone(zone_num: int, x: Optional[float] = None,
         }
 
     except subprocess.TimeoutExpired:
-        return {'success': False, 'message': 'Spawn timeout (>60s)', 'zone_id': zone_id, 'drone_num': zone_num}
+        return {'success': False, 'message': 'Spawn timeout (>60s)', 'zone_id': zone_id, 'zone_num': zone_num}
     except FileNotFoundError:
-        return {'success': False, 'message': 'spawn_drone.sh not found', 'drone_id': zone_id, 'drone_num': zone_num}
+        return {'success': False, 'message': 'spawn_zone.sh not found', 'zone_id': zone_id, 'zone_num': zone_num}
     except Exception as e:
-        return {'success': False, 'message': f'Spawn error: {str(e)}', 'drone_id': zone_id, 'drone_num': zone_num}
+        return {'success': False, 'message': f'Spawn error: {str(e)}', 'zone_id': zone_id, 'zone_num': zone_num}
 
 def publish_zone_presence(zone_id: str, event: str, reason: str = None):
     """
@@ -501,14 +507,110 @@ def save_active_zones(zones: Dict[str, dict]):
         json.dump(zones, f, indent=2)
 
 
-def find_next_zone_id() -> str:
-    """Find next available zone ID (zone_0, zone_1, ...)"""
+def discover_active_zones_from_gazebo() -> Dict[str, dict]:
+    """
+    Query Gazebo directly to get list of active zone models (zone_*).
+    This is the source of truth - always reflects what's actually in the simulation.
+
+    Merges with JSON metadata (name, type, radius) if available.
+
+    Returns: Dict {zone_id: metadata} of all active zones in Gazebo
+    """
+    discovered = {}
+
+    try:
+        # Query Gazebo for all models
+        result = subprocess.run(
+            ["gz", "model", "--list"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+
+        if result.returncode == 0:
+            # Parse output to find zone_* models
+            # Example output:
+            # Requesting state for world [default]...
+            #
+            # Available models:
+            #     - ground_plane
+            #     - zone_jamming_alpha
+            #     - zone_no_fly_beta
+            pattern = re.compile(r'^\s*-\s*(zone_\w+)$', re.MULTILINE)
+            matches = pattern.findall(result.stdout)
+
+            for zone_model_name in matches:
+                # Try to find matching zone in existing JSON by model name
+                zone_id = None
+                existing = load_active_zones()
+
+                for zid, zdata in existing.items():
+                    if zdata.get('zone_model_name') == zone_model_name:
+                        zone_id = zid
+                        break
+
+                # If not found in JSON, create a new ID
+                if zone_id is None:
+                    # Extract zone number from model name if possible
+                    # Otherwise generate a unique ID
+                    zone_id = f"discovered_{zone_model_name}"
+
+                discovered[zone_id] = {
+                    'zone_id': zone_id,
+                    'zone_model_name': zone_model_name,
+                    'zone_name': zone_model_name.replace('zone_', '').replace('_', ' ').title(),  # Pretty name
+                    'type': 'unknown',     # Unknown type for discovered zones
+                    'position': None,      # Unknown position
+                    'radius': None,        # Unknown radius
+                    'spawned_at': None,    # Unknown timestamp
+                    'discovered': True     # Flag to indicate auto-discovered
+                }
+        else:
+            print(f"Warning: gz model --list failed: {result.stderr}")
+
+    except subprocess.TimeoutExpired:
+        print("Warning: gz model --list timeout")
+    except Exception as e:
+        print(f"Warning: Gazebo zone discovery failed: {e}")
+
+    # Load existing metadata from JSON
+    existing = load_active_zones()
+
+    # Merge: keep metadata from JSON for zones that exist in Gazebo
+    merged = {}
+    for zone_id, gazebo_data in discovered.items():
+        if zone_id in existing:
+            # Zone exists in both - use JSON metadata (more complete)
+            merged[zone_id] = existing[zone_id]
+        else:
+            # Zone only in Gazebo - use discovered data
+            merged[zone_id] = gazebo_data
+
+    # Sync JSON with Gazebo reality (remove ghost entries)
+    # Only keep zones that were discovered in Gazebo
+    discovered_model_names = {zdata['zone_model_name'] for zdata in discovered.values()}
+    for zone_id, zone_data in existing.items():
+        zone_model_name = zone_data.get('zone_model_name')
+        if zone_model_name and zone_model_name in discovered_model_names and zone_id not in merged:
+            # This zone's model exists in Gazebo but wasn't matched yet - keep it
+            merged[zone_id] = zone_data
+
+    # Save merged list if changed
+    if merged != existing:
+        save_active_zones(merged)
+        print(f"Synchronized active_zones.json with Gazebo (found {len(merged)} zone(s))")
+
+    return merged
+
+
+def find_next_zone_number() -> int:
+    """Find next available zone number (0, 1, 2, ...)"""
     active = load_active_zones()
     used_numbers = set()
     for zone_id in active.keys():
         if zone_id.startswith('zone_'):
             try:
-                num = int(zone_id.split('_')[1])
+                num = int(zone_id.split('_')[1]) - 1  # zone_1 -> num 0
                 used_numbers.add(num)
             except (IndexError, ValueError):
                 pass
@@ -517,7 +619,12 @@ def find_next_zone_id() -> str:
     while next_num in used_numbers:
         next_num += 1
 
-    return f"zone_{next_num}"
+    return next_num
+
+
+def find_next_zone_id() -> str:
+    """Find next available zone ID (zone_1, zone_2, ...) - DEPRECATED, use find_next_zone_number()"""
+    return f"zone_{find_next_zone_number() + 1}"
 
 
 def execute_despawn_zone(zone_id: str) -> dict:
@@ -527,9 +634,23 @@ def execute_despawn_zone(zone_id: str) -> dict:
     """
     script_path = SCRIPTS_DIR / "despawn_zone.sh"
 
+    # Load zone metadata to get Gazebo model name
+    active_zones = load_active_zones()
+    if zone_id not in active_zones:
+        return {
+            'success': False,
+            'message': f'Zone {zone_id} not found in active zones',
+            'zone_id': zone_id
+        }
+
+    zone_data = active_zones[zone_id]
+    zone_model_name = zone_data.get('zone_model_name', zone_id)
+    zone_name = zone_data.get('zone_name', zone_id)
+
     try:
+        # Use zone_model_name for Gazebo (e.g., "zone_jamming_alpha")
         result = subprocess.run(
-            ["bash", str(script_path), zone_id],
+            ["bash", str(script_path), zone_model_name],
             capture_output=True,
             text=True,
             timeout=10,
@@ -538,13 +659,8 @@ def execute_despawn_zone(zone_id: str) -> dict:
 
         if result.returncode == 0:
             # Remove from active zones
-            active_zones = load_active_zones()
-            if zone_id in active_zones:
-                zone_name = active_zones[zone_id].get('name', zone_id)
-                del active_zones[zone_id]
-                save_active_zones(active_zones)
-            else:
-                zone_name = zone_id
+            del active_zones[zone_id]
+            save_active_zones(active_zones)
 
             return {
                 'success': True,
@@ -820,18 +936,18 @@ def despawn_drone(drone_num: int):
 
 @app.route('/zones', methods=['GET'])
 def get_zones():
-    """Get list of active exclusion zones"""
-    active_zones = load_active_zones()
+    """Get list of active exclusion zones (dynamically queried from Gazebo)"""
+    active_zones = discover_active_zones_from_gazebo()
 
     zones_list = []
     for zone_id, metadata in active_zones.items():
         zones_list.append({
             'zone_id': zone_id,
-            'name': metadata['name'],
+            'name': metadata['zone_name'],
             'type': metadata['type'],
-            'center': metadata['center'],
+            'center': metadata['position'],
             'radius': metadata['radius'],
-            'created_at': metadata.get('created_at')
+            'created_at': metadata.get('spawned_at')
         })
 
     return jsonify({
@@ -878,18 +994,18 @@ def create_zone():
             'message': f'Invalid type. Must be one of: {", ".join(valid_types)}'
         }), 400
 
-    # Find next zone ID
-    zone_id = find_next_zone_id()
+    # Find next zone number
+    zone_num = find_next_zone_number()
 
     # Execute spawn
     result = execute_spawn_zone(
-        zone_id,
+        zone_num,
         data['name'],
-        data['type'],
         center['x'],
         center['y'],
         center['z'],
-        data['radius']
+        data['radius'],
+        data['type']
     )
 
     status_code = 200 if result['success'] else 500
@@ -911,6 +1027,87 @@ def delete_zone(zone_id: str):
 
     status_code = 200 if result['success'] else 500
     return jsonify(result), status_code
+
+
+@app.route('/zones/batch-delete', methods=['POST'])
+def batch_delete_zones():
+    """
+    Remove multiple zones at once
+    Body: {
+        "zone_ids": ["zone_0", "zone_1", ...]
+    }
+    Returns: {
+        "success": bool,
+        "message": str,
+        "results": [{"zone_id": str, "success": bool, "message": str}, ...],
+        "succeeded_count": int,
+        "failed_count": int
+    }
+    """
+    data = request.get_json()
+
+    # Validate request
+    if not data or 'zone_ids' not in data:
+        return jsonify({
+            'success': False,
+            'message': 'Missing required field: zone_ids'
+        }), 400
+
+    zone_ids = data['zone_ids']
+
+    if not isinstance(zone_ids, list):
+        return jsonify({
+            'success': False,
+            'message': 'zone_ids must be an array'
+        }), 400
+
+    if len(zone_ids) == 0:
+        return jsonify({
+            'success': False,
+            'message': 'zone_ids cannot be empty'
+        }), 400
+
+    # Load active zones
+    active_zones = load_active_zones()
+
+    # Execute deletions
+    results = []
+    succeeded_count = 0
+    failed_count = 0
+
+    for zone_id in zone_ids:
+        if zone_id not in active_zones:
+            results.append({
+                'zone_id': zone_id,
+                'success': False,
+                'message': f'Zone {zone_id} not found (not active)'
+            })
+            failed_count += 1
+        else:
+            result = execute_despawn_zone(zone_id)
+            results.append({
+                'zone_id': zone_id,
+                'success': result['success'],
+                'message': result['message']
+            })
+            if result['success']:
+                succeeded_count += 1
+            else:
+                failed_count += 1
+
+    # Determine overall success
+    all_succeeded = failed_count == 0
+    overall_message = f'Deleted {succeeded_count}/{len(zone_ids)} zone(s)'
+    if failed_count > 0:
+        overall_message += f' ({failed_count} failed)'
+
+    return jsonify({
+        'success': all_succeeded,
+        'message': overall_message,
+        'results': results,
+        'succeeded_count': succeeded_count,
+        'failed_count': failed_count
+    }), 200
 
 
 # ============================================================================
