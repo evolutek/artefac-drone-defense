@@ -44,11 +44,11 @@ ZONE_NAME="zone_${ZONE_NUM}"        # zone_0, zone_1, zone_2, ...
 X=${2:-$((ZONE_NUM * 3))}  # 0, 3, 6, 9, ... (using bash arithmetic)
 Y=${3:-0}
 Z=${4:-0.5}
-RADIUS=$5
-R=$6
-G=$7
-B=$8
-A=$9
+RADIUS=${5:-1}
+R=${6:-1}
+G=${7:-0}
+B=${8:-0}
+A=${9:-0.75}
 
 # MAVLink ports
 FCU_PORT=$((14540 + ZONE_NUM))
