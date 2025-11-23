@@ -684,6 +684,135 @@ def execute_despawn_zone(zone_id: str) -> dict:
 # REST API Endpoints
 # ============================================================================
 
+def execute_spawn_livraison(livraison_num: int, x: Optional[float] = None,
+                       y: Optional[float] = None, z: Optional[float] = None) -> dict:
+    """
+    Execute spawn_livraison.sh (unified script) to spawn Gazebo model + PX4 + ROS2 components
+
+    Args:
+        livraison_num: Livraison number (0-9)
+        x, y, z: Optional spawn position
+
+    Returns: {'success': bool, 'message': str, 'drone_id': str, 'drone_num': int}
+    """
+    livraison_id = f"livraison_{livraison_num + 1}"
+
+   
+    # ========================================================================
+    # Execute unified spawn_drone.sh script (Gazebo + PX4 + ROS2)
+    # ========================================================================
+    print(f"[Spawn {livraison_id}] Launching livraison using unified spawn script...")
+
+    spawn_script_path = SCRIPTS_DIR / "spawn_livraison.sh"
+    spawn_cmd = ["bash", str(spawn_script_path), str(drone_num)]
+
+    # Add position if provided
+    if x is not None and y is not None and z is not None:
+        spawn_cmd.extend([str(x), str(y), str(z)])
+
+    try:
+        result = subprocess.run(
+            spawn_cmd,
+            capture_output=True,
+            text=True,
+            timeout=60,  # Unified script needs more time (Gazebo + PX4 + ROS2)
+            cwd=str(SCRIPTS_DIR)
+        )
+
+        if result.returncode != 0:
+            print(f"[Spawn {livraison_id}] ✗ Spawn failed")
+            print(f"STDOUT: {result.stdout}")
+            print(f"STDERR: {result.stderr}")
+            return {
+                'success': False,
+                'message': f'Spawn failed: {result.stderr or result.stdout}',
+                'livraison_id': livraison_id,
+                'livraison_num': livraison_num
+            }
+
+        print(f"[Spawn {livraison_id}] ✓ Drone spawned successfully (Gazebo)")
+
+        # ====================================================================
+        # SUCCESS: All components spawned
+        # ====================================================================
+
+        # Store drone metadata
+        active_livraison = load_active_livraison()
+        active_livraison[livraison_num] = {
+            'livraison_id': livraison_id,
+            'livraison_name': f'livraison_{livraison_num}',
+            'position': {'x': x, 'y': y, 'z': z} if x is not None else None,
+            'spawned_at': datetime.now().isoformat(),
+        }
+        save_active_livraison(active_livraison)
+
+        # Publish presence event to MQTT
+        publish_drone_presence(drone_id, "connected", reason="spawn")
+
+        return {
+            'success': True,
+            'message': f'livraison {livraison_id} spawned successfully',
+            'livraison_id': livraison_id,
+            'lovraison_num': livraison_num
+        }
+
+    except subprocess.TimeoutExpired:
+        return {'success': False, 'message': 'Spawn timeout (>60s)', 'drone_id': drone_id, 'drone_num': drone_num}
+    except FileNotFoundError:
+        return {'success': False, 'message': 'spawn_drone.sh not found', 'drone_id': drone_id, 'drone_num': drone_num}
+    except Exception as e:
+        return {'success': False, 'message': f'Spawn error: {str(e)}', 'drone_id': drone_id, 'drone_num': drone_num}
+
+
+def execute_despawn_livraison(drone_num: int) -> dict:
+    """
+    Execute despawn_drone.sh script
+    Returns: {'success': bool, 'message': str, 'drone_id': str}
+    """
+    script_path = SCRIPTS_DIR / "despawn_drone.sh"
+    drone_id = f"drone_{drone_num + 1}"
+
+    try:
+        result = subprocess.run(
+            ["bash", str(script_path), str(drone_num)],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            cwd=str(SCRIPTS_DIR)
+        )
+
+        if result.returncode == 0:
+            # Remove from active drones
+            active_drones = load_active_drones()
+            if drone_num in active_drones:
+                del active_drones[drone_num]
+                save_active_drones(active_drones)
+
+            # Publish presence event to MQTT
+            publish_drone_presence(drone_id, "disconnected", reason="despawn")
+
+            return {
+                'success': True,
+                'message': f'Drone {drone_id} removed successfully',
+                'drone_id': drone_id
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Failed to remove drone: {result.stderr}',
+                'drone_id': drone_id
+            }
+
+    except subprocess.TimeoutExpired:
+        return {'success': False, 'message': 'Despawn timeout (>15s)', 'drone_id': drone_id}
+    except Exception as e:
+        return {'success': False, 'message': f'Error: {str(e)}', 'drone_id': drone_id}
+
+def save_active_livrasion(livraison: Dict[int, dict]):
+    """Save active drones to JSON file"""
+    with open(ACTIVE_LIVRAISON_FILE, 'w') as f:
+        json.dump(livraison, f, indent=2)
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""

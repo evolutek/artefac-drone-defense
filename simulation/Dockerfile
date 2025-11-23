@@ -89,6 +89,7 @@ COPY spawn_drone.sh /root/spawn_drone.sh
 COPY despawn_drone.sh /root/despawn_drone.sh
 COPY spawn_zone.sh /root/spawn_zone.sh
 COPY despawn_zone.sh /root/despawn_zone.sh
+COPY spawn_livraison.sh /root/spawn_livraison.sh
 COPY simulation_control_server.py /root/simulation_control_server.py
 COPY models_config.json /root/models_config.json
 RUN chmod +x /root/*.sh /root/simulation_control_server.py
