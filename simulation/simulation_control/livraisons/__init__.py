@@ -1,0 +1,1 @@
+"""Livraison entity management"""
