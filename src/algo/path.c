@@ -43,9 +43,8 @@ char create_new_solution(struct Delivery*** solution, Delivery* new_element, siz
         darray_insert(drone_to_edit, index_to_add, new_element);
     }
 
-
     //check if the solution can exist
-    if (can_handle(drone, darray_size(drone_to_edit), drone_to_edit, drone->max_speed)){
+    if (can_handle(drone, darray_size(drone_to_edit), drone_to_edit, drone->max_speed) > 0){
         //copy all the list
         *new_solution = darray_create(darray_size(solution), sizeof(struct Delivery**));
         for (size_t i = 0; i < darray_size(solution); i++){
@@ -130,8 +129,18 @@ struct Delivery*** choose_drone_naive_aux(struct Drone** drones, struct Delivery
         }
     }
 
-    //no solution creted
+    //no solution created
     if (best_score == 0){
+        float new_score = 0;
+        for (size_t i = 0; i < darray_size(drones); i++){
+            struct Position* ancient = drones[i]->position;
+            for (size_t j = 0; j < darray_size(solution[i]); j++){
+                new_score += distance_2D(ancient, solution[i][j]->position);
+                ancient = solution[i][j]->position;
+            }
+        }
+        
+        *score = new_score;
         return solution;
     }
 
