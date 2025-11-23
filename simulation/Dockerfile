@@ -94,6 +94,7 @@ COPY despawn_entrepot.sh /root/despawn_entrepot.sh
 COPY despawn_livraison.sh /root/despawn_livraison.sh
 COPY spawn_livraison.sh /root/spawn_livraison.sh
 COPY simulation_control_server.py /root/simulation_control_server.py
+COPY simulation_control/ /root/simulation_control/
 COPY models_config.json /root/models_config.json
 RUN chmod +x /root/*.sh /root/simulation_control_server.py
 
