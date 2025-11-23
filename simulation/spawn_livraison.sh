@@ -1,66 +1,50 @@
 #!/bin/bash
 ###############################################################################
-# Spawn Drone Script - Artefac Drone Defense
-# Adds a new drone to the running simulation dynamically
+# Spawn Livraison Script - Artefac Drone Defense
+# Adds a new livraison (delivery point) to the running simulation dynamically
 #
 # Usage:
-#   bash spawn_livraison.sh <drone_num> [x] [y] [z]
+#   bash spawn_livraison.sh <livraison_num> [x] [y] [z]
 #
 # Arguments:
-#   livraison_num : livraison number (0, 1, 2, 3, ...)
-#   x, y, z   : Spawn position in meters (optional, defaults based on drone_num)
+#   livraison_num : Livraison number (0, 1, 2, 3, ...)
+#   x, y, z       : Spawn position in meters (optional, defaults based on livraison_num)
 #
 # Examples:
-#   bash spawn_drone.sh 0          # Spawn drone_1 at default position
-#   bash spawn_drone.sh 1 5 5 0.5  # Spawn drone_2 at (5, 5, 0.5)
+#   bash spawn_livraison.sh 0          # Spawn livraison_1 at default position
+#   bash spawn_livraison.sh 1 5 5 0.5  # Spawn livraison_2 at (5, 5, 0.5)
 #
 # What it does:
-#   1. Spawns x500_N model in Gazebo at specified position
-#   2. Starts PX4 SITL instance N with MAVLink on port 14540+N
-#   3. Launches MAVROS + vision_bridge + mqtt_bridge for /drone_N/ namespace
+#   1. Spawns delivery point model in Gazebo at specified position (static object)
 #
 # Prerequisites:
 #   - Gazebo simulation running
-#   - ROS2 workspace sourced
-#   - MQTT broker available
 ###############################################################################
 
 set -e
 
 # Check arguments
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <drone_num> [x] [y] [z]"
-    echo "Example: $0 0        # Spawn drone_1 at default position"
-    echo "Example: $0 1 5 5 0.5  # Spawn drone_2 at (5, 5, 0.5)"
+    echo "Usage: $0 <livraison_num> [x] [y] [z]"
+    echo "Example: $0 0        # Spawn livraison_1 at default position"
+    echo "Example: $0 1 5 5 0.5  # Spawn livraison_2 at (5, 5, 0.5)"
     exit 1
 fi
 
 LIVR_NUM=$1
-LIVR_ID="drone_$((LIVR_NUM + 1))"  # drone_1, drone_2, drone_3, ...
-LIVR_NAME="livraison_${LIVR_NUM}"        # x500_0, x500_1, x500_2, ...
+LIVR_ID="livraison_$((LIVR_NUM + 1))"  # livraison_1, livraison_2, livraison_3, ...
+LIVR_NAME="livraison_${LIVR_NUM}"      # livraison_0, livraison_1, livraison_2, ...
 
 # Position (defaults to grid pattern)
-X=${2:-$((DRONE_NUM * 3))}  # 0, 3, 6, 9, ... (using bash arithmetic)
+X=${2:-$((LIVR_NUM * 3))}  # 0, 3, 6, 9, ... (using bash arithmetic)
 Y=${3:-0}
 Z=${4:-0.5}
-
-# MAVLink ports
-FCU_PORT=$((14540 + DRONE_NUM))
-GCS_PORT=$((14580 + DRONE_NUM))
-SYSTEM_ID=$((DRONE_NUM + 1))
-
-# MQTT broker
-MQTT_BROKER=${MQTT_BROKER:-localhost}
 
 echo "=================================================="
 echo "  Spawning Livraison ${LIVR_ID}"
 echo "=================================================="
-echo "livraison Name:  $LIVR_NAME"
-echo "Position:    ($X, $Y, $Z)"
-echo "System ID:   $SYSTEM_ID"
-echo "FCU Port:    $FCU_PORT"
-echo "GCS Port:    $GCS_PORT"
-echo "Namespace:   /${LIVR_ID}/"
+echo "Livraison Name:  $LIVR_NAME"
+echo "Position:        ($X, $Y, $Z)"
 echo "=================================================="
 
 # Step 1: Spawn model in Gazebo
