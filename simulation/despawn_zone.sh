@@ -43,7 +43,7 @@ echo "Namespace:   /${LIVR_ID}/"
 echo "=================================================="
 
 echo -e "\n[1/1] Removing model from Gazebo..."
-a
+
 # Detect world name dynamically (same as spawn script)
 WORLD_NAME=$(gz service --list | grep -oP '/world/\K[^/]+' | head -1)
 if [ -z "$WORLD_NAME" ]; then
