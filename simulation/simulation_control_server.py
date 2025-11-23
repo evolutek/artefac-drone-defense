@@ -294,6 +294,147 @@ def execute_spawn_drone(drone_num: int, x: Optional[float] = None,
         return {'success': False, 'message': f'Spawn error: {str(e)}', 'drone_id': drone_id, 'drone_num': drone_num}
 
 
+def execute_spawn_zone(zone_num: int, x: Optional[float] = None,
+                       y: Optional[float] = None, z: Optional[float] = None,
+                       radius: Optional[float] = None, type: str="jamming", A: Optional[float] = None) -> dict:
+    """
+    Execute spawn_drone.sh (unified script) to spawn Gazebo model + PX4 + ROS2 components
+
+    Args:
+        drone_num: Drone number (0-9)
+        x, y, z: Optional spawn position
+        radius: Radius of the sphere
+        R,G,B,A : color and transparence of the sphere (0-1)
+
+    Returns: {'success': bool, 'message': str, 'drone_id': str, 'drone_num': int}
+    """
+    zone_id = f"zone_{zone_num + 1}"
+    type = type.lower()
+    R = 0
+    G = 0
+    B = 0
+    if (type == "jamming"):
+        R=1
+        G=0
+        B=0
+    elif (type == "no-fly"):
+        R=1
+        G=0.4
+        B=0
+    elif (type == "restricted"):
+        R=1
+        G=1
+        B=0
+    else:
+        raise Exception("Invalid Argument: type must be jamming, no-fly, restricted")
+
+
+    # ========================================================================
+    # Execute unified spawn_drone.sh script (Gazebo + PX4 + ROS2)
+    # ========================================================================
+    print(f"[Spawn {zoneid}] Launching zone using unified spawn script...")
+
+    spawn_script_path = SCRIPTS_DIR / "spawn_zone.sh"
+    spawn_cmd = ["bash", str(spawn_script_path), str(zone_num)]
+
+    # Add position if provided
+    if x is not None and y is not None and z is not None:
+        spawn_cmd.extend([str(x), str(y), str(z)])
+    else:
+        spawn_cmd.extend(str(5), str(5), str(5))
+    if radius is not None:
+        spawn_cmd.extend(str(radius))
+    else:
+        spawn_cmd.extend(str(1))
+    if A is not None:
+        spawn_cmd.extend(str(A))
+    else:
+        spawn_cmd.extend(0.75)
+    try:
+        result = subprocess.run(
+            spawn_cmd,
+            capture_output=True,
+            text=True,
+            timeout=60,  # Unified script needs more time (Gazebo + PX4 + ROS2)
+            cwd=str(SCRIPTS_DIR)
+        )
+
+        if result.returncode != 0:
+            print(f"[Spawn {drone_id}] ✗ Spawn failed")
+            print(f"STDOUT: {result.stdout}")
+            print(f"STDERR: {result.stderr}")
+            return {
+                'success': False,
+                'message': f'Spawn failed: {result.stderr or result.stdout}',
+                'zone_id': zone_id,
+                'zone_num': zone_num
+            }
+
+        print(f"[Spawn {zone_id}] ✓ zone spawned successfully (Gazebo)")
+
+        # ====================================================================
+        # SUCCESS: All components spawned
+        # ====================================================================
+
+        # Store drone metadata
+        active_zones = load_active_zones()
+        active_zones[zone_num] = {
+            'zone_id': zone_id,
+            'zone_name': "zone_" + str(zone_num),
+            'type': type,  
+            'position': {'x': x, 'y': y, 'z': z} if x is not None else None,
+            'radius': radius,
+            'spawned_at': datetime.now().isoformat(),
+        }
+        save_active_zones(active_drones)
+
+        # Publish presence event to MQTT
+        publish_zone_presence(drone_id, "connected", reason="spawn") #TODO
+
+        return {
+            'success': True,
+            'message': f'Zone {zone_id} spawned successfully',
+            'zone_id': zone_id,
+            'zone_num': zone_num
+        }
+
+    except subprocess.TimeoutExpired:
+        return {'success': False, 'message': 'Spawn timeout (>60s)', 'zone_id': zone_id, 'drone_num': zone_num}
+    except FileNotFoundError:
+        return {'success': False, 'message': 'spawn_drone.sh not found', 'drone_id': zone_id, 'drone_num': zone_num}
+    except Exception as e:
+        return {'success': False, 'message': f'Spawn error: {str(e)}', 'drone_id': zone_id, 'drone_num': zone_num}
+
+def publish_zone_presence(zone_id: str, event: str, reason: str = None):
+    """
+    Publish drone presence event to global MQTT topic drones/presence
+
+    Args:
+        drone_id: Drone identifier (e.g., "drone_1")
+        event: Event type ("connected" or "disconnected")
+        reason: Optional reason (e.g., "spawn", "despawn", "mavros_lost")
+    """
+    payload = {
+        'event': event,
+        'zone_id': zone_id,
+        'timestamp': int(time.time()),
+    }
+
+    if reason:
+        payload['reason'] = reason
+
+    try:
+        publish.single(
+            "zones/presence",
+            payload=json.dumps(payload),
+            hostname=MQTT_BROKER,
+            port=MQTT_PORT,
+            qos=1
+        )
+        print(f"[MQTT] Published presence event: {event} for {zone_id} (reason: {reason})")
+    except Exception as e:
+        print(f"[MQTT] Error publishing presence event: {e}")
+
 def execute_despawn_drone(drone_num: int) -> dict:
     """
     Execute despawn_drone.sh script
@@ -377,55 +518,6 @@ def find_next_zone_id() -> str:
         next_num += 1
 
     return f"zone_{next_num}"
-
-
-def execute_spawn_zone(zone_id: str, name: str, zone_type: str,
-                      center_x: float, center_y: float, center_z: float,
-                      radius: float) -> dict:
-    """
-    Execute spawn_zone.sh script
-    Returns: {'success': bool, 'message': str, 'zone_id': str}
-    """
-    script_path = SCRIPTS_DIR / "spawn_zone.sh"
-
-    try:
-        result = subprocess.run(
-            ["bash", str(script_path), zone_id, name, zone_type,
-             str(center_x), str(center_y), str(center_z), str(radius)],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=str(SCRIPTS_DIR)
-        )
-
-        if result.returncode == 0:
-            # Store zone metadata
-            active_zones = load_active_zones()
-            active_zones[zone_id] = {
-                'name': name,
-                'type': zone_type,
-                'center': {'x': center_x, 'y': center_y, 'z': center_z},
-                'radius': radius,
-                'created_at': datetime.now().isoformat(),
-            }
-            save_active_zones(active_zones)
-
-            return {
-                'success': True,
-                'message': f'Zone {name} ({zone_id}) created successfully',
-                'zone_id': zone_id
-            }
-        else:
-            return {
-                'success': False,
-                'message': f'Failed to create zone: {result.stderr}',
-                'zone_id': zone_id
-            }
-
-    except subprocess.TimeoutExpired:
-        return {'success': False, 'message': 'Zone spawn timeout (>10s)', 'zone_id': zone_id}
-    except Exception as e:
-        return {'success': False, 'message': f'Error: {str(e)}', 'zone_id': zone_id}
 
 
 def execute_despawn_zone(zone_id: str) -> dict:
