@@ -263,11 +263,23 @@ export default function ActiveZonesList({ refreshTrigger }: { refreshTrigger?: n
                         {getZoneTypeLabel(item.type)}
                       </Text>
                     </View>
-                    <Text style={styles.zoneDetails}>
-                      Center: ({item.center.x.toFixed(1)}, {item.center.y.toFixed(1)},{' '}
-                      {item.center.z.toFixed(1)})
-                    </Text>
-                    <Text style={styles.zoneDetails}>Radius: {item.radius.toFixed(1)}m</Text>
+                    {item.center ? (
+                      <Text style={styles.zoneDetails}>
+                        Center: ({item.center.x.toFixed(1)}, {item.center.y.toFixed(1)},{' '}
+                        {item.center.z.toFixed(1)})
+                      </Text>
+                    ) : (
+                      <Text style={[styles.zoneDetails, styles.unknownText]}>
+                        Center: Unknown
+                      </Text>
+                    )}
+                    {item.radius !== null && item.radius !== undefined ? (
+                      <Text style={styles.zoneDetails}>Radius: {item.radius.toFixed(1)}m</Text>
+                    ) : (
+                      <Text style={[styles.zoneDetails, styles.unknownText]}>
+                        Radius: Unknown
+                      </Text>
+                    )}
                     {item.created_at && (
                       <Text style={styles.zoneTime}>
                         Created: {new Date(item.created_at).toLocaleTimeString()}
@@ -479,6 +491,10 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontFamily: 'monospace',
     marginBottom: 2,
+  },
+  unknownText: {
+    fontStyle: 'italic',
+    color: '#9ca3af',
   },
   zoneTime: {
     fontSize: 12,
