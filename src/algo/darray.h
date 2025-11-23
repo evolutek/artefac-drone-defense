@@ -83,7 +83,7 @@ size_t _darray_get_field(const void* darray, enum _DarrayField field);
         typeof(elem) tmp = elem;                                                                   \
         darray           = _darray_add(darray, &tmp);                                              \
     }
-#define darray_insert(darray, elem, idx)                                                           \
+#define darray_insert(darray, idx, elem)                                                           \
     {                                                                                              \
         typeof(elem) tmp = elem;                                                                   \
         darray           = _darray_insert(darray, idx, &tmp);                                      \

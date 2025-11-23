@@ -72,24 +72,26 @@ void* _darray_add(void* elements, const void* obj) {
 
 static bool compute_actual_index(ssize_t index, size_t array_size, size_t* out_actual_index) {
     if (index < 0) {
-        if ((size_t) (-index) > array_size)
-            return false;
-        *out_actual_index = array_size - index;
+        index = array_size + index;
+        if (index < 0) return false;
+        *out_actual_index = index;
         return true;
     }
 
     if ((size_t) index > array_size)
         return false;
+
     *out_actual_index = index;
     return true;
 }
 
 void* _darray_insert(void* elements, ssize_t index, const void* obj) {
     struct darray_header* header = ptr_offset_bytes(elements, -HEADER_SIZE);
-    size_t size                  = header->size;
+    size_t size = header->size;
+
     size_t actual_index;
     if (!compute_actual_index(index, size, &actual_index))
-        return false;
+        return elements;
 
     if (size == header->capacity) {
         header = darray_grow(header);
@@ -99,10 +101,15 @@ void* _darray_insert(void* elements, ssize_t index, const void* obj) {
     size_t stride = header->stride;
 
     void* new_elem_ptr = ptr_offset_bytes(elements, stride * actual_index);
-    memmove(ptr_offset_bytes(new_elem_ptr, stride), new_elem_ptr, size - actual_index);
+
+    memmove(ptr_offset_bytes(new_elem_ptr, stride),
+            new_elem_ptr,
+            (size - actual_index) * stride);
+
     memcpy(new_elem_ptr, obj, stride);
+
     header->size++;
-    return ptr_offset_bytes(elements, HEADER_SIZE);
+    return elements;
 }
 
 bool darray_pop(void* darray, void* out_elem) {

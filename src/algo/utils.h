@@ -5,9 +5,9 @@
 // Structures
 
 typedef struct Position {
-	uint32_t x;
-	uint32_t y;
-	uint32_t z;
+	int32_t x;
+	int32_t y;
+	int32_t z;
 } Position;
 
 typedef struct Item {
@@ -16,9 +16,10 @@ typedef struct Item {
 } Item;
 
 typedef struct Delivery {
-	Item *items;
+	Item *item;
 	uint16_t quantity;
-	uint8_t priority;	// 0 -> Max priority | 5 -> Min priority
+	uint8_t priority;	// 0 -> Max priority | 5 -> Min priority : priority of the delivery
+	uint8_t precedence; // 0 -> Max precedence | 5 -> Min precedence : if a delevery must be delivered before another one in the same trip
 	Position *position;
 	uint32_t mass;		// In grams
 } Delivery;
@@ -29,20 +30,25 @@ typedef struct Drone {
 	uint8_t max_speed;		// In m/s
 	uint8_t acceleration;	// In m/s²
 	// Battery
-	uint16_t energy;				// In Wh
-	uint16_t max_flight_time;		// In minutes
-	uint16_t max_flight_time_speed;	// In km/h
+	float energy;					// In Wh
+	uint16_t max_flight_time;		// In s
+	uint8_t max_flight_time_speed;	// In m/s
 
 	// Operating characteristics
 	uint32_t payload;	// In grams
-	uint16_t autonomy;	// In Wh
+	float autonomy;		// In Wh
 	Position *position;
-	Delivery **targets;
+	Delivery *targets;
 	uint8_t nb_targets;
 
 	// Algorithm internal attributes
 	float cost;
 } Drone;
+
+typedef struct Route_constraint {
+	Position *center;
+	uint32_t radius;
+} Route_constraint;
 
 // Functions
 
@@ -50,20 +56,20 @@ Position *new_position(uint32_t x, uint32_t y, uint32_t z);
 
 Item *new_item(char *name, uint32_t mass);
 
-Delivery *new_delivery(Item *const items, const uint16_t quantity,
+Delivery *new_delivery(Item *const item, const uint16_t quantity,
 		const uint8_t priority, Position *const position, const uint32_t mass);
 
 Drone *new_drone(const uint32_t max_capacity, const uint8_t max_speed,
-		const uint8_t acceleration, const uint16_t energy,
-		const uint16_t max_flight_time, const uint16_t max_flight_time_speed,
-		const uint32_t payload, const uint16_t autonomy, Position *const position,
-		Delivery **const targets,
-		const uint8_t nb_targets, float cost);
+		const uint8_t acceleration, const float energy,
+		const uint16_t max_flight_time, const uint8_t max_flight_time_speed,
+		const uint32_t payload, const float autonomy, Position *const position,
+		Delivery *const targets, const uint8_t nb_targets, float cost);
 
-uint32_t distance(const Position *pos1, const Position *pos2);
+uint32_t distance_2D(const Position *pos1, const Position *pos2);
 
-float weight(struct Drone* drone, struct Delivery* delivery, uint32_t pre_calculated_dist);
+float consumption(Drone *drone, uint32_t distance, uint8_t speed, uint32_t charge);
 
-int add_target(struct Drone* drone, struct Delivery* delivery);
+float can_handle(Drone *drone, uint8_t nb_deliveries, Delivery *deliveries[nb_deliveries], 
+		uint8_t speed);
 
-int can_handle_delivery(struct Drone* drone, struct Delivery* delivery);
+Position* is_constrained(Route_constraint *cnst, Position *pos1, Position *pos2);
