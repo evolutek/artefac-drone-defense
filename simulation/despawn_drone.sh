@@ -4,7 +4,7 @@
 # Removes a drone from the running simulation dynamically
 #
 # Usage:
-#   bash despawn_entrpot.sh <drone_num>
+#   bash despawn_drone.sh <drone_num>
 #
 # Arguments:
 #   drone_num : Drone number to remove (0, 1, 2, 3, ...)
@@ -26,13 +26,13 @@ set -e
 
 # Check arguments
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <entrepot_num>"
-    echo "Example: $0 0  # Remove entrepot_1"
+    echo "Usage: $0 <drone_num>"
+    echo "Example: $0 0  # Remove drone_1"
     exit 1
 fi
 
 DRONE_NUM=$1
-DRONE_ID="entrepot$((DRONE_NUM + 1))"
+DRONE_ID="drone_$((DRONE_NUM + 1))"
 MODEL_NAME="x500_${DRONE_NUM}"
 
 echo "=================================================="

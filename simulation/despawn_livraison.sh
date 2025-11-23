@@ -1,33 +1,31 @@
 #!/bin/bash
 ###############################################################################
-# Despawn Drone Script - Artefac Drone Defense
-# Removes a drone from the running simulation dynamically
+# Despawn Livraison Script - Artefac Drone Defense
+# Removes a livraison (delivery point) from the running simulation dynamically
 #
 # Usage:
-#   bash despawn_drone.sh <drone_num>
+#   bash despawn_livraison.sh <livraison_num>
 #
 # Arguments:
-#   drone_num : Drone number to remove (0, 1, 2, 3, ...)
+#   livraison_num : Livraison number to remove (0, 1, 2, 3, ...)
 #
 # Examples:
-#   bash despawn_drone.sh 0  # Remove drone_1
-#   bash despawn_drone.sh 2  # Remove drone_3
+#   bash despawn_livraison.sh 0  # Remove livraison_1
+#   bash despawn_livraison.sh 2  # Remove livraison_3
 #
 # What it does:
-#   1. Kills MAVROS + bridges processes for this drone
-#   2. Kills PX4 SITL instance
-#   3. Removes x500_N model from Gazebo
+#   1. Removes livraison model from Gazebo
 #
 # Prerequisites:
-#   - Drone was spawned with spawn_drone.sh
+#   - Livraison was spawned with spawn_livraison.sh
 ###############################################################################
 
 set -e
 
 # Check arguments
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <drone_num>"
-    echo "Example: $0 0  # Remove drone_1"
+    echo "Usage: $0 <livraison_num>"
+    echo "Example: $0 0  # Remove livraison_1"
     exit 1
 fi
 
@@ -39,7 +37,6 @@ echo "=================================================="
 echo "  Despawning Livraison ${LIVR_ID}"
 echo "=================================================="
 echo "Model Name:  $LIVR_NAME"
-echo "Namespace:   /${LIVR_ID}/"
 echo "=================================================="
 
 echo -e "\n[1/1] Removing model from Gazebo..."
