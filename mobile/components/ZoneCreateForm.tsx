@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  ScrollView,
 } from 'react-native';
 import api from '../services/api';
 
@@ -16,11 +15,12 @@ type ZoneType = 'jamming' | 'no-fly' | 'restricted';
 export default function ZoneCreateForm({ onCreateSuccess }: { onCreateSuccess?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState('');
+  const [nameError, setNameError] = useState('');
   const [selectedType, setSelectedType] = useState<ZoneType>('jamming');
-  const [centerX, setCenterX] = useState('');
-  const [centerY, setCenterY] = useState('');
+  const [centerX, setCenterX] = useState('10');
+  const [centerY, setCenterY] = useState('10');
   const [centerZ, setCenterZ] = useState('0');
-  const [radius, setRadius] = useState('');
+  const [radius, setRadius] = useState('15');
 
   const zoneTypes: Array<{ type: ZoneType; label: string; color: string; description: string }> = [
     {
@@ -33,12 +33,36 @@ export default function ZoneCreateForm({ onCreateSuccess }: { onCreateSuccess?: 
     { type: 'restricted', label: 'Restricted', color: '#eab308', description: 'Restricted area' },
   ];
 
+  // Auto-generate zone name and position on component mount
+  useEffect(() => {
+    const generateDefaults = async () => {
+      try {
+        const zones = await api.getActiveZones();
+        const nextNumber = zones.length + 1;
+        setName(`Zone ${nextNumber}`);
+
+        // Grid positioning: 20m spacing to avoid overlap (radius = 15m default)
+        const gridX = zones.length * 20;
+        setCenterX(gridX.toString());
+      } catch (error) {
+        console.error('Failed to fetch zones for defaults generation:', error);
+        setName('Zone 1'); // Fallback default
+        setCenterX('0'); // Fallback position
+      }
+    };
+
+    generateDefaults();
+  }, []);
+
   const handleCreate = async () => {
     // Validation
     if (!name.trim()) {
+      setNameError('Zone name is required');
       Alert.alert('Validation Error', 'Please enter a zone name');
       return;
     }
+
+    setNameError(''); // Clear error if name is valid
 
     const x = parseFloat(centerX);
     const y = parseFloat(centerY);
@@ -67,12 +91,32 @@ export default function ZoneCreateForm({ onCreateSuccess }: { onCreateSuccess?: 
 
       if (result.success) {
         Alert.alert('Success', result.message);
-        // Reset form
-        setName('');
-        setCenterX('');
-        setCenterY('');
+
+        // Generate next zone name and position
+        try {
+          const zones = await api.getActiveZones();
+          const nextNumber = zones.length + 1;
+          setName(`Zone ${nextNumber}`);
+
+          // Grid positioning: 20m spacing to avoid overlap
+          const gridX = zones.length * 20;
+          setCenterX(gridX.toString());
+        } catch (error) {
+          console.error('Failed to fetch zones for name generation:', error);
+          // Extract current number from name (e.g., "Zone 3" -> 3)
+          const currentNumber = parseInt(name.match(/\d+/)?.[0] || '1');
+          setName(`Zone ${currentNumber + 1}`); // Increment from current name
+
+          // Increment position as well
+          const currentX = parseFloat(centerX) || 0;
+          setCenterX((currentX + 20).toString());
+        }
+
+        // Reset form (keep name and position auto-generated above)
+        setNameError('');
+        setCenterY('10');
         setCenterZ('0');
-        setRadius('');
+        setRadius('15');
         setSelectedType('jamming');
         onCreateSuccess?.();
       } else {
@@ -86,19 +130,23 @@ export default function ZoneCreateForm({ onCreateSuccess }: { onCreateSuccess?: 
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <Text style={styles.title}>Create Exclusion Zone</Text>
 
       {/* Zone Name */}
       <View style={styles.formGroup}>
         <Text style={styles.label}>Zone Name</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, nameError ? styles.inputError : null]}
           value={name}
-          onChangeText={setName}
+          onChangeText={(text) => {
+            setName(text);
+            if (nameError) setNameError(''); // Clear error when user types
+          }}
           placeholder="e.g., Jamming Zone Alpha"
           editable={!loading}
         />
+        {nameError ? <Text style={styles.errorText}>{nameError}</Text> : null}
       </View>
 
       {/* Zone Type */}
@@ -196,7 +244,7 @@ export default function ZoneCreateForm({ onCreateSuccess }: { onCreateSuccess?: 
           <Text style={styles.buttonText}>Create Zone</Text>
         )}
       </TouchableOpacity>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -235,6 +283,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 16,
     backgroundColor: '#f9fafb',
+  },
+  inputError: {
+    borderColor: '#ef4444',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 13,
+    marginTop: 4,
+    marginLeft: 4,
   },
   typeButtons: {
     gap: 8,

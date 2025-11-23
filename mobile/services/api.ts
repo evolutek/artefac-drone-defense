@@ -189,6 +189,22 @@ class SimulationControlApi {
     const response = await this.client.delete<ApiResponse>(`/zones/${zoneId}`);
     return response.data;
   }
+
+  async batchDeleteZones(zoneIds: string[]): Promise<{
+    success: boolean;
+    message: string;
+    results: Array<{ zone_id: string; success: boolean; message: string }>;
+    succeeded_count: number;
+    failed_count: number;
+  }> {
+    const response = await this.client.post('/zones/batch-delete', { zone_ids: zoneIds });
+    return response.data;
+  }
+
+  // Alias for backward compatibility
+  async getActiveZones(): Promise<Zone[]> {
+    return this.getZones();
+  }
 }
 
 // Export singleton instance

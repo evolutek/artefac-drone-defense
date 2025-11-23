@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  Pressable,
 } from 'react-native';
 import api, { Zone } from '../services/api';
 import { showConfirmationAlert, showAlert } from '../utils/confirmationAlert';
@@ -16,12 +17,16 @@ export default function ActiveZonesList({ refreshTrigger }: { refreshTrigger?: n
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [deletingZone, setDeletingZone] = useState<string | null>(null);
+  const [selectedZones, setSelectedZones] = useState<Set<string>>(new Set());
+  const [deletingBatch, setDeletingBatch] = useState(false);
 
   const loadZones = async () => {
     try {
       setLoading(true);
       const activeZones = await api.getZones();
       setZones(activeZones);
+      // Clear selection when reloading (in case selected zones were deleted)
+      setSelectedZones(new Set());
     } catch (error: any) {
       console.error('Failed to load zones:', error);
       showAlert('Error', 'Failed to load active zones');
@@ -70,6 +75,65 @@ export default function ActiveZonesList({ refreshTrigger }: { refreshTrigger?: n
   const onRefresh = () => {
     setRefreshing(true);
     loadZones();
+  };
+
+  const toggleZoneSelection = (zoneId: string) => {
+    setSelectedZones((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(zoneId)) {
+        newSet.delete(zoneId);
+      } else {
+        newSet.add(zoneId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedZones(new Set(zones.map((z) => z.zone_id)));
+  };
+
+  const deselectAll = () => {
+    setSelectedZones(new Set());
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedZones.size === 0) return;
+
+    await showConfirmationAlert({
+      title: 'Confirm Batch Deletion',
+      message: `Are you sure you want to delete ${selectedZones.size} zone(s)?`,
+      confirmText: 'Delete All',
+      cancelText: 'Cancel',
+      confirmStyle: 'destructive',
+      onConfirm: async () => {
+        try {
+          setDeletingBatch(true);
+          const zoneIds = Array.from(selectedZones);
+          const result = await api.batchDeleteZones(zoneIds);
+
+          if (result.success) {
+            showAlert('Success', result.message);
+          } else {
+            // Show detailed results if some failed
+            const failedZones = result.results
+              .filter((r) => !r.success)
+              .map((r) => `Zone ${r.zone_id}: ${r.message}`)
+              .join('\n');
+            showAlert(
+              'Partial Success',
+              `${result.message}\n\nFailed:\n${failedZones}`
+            );
+          }
+
+          await loadZones(); // Refresh list
+        } catch (error: any) {
+          showAlert('Error', error.message || 'Failed to delete zones');
+        } finally {
+          setDeletingBatch(false);
+        }
+      },
+    });
   };
 
   useEffect(() => {
@@ -126,54 +190,112 @@ export default function ActiveZonesList({ refreshTrigger }: { refreshTrigger?: n
           <Text style={styles.emptySubtext}>Create an exclusion zone to get started</Text>
         </View>
       ) : (
-        <FlatList
-          data={zones}
-          keyExtractor={(item) => item.zone_id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          renderItem={({ item }) => (
-            <View style={styles.zoneCard}>
-              <View style={styles.zoneIndicator}>
-                <View
-                  style={[styles.zoneColorDot, { backgroundColor: getZoneColor(item.type) }]}
-                />
-              </View>
-
-              <View style={styles.zoneInfo}>
-                <Text style={styles.zoneName}>{item.name}</Text>
-                <View style={[styles.typeTag, { backgroundColor: `${getZoneColor(item.type)}20` }]}>
-                  <Text style={[styles.typeTagText, { color: getZoneColor(item.type) }]}>
-                    {getZoneTypeLabel(item.type)}
-                  </Text>
-                </View>
-                <Text style={styles.zoneDetails}>
-                  Center: ({item.center.x.toFixed(1)}, {item.center.y.toFixed(1)},{' '}
-                  {item.center.z.toFixed(1)})
-                </Text>
-                <Text style={styles.zoneDetails}>Radius: {item.radius.toFixed(1)}m</Text>
-                {item.created_at && (
-                  <Text style={styles.zoneTime}>
-                    Created: {new Date(item.created_at).toLocaleTimeString()}
-                  </Text>
-                )}
-              </View>
-
+        <>
+          {/* Selection Toolbar */}
+          <View style={styles.toolbar}>
+            <View style={styles.toolbarLeft}>
               <TouchableOpacity
-                style={[
-                  styles.deleteButton,
-                  deletingZone === item.zone_id && styles.deleteButtonDisabled,
-                ]}
-                onPress={() => handleDelete(item)}
-                disabled={deletingZone === item.zone_id}
+                style={styles.toolbarButton}
+                onPress={selectAll}
+                disabled={deletingBatch}
               >
-                {deletingZone === item.zone_id ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.deleteButtonText}>Delete</Text>
-                )}
+                <Text style={styles.toolbarButtonText}>Select All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.toolbarButton}
+                onPress={deselectAll}
+                disabled={deletingBatch}
+              >
+                <Text style={styles.toolbarButtonText}>Deselect All</Text>
               </TouchableOpacity>
             </View>
-          )}
-        />
+
+            <TouchableOpacity
+              style={[
+                styles.deleteSelectedButton,
+                (selectedZones.size === 0 || deletingBatch) && styles.deleteSelectedButtonDisabled,
+              ]}
+              onPress={handleBatchDelete}
+              disabled={selectedZones.size === 0 || deletingBatch}
+            >
+              {deletingBatch ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.deleteSelectedButtonText}>
+                  Delete ({selectedZones.size})
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={zones}
+            keyExtractor={(item) => item.zone_id}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            renderItem={({ item }) => {
+              const isSelected = selectedZones.has(item.zone_id);
+              return (
+                <View
+                  style={[styles.zoneCard, isSelected && styles.zoneCardSelected]}
+                >
+                  {/* Checkbox */}
+                  <Pressable
+                    onPress={() => toggleZoneSelection(item.zone_id)}
+                    style={styles.checkboxContainer}
+                    disabled={deletingBatch || deletingZone === item.zone_id}
+                  >
+                    <View style={[styles.checkbox, isSelected && styles.checkboxChecked]}>
+                      {isSelected && <Text style={styles.checkmark}>✓</Text>}
+                    </View>
+                  </Pressable>
+
+                  {/* Zone Indicator */}
+                  <View style={styles.zoneIndicator}>
+                    <View
+                      style={[styles.zoneColorDot, { backgroundColor: getZoneColor(item.type) }]}
+                    />
+                  </View>
+
+                  <View style={styles.zoneInfo}>
+                    <Text style={styles.zoneName}>{item.name}</Text>
+                    <View style={[styles.typeTag, { backgroundColor: `${getZoneColor(item.type)}20` }]}>
+                      <Text style={[styles.typeTagText, { color: getZoneColor(item.type) }]}>
+                        {getZoneTypeLabel(item.type)}
+                      </Text>
+                    </View>
+                    <Text style={styles.zoneDetails}>
+                      Center: ({item.center.x.toFixed(1)}, {item.center.y.toFixed(1)},{' '}
+                      {item.center.z.toFixed(1)})
+                    </Text>
+                    <Text style={styles.zoneDetails}>Radius: {item.radius.toFixed(1)}m</Text>
+                    {item.created_at && (
+                      <Text style={styles.zoneTime}>
+                        Created: {new Date(item.created_at).toLocaleTimeString()}
+                      </Text>
+                    )}
+                  </View>
+
+                  {/* Individual Delete Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.deleteButton,
+                      (deletingZone === item.zone_id || deletingBatch) &&
+                        styles.deleteButtonDisabled,
+                    ]}
+                    onPress={() => handleDelete(item)}
+                    disabled={deletingZone === item.zone_id || deletingBatch}
+                  >
+                    {deletingZone === item.zone_id ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.deleteButtonText}>Delete</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              );
+            }}
+          />
+        </>
       )}
     </View>
   );
@@ -241,6 +363,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9ca3af',
   },
+  toolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  toolbarLeft: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  toolbarButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  toolbarButtonText: {
+    fontSize: 13,
+    color: '#374151',
+    fontWeight: '600',
+  },
+  deleteSelectedButton: {
+    backgroundColor: '#ef4444',
+    borderRadius: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minWidth: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 32,
+  },
+  deleteSelectedButtonDisabled: {
+    backgroundColor: '#f87171',
+    opacity: 0.5,
+  },
+  deleteSelectedButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   zoneCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -250,6 +417,33 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
     borderColor: '#e5e7eb',
+  },
+  zoneCardSelected: {
+    backgroundColor: '#dbeafe',
+    borderColor: '#3b82f6',
+    borderWidth: 2,
+  },
+  checkboxContainer: {
+    marginRight: 12,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#9ca3af',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   zoneIndicator: {
     marginRight: 12,
