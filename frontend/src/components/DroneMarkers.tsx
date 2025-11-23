@@ -38,7 +38,8 @@ export default function DroneMarkers() {
           setDrones(Array.isArray(data) ? data : []);
         }
       } catch (error) {
-        console.error('Failed to fetch drones:', error);
+        // Silently fail if backend is not running - this is normal when viewing simulation without backend
+        setDrones([]);
       }
     };
 

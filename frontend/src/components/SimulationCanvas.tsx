@@ -25,8 +25,8 @@ export default function SimulationCanvas({ children }: SimulationCanvasProps) {
         </button>
       </div>
 
-      {/* Three.js Canvas */}
-      <Canvas>
+      {/* Three.js Canvas - Key prop forces remount on view change */}
+      <Canvas key={is3D ? '3d' : '2d'}>
         {/* Lighting */}
         <ambientLight intensity={0.5} />
         <directionalLight position={[100, 100, 50]} intensity={0.8} castShadow />
@@ -52,8 +52,8 @@ export default function SimulationCanvas({ children }: SimulationCanvasProps) {
           <>
             <OrthographicCamera
               makeDefault
-              position={[0, 0, 1000]}
-              zoom={1}
+              position={[0, 700, -5]} // High above terrain on Y axis
+              zoom={0.8}
               near={0.1}
               far={2000}
             />
@@ -63,6 +63,7 @@ export default function SimulationCanvas({ children }: SimulationCanvasProps) {
               dampingFactor={0.05}
               minZoom={0.3}
               maxZoom={3}
+              target={[0, -300, -5]} // Look at terrain center (Y=-300, Z=-5)
             />
           </>
         )}
