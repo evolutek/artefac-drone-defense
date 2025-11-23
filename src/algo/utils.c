@@ -81,7 +81,6 @@ float consumption(Drone *drone, uint32_t distance, uint8_t speed, uint32_t charg
 	return distance && speed && drone->max_capacity ? (f1 / f2 + charge / f3) * drone->energy : 0;
 }
 
-#include <stdio.h>
 // Return the remaining autonomy of the drone after delivering or
 // a negative value if it can not be delivered.
 // nb_deliveries must be strictly higher than 0
@@ -99,9 +98,8 @@ float can_handle(Drone *drone, uint8_t nb_deliveries, Delivery *deliveries[nb_de
 	
 	payload += deliveries[0]->mass;
 	
-	if (drone->autonomy <= cons || drone->max_capacity < payload){
+	if (drone->autonomy <= cons || drone->max_capacity < payload)
 		return -1;
-	}
 
 	distance = distance_2D(drone->position, deliveries[0]->position);
 	cons += consumption(drone, distance, speed, payload);
