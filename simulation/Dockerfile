@@ -89,13 +89,10 @@ COPY spawn_drone.sh /root/spawn_drone.sh
 COPY despawn_drone.sh /root/despawn_drone.sh
 COPY spawn_zone.sh /root/spawn_zone.sh
 COPY despawn_zone.sh /root/despawn_zone.sh
-<<<<<<< HEAD
-COPY despawn_livraison.sh /root/despawn_livraison.sh
-COPY spawn_livraison.sh /root/spawn_livraison.sh
-=======
 COPY spawn_entrepot.sh /root/spawn_entrepot.sh
 COPY despawn_entrepot.sh /root/despawn_entrepot.sh
->>>>>>> 7c0d723 (spawn/despwan  bash sxript)
+COPY despawn_livraison.sh /root/despawn_livraison.sh
+COPY spawn_livraison.sh /root/spawn_livraison.sh
 COPY simulation_control_server.py /root/simulation_control_server.py
 COPY models_config.json /root/models_config.json
 RUN chmod +x /root/*.sh /root/simulation_control_server.py

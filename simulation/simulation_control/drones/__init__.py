@@ -1,0 +1,1 @@
+"""Drone entity management"""

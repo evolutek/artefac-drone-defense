@@ -1,0 +1,1 @@
+"""Entrepôt entity management"""
