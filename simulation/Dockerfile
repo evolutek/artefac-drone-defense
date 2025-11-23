@@ -98,8 +98,6 @@ COPY simulation_control/ /root/simulation_control/
 COPY models_config.json /root/models_config.json
 RUN chmod +x /root/*.sh /root/simulation_control_server.py
 
-# Copy exclusion zone SDF model
-COPY models/exclusion_zone /root/models/exclusion_zone
 
 # Initialisation rosdep
 RUN rosdep update && \
