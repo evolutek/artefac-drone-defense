@@ -11,11 +11,13 @@ typedef struct Position {
 } Position;
 
 typedef struct Item {
+    uint64_t id;
 	char *name;
 	uint32_t mass;	// In grams
 } Item;
 
 typedef struct Delivery {
+    uint64_t id;
 	Item *item;
 	uint16_t quantity;
 	uint8_t priority;	// 0 -> Max priority | 5 -> Min priority : priority of the delivery
@@ -25,6 +27,7 @@ typedef struct Delivery {
 } Delivery;
 
 typedef struct Drone {
+    uint64_t id;
 	// Technical specifications
 	uint32_t max_capacity;	// In grams
 	uint8_t max_speed;		// In m/s

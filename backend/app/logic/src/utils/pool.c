@@ -136,7 +136,7 @@ void pool_free(Pool* pool, void* ptr) {
     pool->size--;
 }
 
-void* pool_query(Pool* pool, ssize_t idx) {
+void* pool_query(const Pool* pool, ssize_t idx) {
     if (idx < 0 || (size_t) idx >= pool->capacity)
         return NULL;
     struct slot* slot = from_index(pool, idx);
@@ -154,4 +154,33 @@ void pool_foreach(Pool* pool, action action, void* user_data) {
         if (!action(ptr_offset_bytes(node, HEADER_SIZE), i, user_data))
             return;
     }
+}
+
+PoolIter pool_iter_init(const Pool* pool) {
+    return (PoolIter) {
+        .pool = pool,
+    };
+}
+void* pool_iter_next(PoolIter* iter) {
+    if (iter->contiguous_idx >= iter->pool->size)
+        return NULL;
+
+    const Pool* pool = iter->pool;
+
+    void* ptr = pool_query(pool, iter->in_pool_idx);
+
+    iter->contiguous_idx++;
+    if (iter->contiguous_idx < pool->size) {
+        size_t slot_size = compute_slot_size(pool->stride);
+        struct slot* slot;
+        do {
+            iter->in_pool_idx++;
+            slot = ptr_offset_bytes(pool->blocks, slot_size * iter->in_pool_idx);
+        } while(!slot->allocated);
+    }
+
+    return ptr;
+}
+size_t pool_iter_idx(const PoolIter* iter) {
+    return iter->in_pool_idx;
 }

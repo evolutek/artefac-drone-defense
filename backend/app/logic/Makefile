@@ -3,7 +3,7 @@ CPPFLAGS := -I src
 CFLAGS := -Wall -Wextra -Werror -g -march=native -fsanitize=address 
 LDFLAGS := -lm
 
-SRC = $(wildcard src/**/*.c)
+SRC = $(wildcard src/**/*.c) src/main.c
 OBJ = $(SRC:.c=.o)
 
 TARGET := build/algo

@@ -1,6 +1,6 @@
-#include "path.h"
-#include "cutter.h"
-#include "utils.h"
+#include "algo/cutter.h"
+#include "algo/utils.h"
+#include "interface/interface.h"
 #include "utils/darray.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -75,6 +75,11 @@ void gab_test(void) {
 }
 
 int main() {
+
+    puts("==== INTERFACE ====");
+    init_shared_mem();
+    interface_handle();
+    puts("===================");
 
     puts("==== GAB TEST ====");
     gab_test();

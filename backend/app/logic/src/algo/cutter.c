@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static Ctx ctx;
+Ctx ctx;
 
 struct archetype_search_data {
     ssize_t archetype_idx;
@@ -132,6 +132,9 @@ void add_warehouse(Warehouse wh) {
 }
 void add_delivery(Delivery del) {
     pool_add(&ctx.delivery_pool, del, NULL);
+}
+void add_drone(Drone dr) {
+    pool_add(&ctx.drone_pool, dr, NULL);
 }
 
 void init_cutter(void) {
