@@ -30,25 +30,31 @@
 set -e
 
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <zone_num> [x] [y] [z] <radius>"
-    echo "Example: $0 0        # Spawn zone_1 at default position"
-    echo "Example: $0 1 5 5 0.5 2  # Spawn zone_2 at (5, 5, 0.5)"
+    echo "Usage: $0 <zone_num> [name] [x] [y] [z] [radius] [R] [G] [B] [A]"
+    echo "Example: $0 0 'Zone Alpha'        # Spawn zone_1 with name at default position"
+    echo "Example: $0 1 'Zone Beta' 5 5 0.5 2  # Spawn zone_2 at (5, 5, 0.5)"
     exit 1
 fi
 
 ZONE_NUM=$1
-ZONE_ID="zone_$((ZONE_NUM + 1))"  # zone_1, zone_2, zone_3, ...
-ZONE_NAME="zone_${ZONE_NUM}"        # zone_0, zone_1, zone_2, ...
+USER_ZONE_NAME=${2:-"unnamed_${ZONE_NUM}"}  # User-provided zone name
+
+# Normalize zone name for Gazebo model (replace spaces with underscores, lowercase)
+NORMALIZED_NAME=$(echo "$USER_ZONE_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd '[:alnum:]_')
+
+# Gazebo model name with zone_ prefix for easy discovery
+ZONE_MODEL_NAME="zone_${NORMALIZED_NAME}"
+ZONE_ID="zone_$((ZONE_NUM))"  # Internal ID for tracking (zone_0, zone_1, ...)
 
 # Position (defaults to grid pattern)
-X=${2:-$((ZONE_NUM * 3))}  # 0, 3, 6, 9, ... (using bash arithmetic)
-Y=${3:-0}
-Z=${4:-0.5}
-RADIUS=${5:-1}
-R=${6:-1}
-G=${7:-0}
-B=${8:-0}
-A=${9:-0.75}
+X=${3:-$((ZONE_NUM * 3))}  # 0, 3, 6, 9, ... (using bash arithmetic)
+Y=${4:-0}
+Z=${5:-0.5}
+RADIUS=${6:-1}
+R=${7:-1}
+G=${8:-0}
+B=${9:-0}
+A=${10:-0.75}
 
 # MAVLink ports
 FCU_PORT=$((14540 + ZONE_NUM))
@@ -61,7 +67,8 @@ MQTT_BROKER=${MQTT_BROKER:-localhost}
 echo "=================================================="
 echo "  Spawning Zone ${ZONE_ID}"
 echo "=================================================="
-echo "Model Name:  $ZONE_NAME"
+echo "User Name:   $USER_ZONE_NAME"
+echo "Model Name:  $ZONE_MODEL_NAME"
 echo "Position:    ($X, $Y, $Z)"
 echo "System ID:   $SYSTEM_ID"
 echo "FCU Port:    $FCU_PORT"
@@ -86,16 +93,16 @@ if [ -z "$WORLD_NAME" ]; then
 fi
 
 # Construct SDF as single-line string (protobuf text format doesn't support multiline)
-SDF_CONTENT="<?xml version=\\\"1.0\\\"?><sdf version=\\\"1.9\\\"><model name=\\\"${ZONE_NAME}\\\"><pose>${X} ${Y} ${Z} 0 0 0</pose><model name=\\\"sphere\\\"><static>true</static><link name=\\\"sphere_link\\\"><visual name=\\\"sphere_visual\\\"><geometry><sphere><radius>${RADIUS}</radius></sphere></geometry><material><ambient>$R $G $B $A</ambient><diffuse>$R $G $B $A</diffuse><specular>0.2 0.2 0.2 1</specular><emissive>0 0 0 1</emissive></material></visual></link></model></model></sdf>"
+SDF_CONTENT="<?xml version=\\\"1.0\\\"?><sdf version=\\\"1.9\\\"><model name=\\\"${ZONE_MODEL_NAME}\\\"><pose>${X} ${Y} ${Z} 0 0 0</pose><model name=\\\"sphere\\\"><static>true</static><link name=\\\"sphere_link\\\"><visual name=\\\"sphere_visual\\\"><geometry><sphere><radius>${RADIUS}</radius></sphere></geometry><material><ambient>$R $G $B $A</ambient><diffuse>$R $G $B $A</diffuse><specular>0.2 0.2 0.2 1</specular><emissive>0 0 0 1</emissive></material></visual></link></model></model></sdf>"
 
 # Spawn via gz service
 gz service -s /world/$WORLD_NAME/create \
   --reqtype gz.msgs.EntityFactory \
   --reptype gz.msgs.Boolean \
-  --req "sdf: \"${SDF_CONTENT}\", name: \"${ZONE_NAME}\""
+  --req "sdf: \"${SDF_CONTENT}\", name: \"${ZONE_MODEL_NAME}\""
 
 if [ $? -eq 0 ]; then
-    echo "✓ Model ${ZONE_NAME} spawned in Gazebo at ($X, $Y, $Z)"
+    echo "✓ Model ${ZONE_MODEL_NAME} spawned in Gazebo at ($X, $Y, $Z)"
 else
     echo "✗ Failed to spawn model in Gazebo"
     exit 1
