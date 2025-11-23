@@ -7,7 +7,7 @@
 typedef struct Position {
 	int32_t x;
 	int32_t y;
-	int32_t z;
+	//int32_t z;
 } Position;
 
 typedef struct Item {
@@ -19,7 +19,7 @@ typedef struct Delivery {
 	Item *item;
 	uint16_t quantity;
 	uint8_t priority;	// 0 -> Max priority | 5 -> Min priority : priority of the delivery
-	uint8_t precedence; // 0 -> Max precedence | 5 -> Min precedence : if a delevery must be delivered before another one in the same trip
+	uint8_t user; // 0 -> Max precedence | 5 -> Min precedence : if a delevery must be delivered before another one in the same trip
 	Position position;
 	uint32_t mass;		// In grams
 } Delivery;

@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdio.h> // For ssize_t
+#include <sys/types.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -70,7 +70,7 @@ void pool_cleanup(Pool* pool) {
 
 static void grow(Pool* pool) {
     size_t slot_size = compute_slot_size(pool->stride);
-    size_t new_cap   = pool->capacity << 1ULL;
+    size_t new_cap   = pool->capacity << 1;
 
     struct slot* new_array = realloc(pool->blocks, slot_size * new_cap);
     if (!new_array) {

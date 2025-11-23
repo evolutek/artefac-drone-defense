@@ -5,11 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct {
-    Item* item;
-    size_t count;
-} ItemStack;
-
 static Ctx ctx;
 
 struct archetype_search_data {

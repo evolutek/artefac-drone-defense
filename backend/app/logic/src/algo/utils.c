@@ -2,7 +2,7 @@
 #include <math.h>
 #include <stdlib.h>
 
-Item *new_item(char *name, uint32_t mass) {
+Item *new_item(const char *name, const uint32_t mass) {
 	Item *item = malloc(sizeof(Item));
 	
 	item->name = name;
@@ -28,7 +28,7 @@ Drone *new_drone(const uint32_t max_capacity, const uint8_t max_speed,
 		const uint8_t acceleration, const float energy,
 		const uint16_t max_flight_time, const uint8_t max_flight_time_speed,
 		const uint32_t payload, const float autonomy, Position position,
-		Delivery *const targets, const uint8_t nb_targets, float cost) {
+		Delivery *const targets, const uint8_t nb_targets, const float cost) {
 	Drone *drone = malloc(sizeof(Drone));
 
 	drone->max_capacity = max_capacity;
@@ -114,7 +114,7 @@ Position is_constrained(Route_constraint *cnst, const Position *pos1, const Posi
 	intersect.x = p12.x * i + pos1->x;
 	intersect.y = p12.y * i + pos1->y;
 
-	return (Position){p12.x * i + pos1->x, p12.y * i + pos1->y, 0};
+	return (Position) {p12.x * i + pos1->x, p12.y * i + pos1->y, 0};
 }
 
 // TODO :
