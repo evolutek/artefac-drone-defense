@@ -7,7 +7,7 @@ import paho.mqtt.publish as publish
 from ..config import MQTT_BROKER, MQTT_PORT
 
 
-def generic_publish_presence(topic: str, entity_id: str, event: str, reason: str = None):
+def generic_publish_presence(topic: str, entity_id: str, event: str, reason: str = None, metadata: dict = None):
     """
     Publish entity presence event to MQTT topic
 
@@ -16,6 +16,7 @@ def generic_publish_presence(topic: str, entity_id: str, event: str, reason: str
         entity_id: Entity identifier (e.g., "drone_1", "zone_1")
         event: Event type ("connected" or "disconnected")
         reason: Optional reason (e.g., "spawn", "despawn", "mavros_lost")
+        metadata: Optional metadata dict to include in payload (e.g., zone_name, type, position)
     """
     payload = {
         'event': event,
@@ -25,6 +26,10 @@ def generic_publish_presence(topic: str, entity_id: str, event: str, reason: str
 
     if reason:
         payload['reason'] = reason
+
+    # Merge metadata into payload if provided
+    if metadata:
+        payload.update(metadata)
 
     try:
         publish.single(

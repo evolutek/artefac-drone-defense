@@ -65,8 +65,8 @@ def generic_spawn_entity(
         active_entities[storage_key] = metadata
         generic_save_json(storage_file, active_entities)
 
-        # Publish MQTT presence event
-        generic_publish_presence(mqtt_topic, entity_id, "connected", reason="spawn")
+        # Publish MQTT presence event with metadata
+        generic_publish_presence(mqtt_topic, entity_id, "connected", reason="spawn", metadata=metadata)
 
         return {
             'success': True,
