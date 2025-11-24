@@ -28,6 +28,11 @@ class MQTTClient:
         self.command_result_callback = None
         self.drone_event_callback = None  # For drone lifecycle events (spawn/ready/removed)
 
+        # Callbacks for static entity lifecycle events (zones, warehouses, deliveries)
+        self.zone_event_callback = None
+        self.warehouse_event_callback = None
+        self.delivery_event_callback = None
+
         # Command result storage (for synchronous command waiting)
         self.command_results = {}  # {drone_id: {command: result}}
 
@@ -43,6 +48,12 @@ class MQTTClient:
             client.subscribe("drone/+/command_result")
             client.subscribe("drones/presence")
             logger.info("Subscribed to drone topics (telemetry, state, command_result) and drones/presence")
+
+            # Subscribe to static entity presence topics
+            client.subscribe("zones/presence")
+            client.subscribe("entrepots/presence")
+            client.subscribe("livraisons/presence")
+            logger.info("Subscribed to zones/presence, entrepots/presence, livraisons/presence")
         else:
             self.connected = False
             logger.error(f"Failed to connect to MQTT broker, return code: {rc}")
@@ -63,9 +74,18 @@ class MQTTClient:
 
             logger.info(f"Received MQTT message on {topic}: {payload}")
 
-            # Handle global presence topic
+            # Handle global presence topics
             if topic == "drones/presence":
                 self._handle_presence_event(payload)
+                return
+            elif topic == "zones/presence":
+                self._handle_zone_presence_event(payload)
+                return
+            elif topic == "entrepots/presence":
+                self._handle_warehouse_presence_event(payload)
+                return
+            elif topic == "livraisons/presence":
+                self._handle_delivery_presence_event(payload)
                 return
 
             # Parse topic to get drone_id
@@ -242,6 +262,186 @@ class MQTTClient:
 
         else:
             logger.warning(f"Unknown presence event type: {event} for {drone_id}")
+
+    def _handle_zone_presence_event(self, payload: Dict[str, Any]):
+        """
+        Handle zone presence events from zones/presence topic
+        Events: connected (spawn), disconnected (despawn)
+        """
+        event = payload.get("event")
+        zone_id = payload.get("zone_id")
+        reason = payload.get("reason", "unknown")
+
+        if not event or not zone_id:
+            logger.warning(f"Invalid zone presence event: missing event or zone_id: {payload}")
+            return
+
+        from .zone_state_manager import zone_state_manager
+
+        if event == "connected":
+            logger.info(f"Zone {zone_id} connected (reason: {reason})")
+
+            # Extract metadata from payload (sent by Flask simulation control server)
+            metadata = {
+                "zone_name": payload.get("zone_name"),
+                "zone_model_name": payload.get("zone_model_name"),
+                "type": payload.get("type"),
+                "position": payload.get("position"),
+                "radius": payload.get("radius"),
+                "spawned_at": payload.get("spawned_at"),
+            }
+
+            # Register zone immediately with "connected" status (no initialization phase)
+            newly_registered = zone_state_manager.register_zone(zone_id, metadata)
+
+            # Notify WebSocket clients about zone spawn
+            if self.zone_event_callback:
+                self.zone_event_callback(
+                    event_type="spawning",
+                    entity_id=zone_id,
+                    data={"status": "connected", "reason": reason, **metadata}
+                )
+                logger.info(f"Notified clients of {zone_id} spawn (newly_registered={newly_registered})")
+
+        elif event == "disconnected":
+            logger.info(f"Zone {zone_id} disconnected (reason: {reason})")
+
+            # Remove zone from state manager
+            removed = zone_state_manager.remove_zone(zone_id)
+
+            if removed:
+                # Notify WebSocket clients that zone was removed
+                if self.zone_event_callback:
+                    self.zone_event_callback(
+                        event_type="removed",
+                        entity_id=zone_id,
+                        data={"reason": reason}
+                    )
+                logger.info(f"Removed {zone_id} from state manager and notified clients")
+            else:
+                logger.warning(f"Tried to remove {zone_id} but it was not in state manager")
+
+        else:
+            logger.warning(f"Unknown zone presence event type: {event} for {zone_id}")
+
+    def _handle_warehouse_presence_event(self, payload: Dict[str, Any]):
+        """
+        Handle warehouse presence events from entrepots/presence topic
+        Events: connected (spawn), disconnected (despawn)
+        """
+        event = payload.get("event")
+        entrepot_id = payload.get("entrepot_id")
+        reason = payload.get("reason", "unknown")
+
+        if not event or not entrepot_id:
+            logger.warning(f"Invalid warehouse presence event: missing event or entrepot_id: {payload}")
+            return
+
+        from .warehouse_state_manager import warehouse_state_manager
+
+        if event == "connected":
+            logger.info(f"Warehouse {entrepot_id} connected (reason: {reason})")
+
+            # Extract metadata from payload
+            metadata = {
+                "entrepot_name": payload.get("entrepot_name"),
+                "entrepot_model_name": payload.get("entrepot_model_name"),
+                "entrepot_type": payload.get("entrepot_type"),
+                "position": payload.get("position"),
+                "spawned_at": payload.get("spawned_at"),
+            }
+
+            # Register warehouse immediately with "connected" status
+            newly_registered = warehouse_state_manager.register_warehouse(entrepot_id, metadata)
+
+            # Notify WebSocket clients about warehouse spawn
+            if self.warehouse_event_callback:
+                self.warehouse_event_callback(
+                    event_type="spawning",
+                    entity_id=entrepot_id,
+                    data={"status": "connected", "reason": reason, **metadata}
+                )
+                logger.info(f"Notified clients of {entrepot_id} spawn (newly_registered={newly_registered})")
+
+        elif event == "disconnected":
+            logger.info(f"Warehouse {entrepot_id} disconnected (reason: {reason})")
+
+            # Remove warehouse from state manager
+            removed = warehouse_state_manager.remove_warehouse(entrepot_id)
+
+            if removed:
+                # Notify WebSocket clients that warehouse was removed
+                if self.warehouse_event_callback:
+                    self.warehouse_event_callback(
+                        event_type="removed",
+                        entity_id=entrepot_id,
+                        data={"reason": reason}
+                    )
+                logger.info(f"Removed {entrepot_id} from state manager and notified clients")
+            else:
+                logger.warning(f"Tried to remove {entrepot_id} but it was not in state manager")
+
+        else:
+            logger.warning(f"Unknown warehouse presence event type: {event} for {entrepot_id}")
+
+    def _handle_delivery_presence_event(self, payload: Dict[str, Any]):
+        """
+        Handle delivery presence events from livraisons/presence topic
+        Events: connected (spawn), disconnected (despawn)
+        """
+        event = payload.get("event")
+        livraison_id = payload.get("livraison_id")
+        reason = payload.get("reason", "unknown")
+
+        if not event or not livraison_id:
+            logger.warning(f"Invalid delivery presence event: missing event or livraison_id: {payload}")
+            return
+
+        from .delivery_state_manager import delivery_state_manager
+
+        if event == "connected":
+            logger.info(f"Delivery {livraison_id} connected (reason: {reason})")
+
+            # Extract metadata from payload
+            metadata = {
+                "livraison_name": payload.get("livraison_name"),
+                "type": payload.get("type"),
+                "position": payload.get("position"),
+                "spawned_at": payload.get("spawned_at"),
+            }
+
+            # Register delivery immediately with "connected" status
+            newly_registered = delivery_state_manager.register_delivery(livraison_id, metadata)
+
+            # Notify WebSocket clients about delivery spawn
+            if self.delivery_event_callback:
+                self.delivery_event_callback(
+                    event_type="spawning",
+                    entity_id=livraison_id,
+                    data={"status": "connected", "reason": reason, **metadata}
+                )
+                logger.info(f"Notified clients of {livraison_id} spawn (newly_registered={newly_registered})")
+
+        elif event == "disconnected":
+            logger.info(f"Delivery {livraison_id} disconnected (reason: {reason})")
+
+            # Remove delivery from state manager
+            removed = delivery_state_manager.remove_delivery(livraison_id)
+
+            if removed:
+                # Notify WebSocket clients that delivery was removed
+                if self.delivery_event_callback:
+                    self.delivery_event_callback(
+                        event_type="removed",
+                        entity_id=livraison_id,
+                        data={"reason": reason}
+                    )
+                logger.info(f"Removed {livraison_id} from state manager and notified clients")
+            else:
+                logger.warning(f"Tried to remove {livraison_id} but it was not in state manager")
+
+        else:
+            logger.warning(f"Unknown delivery presence event type: {event} for {livraison_id}")
 
     def wait_for_command_result(self, drone_id: str, command: str, timeout: float = 5.0) -> Optional[Dict[str, Any]]:
         """

@@ -41,6 +41,54 @@ class DroneResponse(BaseModel):
         from_attributes = False  # Data comes from dict, not SQLAlchemy model
 
 
+# ==================== Zone Schemas ====================
+
+class ZoneResponse(BaseModel):
+    zone_id: str
+    zone_name: Optional[str] = None
+    zone_model_name: Optional[str] = None
+    type: str  # jamming, no-fly, restricted
+    position: Optional[dict] = None  # {x, y, z}
+    radius: Optional[float] = None
+    status: str = "connected"
+    spawned_at: Optional[str] = None  # ISO format string
+    last_update: Optional[datetime] = None
+
+    class Config:
+        from_attributes = False
+
+
+# ==================== Warehouse Schemas ====================
+
+class WarehouseResponse(BaseModel):
+    entrepot_id: str
+    entrepot_name: Optional[str] = None
+    entrepot_model_name: Optional[str] = None
+    entrepot_type: Optional[str] = None  # medicaments, foods, ammo, equipements
+    position: Optional[dict] = None  # {x, y, z}
+    status: str = "connected"
+    spawned_at: Optional[str] = None  # ISO format string
+    last_update: Optional[datetime] = None
+
+    class Config:
+        from_attributes = False
+
+
+# ==================== Delivery Schemas ====================
+
+class DeliveryResponse(BaseModel):
+    livraison_id: str
+    livraison_name: Optional[str] = None
+    type: Optional[str] = None  # medicaments, foods, ammo, equipements
+    position: Optional[dict] = None  # {x, y, z}
+    status: str = "connected"
+    spawned_at: Optional[str] = None  # ISO format string
+    last_update: Optional[datetime] = None
+
+    class Config:
+        from_attributes = False
+
+
 # ==================== Mission Schemas ====================
 
 class MissionCreate(BaseModel):

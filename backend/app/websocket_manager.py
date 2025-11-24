@@ -97,6 +97,27 @@ class WebSocketManager:
         await self._send_to_connections(self.active_connections, message)
         logger.info(f"Broadcast {event_type} event for {drone_id}")
 
+    async def broadcast_entity_event(self, entity_type: str, event_type: str, entity_id: str, data: Optional[Dict[str, Any]] = None):
+        """
+        Generic method to broadcast static entity lifecycle events (zones, warehouses, deliveries)
+
+        Args:
+            entity_type: Entity type ("zone", "warehouse", "delivery")
+            event_type: Event type ("spawning", "removed")
+            entity_id: Entity identifier (zone_id, entrepot_id, livraison_id)
+            data: Optional additional data (status, reason, metadata, etc.)
+        """
+        message = json.dumps({
+            "type": f"{entity_type}_{event_type}",
+            "entity_id": entity_id,
+            "entity_type": entity_type,
+            "data": data or {},
+        })
+
+        # Broadcast to all connections
+        await self._send_to_connections(self.active_connections, message)
+        logger.info(f"Broadcast {entity_type}_{event_type} event for {entity_id}")
+
     async def _send_to_connections(self, connections: List[WebSocket], message: str):
         """Send message to list of connections, removing dead connections"""
         dead_connections = []
@@ -163,7 +184,43 @@ def setup_mqtt_callbacks(event_loop):
         except Exception as e:
             logger.error(f"Error broadcasting drone event: {e}")
 
+    def zone_event_callback(event_type: str, entity_id: str, data: Dict[str, Any]):
+        """Called when zone lifecycle event occurs (runs in MQTT thread)"""
+        try:
+            # Schedule coroutine in the main event loop from MQTT thread
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast_entity_event("zone", event_type, entity_id, data),
+                event_loop
+            )
+        except Exception as e:
+            logger.error(f"Error broadcasting zone event: {e}")
+
+    def warehouse_event_callback(event_type: str, entity_id: str, data: Dict[str, Any]):
+        """Called when warehouse lifecycle event occurs (runs in MQTT thread)"""
+        try:
+            # Schedule coroutine in the main event loop from MQTT thread
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast_entity_event("warehouse", event_type, entity_id, data),
+                event_loop
+            )
+        except Exception as e:
+            logger.error(f"Error broadcasting warehouse event: {e}")
+
+    def delivery_event_callback(event_type: str, entity_id: str, data: Dict[str, Any]):
+        """Called when delivery lifecycle event occurs (runs in MQTT thread)"""
+        try:
+            # Schedule coroutine in the main event loop from MQTT thread
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast_entity_event("delivery", event_type, entity_id, data),
+                event_loop
+            )
+        except Exception as e:
+            logger.error(f"Error broadcasting delivery event: {e}")
+
     mqtt_client.telemetry_callback = telemetry_callback
     mqtt_client.state_callback = state_callback
     mqtt_client.drone_event_callback = drone_event_callback
-    logger.info("MQTT callbacks registered with WebSocket manager")
+    mqtt_client.zone_event_callback = zone_event_callback
+    mqtt_client.warehouse_event_callback = warehouse_event_callback
+    mqtt_client.delivery_event_callback = delivery_event_callback
+    logger.info("MQTT callbacks registered with WebSocket manager (drones, zones, warehouses, deliveries)")

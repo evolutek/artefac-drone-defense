@@ -16,6 +16,9 @@ from . import crud
 from .schemas import (
     DroneCreate,
     DroneResponse,
+    ZoneResponse,
+    WarehouseResponse,
+    DeliveryResponse,
     MissionCreate,
     MissionResponse,
     TelemetryResponse,
@@ -304,6 +307,90 @@ def land_drone(drone_id: str):
         "success": True,
         "message": result.get("message", "Land command sent successfully")
     }
+
+
+# ==================== Zone Endpoints ====================
+
+@app.get("/zones", response_model=List[ZoneResponse])
+def list_zones():
+    """
+    List all active zones from in-memory state manager
+    """
+    from .zone_state_manager import zone_state_manager
+
+    zones_dict = zone_state_manager.get_active_zones()
+    zones_list = list(zones_dict.values())
+
+    return zones_list
+
+
+@app.get("/zones/{zone_id}", response_model=ZoneResponse)
+def get_zone(zone_id: str):
+    """
+    Get zone details from in-memory state manager
+    """
+    from .zone_state_manager import zone_state_manager
+
+    zone = zone_state_manager.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    return zone
+
+
+# ==================== Warehouse Endpoints ====================
+
+@app.get("/entrepots", response_model=List[WarehouseResponse])
+def list_warehouses():
+    """
+    List all active warehouses from in-memory state manager
+    """
+    from .warehouse_state_manager import warehouse_state_manager
+
+    warehouses_dict = warehouse_state_manager.get_active_warehouses()
+    warehouses_list = list(warehouses_dict.values())
+
+    return warehouses_list
+
+
+@app.get("/entrepots/{entrepot_id}", response_model=WarehouseResponse)
+def get_warehouse(entrepot_id: str):
+    """
+    Get warehouse details from in-memory state manager
+    """
+    from .warehouse_state_manager import warehouse_state_manager
+
+    warehouse = warehouse_state_manager.get_warehouse(entrepot_id)
+    if not warehouse:
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+    return warehouse
+
+
+# ==================== Delivery Endpoints ====================
+
+@app.get("/livraisons", response_model=List[DeliveryResponse])
+def list_deliveries():
+    """
+    List all active deliveries from in-memory state manager
+    """
+    from .delivery_state_manager import delivery_state_manager
+
+    deliveries_dict = delivery_state_manager.get_active_deliveries()
+    deliveries_list = list(deliveries_dict.values())
+
+    return deliveries_list
+
+
+@app.get("/livraisons/{livraison_id}", response_model=DeliveryResponse)
+def get_delivery(livraison_id: str):
+    """
+    Get delivery details from in-memory state manager
+    """
+    from .delivery_state_manager import delivery_state_manager
+
+    delivery = delivery_state_manager.get_delivery(livraison_id)
+    if not delivery:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    return delivery
 
 
 # ==================== Mission Endpoints ====================
