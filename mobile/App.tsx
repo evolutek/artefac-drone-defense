@@ -15,14 +15,17 @@ import ZoneCreateForm from './components/ZoneCreateForm';
 import ActiveZonesList from './components/ActiveZonesList';
 import EntrepotCreateForm from './components/EntrepotCreateForm';
 import ActiveEntrepotsList from './components/ActiveEntrepotsList';
+import LivraisonCreateForm from './components/LivraisonCreateForm';
+import ActiveLivraisonsList from './components/ActiveLivraisonsList';
 
-type Tab = 'drones' | 'zones' | 'warehouses';
+type Tab = 'drones' | 'zones' | 'warehouses' | 'deliveries';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('drones');
   const [droneRefreshTrigger, setDroneRefreshTrigger] = useState(0);
   const [zoneRefreshTrigger, setZoneRefreshTrigger] = useState(0);
   const [warehouseRefreshTrigger, setWarehouseRefreshTrigger] = useState(0);
+  const [deliveryRefreshTrigger, setDeliveryRefreshTrigger] = useState(0);
 
   const handleDroneSpawnSuccess = () => {
     setDroneRefreshTrigger((prev) => prev + 1);
@@ -34,6 +37,10 @@ export default function App() {
 
   const handleWarehouseCreateSuccess = () => {
     setWarehouseRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleDeliveryCreateSuccess = () => {
+    setDeliveryRefreshTrigger((prev) => prev + 1);
   };
 
   return (
@@ -75,6 +82,15 @@ export default function App() {
               Warehouses
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'deliveries' && styles.tabActive]}
+            onPress={() => setActiveTab('deliveries')}
+          >
+            <Text style={[styles.tabText, activeTab === 'deliveries' && styles.tabTextActive]}>
+              Deliveries
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Content */}
@@ -93,10 +109,15 @@ export default function App() {
               <ZoneCreateForm onCreateSuccess={handleZoneCreateSuccess} />
               <ActiveZonesList refreshTrigger={zoneRefreshTrigger} />
             </>
-          ) : (
+          ) : activeTab === 'warehouses' ? (
             <>
               <EntrepotCreateForm onCreateSuccess={handleWarehouseCreateSuccess} />
               <ActiveEntrepotsList refreshTrigger={warehouseRefreshTrigger} />
+            </>
+          ) : (
+            <>
+              <LivraisonCreateForm onCreateSuccess={handleDeliveryCreateSuccess} />
+              <ActiveLivraisonsList refreshTrigger={deliveryRefreshTrigger} />
             </>
           )}
         </ScrollView>

@@ -35,6 +35,14 @@ export interface Entrepot {
   created_at?: string;
 }
 
+export interface Livraison {
+  livraison_id: string;
+  name: string;
+  type: 'medicaments' | 'munitions' | 'equipements' | 'nourritures' | string; // Allow custom types
+  position: { x: number; y: number; z: number };
+  created_at?: string;
+}
+
 export interface DroneModel {
   id: string;
   description: string;
@@ -67,6 +75,12 @@ export interface CreateEntrepotRequest {
   position: { x: number; y: number; z: number };
 }
 
+export interface CreateLivraisonRequest {
+  name: string;
+  type: string; // medicaments, munitions, equipements, nourritures, or custom
+  position: { x: number; y: number; z: number };
+}
+
 export interface ApiResponse {
   success: boolean;
   message: string;
@@ -75,6 +89,8 @@ export interface ApiResponse {
   zone_id?: string;
   entrepot_id?: string;
   entrepot_num?: number;
+  livraison_id?: string;
+  livraison_num?: number;
 }
 
 export interface HealthResponse {
@@ -83,6 +99,7 @@ export interface HealthResponse {
   active_drones_count: number;
   active_zones_count: number;
   active_entrepots_count?: number;
+  active_livraisons_count?: number;
   max_drones: number;
 }
 
@@ -256,6 +273,41 @@ class SimulationControlApi {
   // Alias for consistency
   async getActiveEntrepots(): Promise<Entrepot[]> {
     return this.getEntrepots();
+  }
+
+  // --------------------------------------------------------------------------
+  // Livraisons (Deliveries)
+  // --------------------------------------------------------------------------
+
+  async getLivraisons(): Promise<Livraison[]> {
+    const response = await this.client.get<{ livraisons: Livraison[]; count: number }>('/livraisons');
+    return response.data.livraisons;
+  }
+
+  async createLivraison(livraison: CreateLivraisonRequest): Promise<ApiResponse> {
+    const response = await this.client.post<ApiResponse>('/livraisons', livraison);
+    return response.data;
+  }
+
+  async deleteLivraison(livraisonId: string): Promise<ApiResponse> {
+    const response = await this.client.delete<ApiResponse>(`/livraisons/${livraisonId}`);
+    return response.data;
+  }
+
+  async batchDeleteLivraisons(livraisonIds: string[]): Promise<{
+    success: boolean;
+    message: string;
+    results: Array<{ livraison_id: string; success: boolean; message: string }>;
+    succeeded_count: number;
+    failed_count: number;
+  }> {
+    const response = await this.client.post('/livraisons/batch-delete', { livraison_ids: livraisonIds });
+    return response.data;
+  }
+
+  // Alias for consistency
+  async getActiveLivraisons(): Promise<Livraison[]> {
+    return this.getLivraisons();
   }
 }
 
