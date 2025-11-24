@@ -142,31 +142,35 @@ export default function ActiveEntrepotsList({ refreshTrigger }: { refreshTrigger
 
   const getEntrepotColor = (type: string): string => {
     switch (type) {
-      case 'medicaments':
+      case 'medecines':
         return '#10b981'; // green
-      case 'munitions':
+      case 'ammunition':
         return '#ef4444'; // red
-      case 'equipements':
+      case 'equipment':
         return '#3b82f6'; // blue
-      case 'nourritures':
+      case 'food':
         return '#f97316'; // orange
+      case 'blood':
+        return '#dc2626'; // dark red
       default:
-        return '#6b7280'; // gray (custom)
+        return '#6b7280'; // gray (custom/general)
     }
   };
 
   const getEntrepotTypeLabel = (type: string): string => {
     switch (type) {
-      case 'medicaments':
-        return 'Médicaments';
-      case 'munitions':
-        return 'Munitions';
-      case 'equipements':
-        return 'Equipements';
-      case 'nourritures':
-        return 'Nourritures';
+      case 'medecines':
+        return 'Medecines';
+      case 'ammunition':
+        return 'Ammunition';
+      case 'equipment':
+        return 'Equipment';
+      case 'food':
+        return 'Food';
+      case 'blood':
+        return 'Blood';
       default:
-        return type; // Display custom type as-is
+        return type.charAt(0).toUpperCase() + type.slice(1); // Capitalize first letter
     }
   };
 

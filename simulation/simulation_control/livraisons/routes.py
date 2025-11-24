@@ -24,7 +24,7 @@ def register_livraison_routes(app: Flask):
             livraisons_list.append({
                 'livraison_id': livraison_id,
                 'name': metadata['livraison_name'],
-                'type': metadata.get('livraison_type', 'general'),
+                'type': metadata.get('type', 'general'),
                 'position': metadata['position'],
                 'created_at': metadata.get('spawned_at')
             })

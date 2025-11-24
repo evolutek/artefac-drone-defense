@@ -11,13 +11,13 @@ import {
 } from 'react-native';
 import api from '../services/api';
 
-type EntrepotType = 'medicaments' | 'munitions' | 'equipements' | 'nourritures' | 'custom';
+type EntrepotType = 'medecines' | 'ammunition' | 'food' | 'equipment' | 'blood' | 'custom';
 
 export default function EntrepotCreateForm({ onCreateSuccess }: { onCreateSuccess?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState('');
-  const [selectedType, setSelectedType] = useState<EntrepotType>('medicaments');
+  const [selectedType, setSelectedType] = useState<EntrepotType>('medecines');
   const [customType, setCustomType] = useState('');
   const [customTypeError, setCustomTypeError] = useState('');
   const [useCustomPosition, setUseCustomPosition] = useState(false);
@@ -27,28 +27,34 @@ export default function EntrepotCreateForm({ onCreateSuccess }: { onCreateSucces
 
   const entrepotTypes: Array<{ type: EntrepotType; label: string; color: string; description: string }> = [
     {
-      type: 'medicaments',
-      label: 'Médicaments',
+      type: 'medecines',
+      label: 'Medecines',
       color: '#10b981',
       description: 'Medical supplies warehouse',
     },
     {
-      type: 'munitions',
-      label: 'Munitions',
+      type: 'ammunition',
+      label: 'Ammunition',
       color: '#ef4444',
       description: 'Ammunition storage',
     },
     {
-      type: 'equipements',
-      label: 'Equipements',
+      type: 'food',
+      label: 'Food',
+      color: '#f97316',
+      description: 'Food storage',
+    },
+    {
+      type: 'equipment',
+      label: 'Equipment',
       color: '#3b82f6',
       description: 'Equipment depot',
     },
     {
-      type: 'nourritures',
-      label: 'Nourritures',
-      color: '#f97316',
-      description: 'Food storage',
+      type: 'blood',
+      label: 'Blood',
+      color: '#dc2626',
+      description: 'Blood bank storage',
     },
     {
       type: 'custom',
@@ -169,7 +175,7 @@ export default function EntrepotCreateForm({ onCreateSuccess }: { onCreateSucces
         setCustomTypeError('');
         setY('0');
         setZ('0');
-        setSelectedType('medicaments');
+        setSelectedType('medecines');
         setUseCustomPosition(false);
         onCreateSuccess?.();
       } else {
