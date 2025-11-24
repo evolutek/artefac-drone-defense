@@ -3,6 +3,7 @@ import { DroneControl } from '../components/DroneControl';
 import { DroneTelemetry } from '../components/DroneTelemetry';
 import { DroneSelector } from '../components/DroneSelector';
 import { DroneEventToast } from '../components/DroneEventToast';
+import { SystemControl } from '../components/SystemControl';
 import { useMultiDroneWebSocket } from '../hooks/useMultiDroneWebSocket';
 import { useGlobalDroneEvents } from '../hooks/useGlobalDroneEvents';
 import { Link } from 'react-router-dom';
@@ -42,6 +43,7 @@ export function DebugDashboard() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 gap-6">
+          <SystemControl />
           {/* Health Dashboard */}
           <HealthDashboard />
 

@@ -71,9 +71,16 @@ RUN wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pk
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gz-harmonic \
     libgz-sim8-dev \
+    libgz-gui8-dev \
+    libgz-msgs9-dev \
+    libgz-transport12-dev \
+    libgz-math7-dev \
+    libgz-sensors7-dev \
+    libgz-common5-dev \
     libopencv-dev \
     libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev \
+    openjdk-11-jdk \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages for PX4

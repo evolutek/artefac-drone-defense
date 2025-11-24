@@ -1,6 +1,7 @@
 services:
   # PX4 SITL + Gazebo Harmonic Simulation
   simulation:
+    platform: linux/amd64
     build:
       context: ./simulation
       dockerfile: Dockerfile.px4
@@ -49,6 +50,7 @@ services:
 
   # ROS2 Integration Layer (MAVROS + MQTT Bridge + Vision Bridge)
   ros2_integration:
+    platform: linux/amd64
     build:
       context: ./simulation
       dockerfile: Dockerfile

@@ -33,7 +33,8 @@ export default defineConfig({
   },
   server: {
     host: true,
-    port: 3000,
+    port: process.env.TAURI_DEV ? 8080 : 3000,
+    strictPort: true,
     proxy: {
       '/api': {
         target: 'http://backend:8000',
