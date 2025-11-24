@@ -43,22 +43,37 @@ if [ "$HOST_OS" != "linux" ] && [ "$HOST_OS" != "macos" ] && [ "$HOST_OS" != "wi
 fi
 
 # Run display setup script
-log_step "Setting up display for $HOST_OS"
-SCRIPT_PATH="./scripts/start_display_${HOST_OS}.sh"
-
-if [ ! -f "$SCRIPT_PATH" ]; then
-    log_error "Display setup script not found: $SCRIPT_PATH"
-    exit 1
+if [ "$HOST_OS" != "macos" ]; then
+    log_step "Setting up display for $HOST_OS"
+    SCRIPT_PATH="./scripts/start_display_${HOST_OS}.sh"
+    if [ ! -f "$SCRIPT_PATH" ]; then
+        log_error "Display setup script not found: $SCRIPT_PATH"
+        exit 1
+    fi
+    bash "$SCRIPT_PATH"
 fi
-
-bash "$SCRIPT_PATH"
 
 # macOS-specific: Force GUI mode
 if [ "$HOST_OS" = "macos" ]; then
     export HEADLESS=0
     log_info "macOS: Forcing GUI mode (HEADLESS=0)"
+    export PX4_GZ_WORLD="${PX4_GZ_WORLD:-harmonic_heightmap}"
+    log_step "Starting backend and MQTT"
+    docker compose up -d mqtt backend || true
+    log_step "Starting Vite dev server on port 3000"
+    (cd frontend && npm run dev >/tmp/artefac_frontend_dev.log 2>&1 &) || true
+    log_step "Waiting for http://127.0.0.1:3000"
+    (cd frontend && npx wait-on http://127.0.0.1:3000) || true
+    log_step "Starting Electron (Three.js)"
+    (cd frontend && NATIVE_GAZEBO=1 npm run electron:dev >/tmp/artefac_electron.log 2>&1 &) || true
+    log_step "Compiling Cocoa launcher (AppKit)"
+    swiftc -framework AppKit macos/GazeboLauncher/main.swift -o /tmp/GazeboLauncher || true
+    log_step "Launching Cocoa window for Gazebo (Metal)"
+    (PX4_GZ_WORLD="$PX4_GZ_WORLD" /tmp/GazeboLauncher >/tmp/artefac_gazebo_native.log 2>&1 &) || true
+    log_step "Starting Expo mobile"
+    (cd mobile && npm install >/tmp/artefac_mobile_install.log 2>&1 && npm run start >/tmp/artefac_mobile.log 2>&1 &) || true
+    log_info "Services started (macOS native)"
+else
+    echo -e "\n${BLUE}=== Starting Docker Compose Services ===${NC}\n"
+    docker compose "$@"
 fi
-
-# Start Docker Compose
-echo -e "\n${BLUE}=== Starting Docker Compose Services ===${NC}\n"
-docker compose "$@"

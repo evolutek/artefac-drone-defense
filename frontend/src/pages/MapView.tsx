@@ -6,6 +6,7 @@ import ExclusionZones from '../components/ExclusionZones';
 import DroneMarkers from '../components/DroneMarkers';
 
 export function MapView() {
+  const world = new URL(window.location.href).searchParams.get('world') || 'model';
   return (
     <div className="h-screen w-screen flex flex-col">
       {/* Header */}
@@ -14,6 +15,7 @@ export function MapView() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Artefac Drone Defense - Local Simulation Map</h1>
+              <p className="text-blue-100 text-sm mt-1">World: {world}</p>
               <p className="text-blue-100 text-sm mt-1">1200m × 1200m simulation area with local coordinates</p>
             </div>
             <div className="flex items-center gap-4">

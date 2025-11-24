@@ -17,7 +17,7 @@ import sys
 # Add simulation_control package to Python path
 sys.path.insert(0, '/root')
 
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 
 # Import route registration functions from each module
@@ -48,6 +48,29 @@ def create_app():
     register_livraison_routes(app)
 
     print("✓ All routes registered successfully!")
+
+    @app.route('/', methods=['GET'])
+    def root_index():
+        return jsonify({
+            'service': 'simulation-control',
+            'endpoints': [
+                '/health',
+                '/models',
+                '/drones/active',
+                '/drones/spawn',
+                '/drones/refresh',
+                '/drones/<drone_num>',
+                '/drones/batch-delete',
+                '/zones',
+                '/zones',
+                '/zones/<zone_id>',
+                '/zones/batch-delete',
+                '/entrepots',
+                '/entrepots',
+                '/entrepots/<id>',
+                '/entrepots/batch-delete'
+            ]
+        })
 
     return app
 

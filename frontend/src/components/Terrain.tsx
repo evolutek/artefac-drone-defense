@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -19,6 +19,7 @@ interface HeightmapData {
 
 export default function Terrain() {
   const [heightmapData, setHeightmapData] = useState<HeightmapData | null>(null);
+  const world = useMemo(() => new URL(window.location.href).searchParams.get('world') || 'model', []);
 
   // Load heightmap data
   useEffect(() => {
@@ -28,8 +29,11 @@ export default function Terrain() {
       .catch(err => console.error('Failed to load heightmap:', err));
   }, []);
 
-  // Load topographic texture
-  const texture = useLoader(THREE.TextureLoader, '/terrain/topographic_map.png');
+  // Load texture depending on world
+  const texturePath = world === 'harmonic_heightmap'
+    ? '/terrain/terrain_rgb.png'
+    : '/terrain/topographic_map.png';
+  const texture = useLoader(THREE.TextureLoader, texturePath);
 
   if (!heightmapData) {
     return null; // Loading...

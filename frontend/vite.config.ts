@@ -33,16 +33,16 @@ export default defineConfig({
   },
   server: {
     host: true,
-    port: process.env.TAURI_DEV ? 8080 : 3000,
+    port: 3000,
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://backend:8000',
+        target: process.env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/ws': {
-        target: 'ws://backend:8000',
+        target: (process.env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000').replace(/^http/, 'ws'),
         ws: true,
       },
     },

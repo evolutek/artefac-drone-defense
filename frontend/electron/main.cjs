@@ -1,12 +1,15 @@
 const { app, BrowserWindow } = require('electron')
 const path = require('path')
 const { spawn } = require('child_process')
+const fs = require('fs')
+const os = require('os')
 
 let gazeboHarmonic = null
 let gazeboMvp = null
+let websocketProc = null
 
 function harmonicSdfPath() {
-  return path.join(__dirname, '..', '..', 'simulation', 'gazebo_worlds', 'harmonic_heightmap.sdf')
+  return '/Users/dalm1/Desktop/reroll/Progra/drone-def/REROLL/artefac-drone-defense/simulation/gazebo_worlds/harmonic_heightmap.sdf'
 }
 
 function mvpSdfPath() {
@@ -27,10 +30,16 @@ function attachProcLogs(proc) {
 }
 
 function spawnGazeboForSdf(sdf, tag) {
+  const projectRoot = path.join(__dirname, '..', '..')
+  const resourcePaths = [
+    path.join(projectRoot, 'simulation', 'gazebo_worlds'),
+    path.join(projectRoot, 'simulation', 'models'),
+  ].join(':')
+  const env = { ...process.env, GZ_SIM_RESOURCE_PATH: resourcePaths }
   try {
-    const gzProc = spawn('gz', ['sim', sdf], { env: process.env })
+    const gzProc = spawn('gz', ['sim', '-v', '4', '-s', '-r', sdf], { env })
     gzProc.on('error', () => {
-      const classicProc = spawn('gazebo', [sdf, '--verbose'], { env: process.env })
+      const classicProc = spawn('gazebo', [sdf, '--verbose'], { env })
       attachProcLogs(classicProc)
       console.log(`[${tag}] classic started`)
       return classicProc
@@ -48,6 +57,23 @@ function spawnGazeboForSdf(sdf, tag) {
       console.error(`[${tag}] failed to spawn gazebo:`, err)
       return null
     }
+  }
+}
+
+function startWebsocketServer(port = 9002) {
+  try {
+    const tmp = os.tmpdir()
+    const ignPath = path.join(tmp, `websocket_${port}.ign`)
+    const gzPath = path.join(tmp, `websocket_${port}.gzlaunch`)
+    const gzContent = `<?xml version='1.0'?>\n<gz version='1.0'>\n  <plugin name='gz::launch::WebsocketServer' filename='gz-launch-websocket-server'>\n    <port>${port}</port>\n  </plugin>\n</gz>`
+    fs.writeFileSync(gzPath, gzContent)
+    const proc = spawn('gz', ['launch', '-v', '4', gzPath], { env: process.env })
+    attachProcLogs(proc)
+    console.log(`[websocket] server started on ws://localhost:${port}`)
+    return proc
+  } catch (err) {
+    console.error('[websocket] failed to start websocket server:', err)
+    return null
   }
 }
 
@@ -82,7 +108,8 @@ function createWindows() {
   })
 
   const url = process.env.ELECTRON_START_URL || 'file://' + path.join(__dirname, '..', 'dist', 'index.html')
-  win.loadURL(url)
+  const urlMvp = url.includes('?') ? url + '&world=model' : url + '?world=model'
+  win.loadURL(urlMvp)
   win.webContents.openDevTools({ mode: 'detach' })
 
   win.webContents.on('console-message', (event, level, message, line, sourceId) => {
@@ -93,36 +120,42 @@ function createWindows() {
   })
   win.webContents.on('did-finish-load', () => {
     console.log('did-finish-load', url)
+    win.setTitle('PX4_GZ_WORLD=model')
+  })
+  win.on('page-title-updated', (e) => {
+    e.preventDefault()
+    win.setTitle('PX4_GZ_WORLD=model')
   })
 
-  const win2 = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false
-    },
-    title: 'Harmonic Simulation'
-  })
-  win2.loadURL(url)
-  win2.webContents.openDevTools({ mode: 'detach' })
-  win2.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    console.log(`[console:${level}] ${message} (${sourceId}:${line})`)
-  })
-  win2.webContents.on('did-fail-load', (event, code, description, u) => {
-    console.error(`did-fail-load code=${code} desc=${description} url=${u}`)
-  })
-  win2.webContents.on('did-finish-load', () => {
-    console.log('did-finish-load', url)
-  })
-
-  gazeboMvp = spawnGazeboForSdf(mvpSdfPath(), 'gazebo-mvp')
-  gazeboHarmonic = spawnGazeboForSdf(harmonicSdfPath(), 'gazebo-harmonic')
-  if (!gazeboMvp) {
-    gazeboMvp = startDockerSim('model', 'gazebo-mvp')
-  }
-  if (!gazeboHarmonic) {
-    gazeboHarmonic = startDockerSim('harmonic_heightmap', 'gazebo-harmonic')
+  if (!(process.platform === 'darwin' && process.env.NATIVE_GAZEBO === '1')) {
+    const win2 = new BrowserWindow({
+      width: 1280,
+      height: 800,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false
+      },
+      title: 'Harmonic Simulation'
+    })
+    const viewerUrl = url.includes('?') ? url.split('?')[0] : url
+    const viewerWithWorld = viewerUrl + 'gazebo?world=harmonic_heightmap'
+    win2.loadURL(viewerWithWorld)
+    win2.webContents.openDevTools({ mode: 'detach' })
+    win2.webContents.on('console-message', (event, level, message, line, sourceId) => {
+      console.log(`[console:${level}] ${message} (${sourceId}:${line})`)
+    })
+    win2.webContents.on('did-fail-load', (event, code, description, u) => {
+      console.error(`did-fail-load code=${code} desc=${description} url=${u}`)
+    })
+    win2.webContents.on('did-finish-load', () => {
+      console.log('did-finish-load Gazebo web viewer')
+      win2.setTitle('Gazebo Viewer (harmonic_heightmap)')
+    })
+    win2.on('page-title-updated', (e) => {
+      e.preventDefault()
+      win2.setTitle('PX4_GZ_WORLD=harmonic_heightmap')
+    })
+    gazeboHarmonic = null
   }
 }
 
@@ -142,5 +175,8 @@ app.on('before-quit', () => {
   }
   if (gazeboHarmonic && typeof gazeboHarmonic.kill === 'function') {
     try { gazeboHarmonic.kill('SIGINT') } catch {}
+  }
+  if (websocketProc && typeof websocketProc.kill === 'function') {
+    try { websocketProc.kill('SIGINT') } catch {}
   }
 })

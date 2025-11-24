@@ -6,7 +6,7 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
-    "electron:dev": "wait-on http://127.0.0.1:8080 && ELECTRON_START_URL=http://127.0.0.1:8080 electron .",
+    "electron:dev": "wait-on http://127.0.0.1:3000 && ELECTRON_START_URL=http://127.0.0.1:3000 electron .",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest",
@@ -19,6 +19,7 @@
     "@turf/turf": "^7.3.0",
     "@zip.js/zip.js": "^2.8.11",
     "axios": "^1.6.2",
+    "gzweb": "^2.0.14",
     "maplibre-gl": "^5.13.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -37,14 +38,14 @@
     "@vitest/coverage-v8": "^1.0.4",
     "@vitest/ui": "^1.0.4",
     "autoprefixer": "^10.4.16",
+    "concurrently": "^8.2.1",
+    "electron": "^28.2.0",
     "jsdom": "^23.0.1",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.3.6",
     "typescript": "^5.3.3",
     "vite": "^5.0.8",
     "vitest": "^1.0.4",
-    "electron": "^28.2.0",
-    "concurrently": "^8.2.1",
     "wait-on": "^7.0.1"
   }
 }

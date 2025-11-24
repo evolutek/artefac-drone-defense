@@ -52,12 +52,28 @@
             <elevation>0</elevation>
         </spherical_coordinates>
 
-        <!-- Include Nathan Park Model from models directory -->
-        <include>
-            <uri>model://Harmonic Terrain</uri>
-            <name>nb_park</name>
+        <model name="harmonic_terrain">
+            <static>true</static>
             <pose>0 0 0 0 0 0</pose>
-        </include>
+            <link name="terrain_link">
+                <pose>0 0 0 0 0 0</pose>
+                <visual name="terrain_visual">
+                    <geometry>
+                        <mesh>
+                            <uri>file:///Users/dalm1/Desktop/reroll/Progra/drone-def/REROLL/artefac-drone-defense/simulation/gazebo_worlds/meshes/nb_park.dae</uri>
+                        </mesh>
+                    </geometry>
+                    <cast_shadows>true</cast_shadows>
+                </visual>
+                <collision name="terrain_collision">
+                    <geometry>
+                        <mesh>
+                            <uri>file:///Users/dalm1/Desktop/reroll/Progra/drone-def/REROLL/artefac-drone-defense/simulation/gazebo_worlds/meshes/nb_park.dae</uri>
+                        </mesh>
+                    </geometry>
+                </collision>
+            </link>
+        </model>
 
     </world>
 </sdf>
