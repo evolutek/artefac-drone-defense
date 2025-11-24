@@ -131,6 +131,7 @@ def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
 
     Returns: {'success': bool, 'message': str, 'entrepot_id': str, 'entrepot_num': int}
     """
+    print("start spawn entrepot")
     entrepot_id = f"entrepot_{entrepot_num + 1}"
     etype = etype.lower()
 

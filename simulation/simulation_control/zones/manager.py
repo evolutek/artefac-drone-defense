@@ -136,6 +136,7 @@ def spawn_zone(zone_num: int, name: str, x: Optional[float] = None,
 
     Returns: {'success': bool, 'message': str, 'zone_id': str, 'zone_num': int}
     """
+    print("start spawn zone")
     zone_id = f"zone_{zone_num + 1}"
     zone_type = zone_type.lower()
 

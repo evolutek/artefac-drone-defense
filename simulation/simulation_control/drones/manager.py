@@ -92,6 +92,7 @@ def spawn_drone(drone_num: int, x: Optional[float] = None,
 
     Returns: {'success': bool, 'message': str, 'drone_id': str, 'drone_num': int}
     """
+    print("start spawn drone")
     drone_id = f"drone_{drone_num + 1}"
 
     # Validate and get model configuration

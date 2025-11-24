@@ -13,6 +13,7 @@ Port: 8080 (dedicated server, separate from main backend on port 8000)
 
 import os
 import sys
+import threading
 
 # Add simulation_control package to Python path
 sys.path.insert(0, '/root')
@@ -25,6 +26,7 @@ from simulation_control.drones.routes import register_drone_routes
 from simulation_control.zones.routes import register_zone_routes
 from simulation_control.entrepots.routes import register_entrepot_routes
 from simulation_control.livraisons.routes import register_livraison_routes
+from simulation_control.common.config_start import map_config
 
 
 def create_app():
@@ -81,5 +83,14 @@ if __name__ == '__main__':
     print("    - POST /entrepots/batch-delete → Delete multiple entrepôts")
     print("=" * 60)
 
+    def run_after_start():
+        print(">> Initialisation map...")
+        map_config()
+        print("<< thread end")
+
+    threading.Thread(target=run_after_start, daemon=True).start()
+   
     # Run Flask server
     app.run(host='0.0.0.0', port=port, debug=False)
+
+    

@@ -132,6 +132,7 @@ def spawn_livraison(livraison_num: int, name: str, x: Optional[float] = None,
 
     Returns: {'success': bool, 'message': str, 'livraison_id': str, 'livraison_num': int}
     """
+    print("start spawn livraison")
     livraison_id = f"livraison_{livraison_num + 1}"
     ltype = ltype.lower()
 
