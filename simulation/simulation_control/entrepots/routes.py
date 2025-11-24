@@ -17,8 +17,9 @@ def register_entrepot_routes(app: Flask):
     @app.route('/entrepots', methods=['GET'])
     def get_entrepots():
         """Get list of active entrepôts (dynamically queried from Gazebo)"""
+        print("Start Get")
         active_entrepots = discover_active_entrepots_from_gazebo()
-
+        print(active_entrepots)
         entrepots_list = []
         for entrepot_id, metadata in active_entrepots.items():
             entrepots_list.append({
