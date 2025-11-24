@@ -1,164 +1,214 @@
-"""
-Livraison entity management - INCOMPLETE AND BUGGY CODE (copied as-is from original)
+"""Livraison entity management - business logic for deliveries"""
 
-WARNING: This code has known bugs and is incomplete:
-- Missing load_active_livraison() function
-- execute_spawn_livraison() uses undefined variables (drone_num, drone_id)
-- execute_despawn_livraison() uses wrong script (despawn_drone.sh)
-- Function name typo: save_active_livrasion() instead of save_active_livraison()
-- No MQTT presence publishing
-- No Gazebo discovery function
-- No auto-numbering function
-
-This code is kept as-is for future refactoring.
-"""
-
-import subprocess
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, Optional
 
-from ..config import SCRIPTS_DIR, ACTIVE_LIVRAISON_FILE
+from ..config import ACTIVE_LIVRAISON_FILE, SCRIPTS_DIR
+from ..common.storage import generic_load_json, generic_save_json
+from ..common.gazebo import generic_discover_from_gazebo
+from ..common.executor import generic_spawn_entity, generic_despawn_entity
 
 
 # ============================================================================
-# BUGGY CODE BELOW - Copied from original simulation_control_server.py
-# Lines 687-814
+# Storage Operations
 # ============================================================================
 
-def execute_spawn_livraison(livraison_num: int, x: Optional[float] = None,
-                       y: Optional[float] = None, z: Optional[float] = None) -> dict:
+def load_active_livraisons() -> Dict[str, dict]:
+    """Load active livraisons from JSON file. Returns dict {livraison_id: metadata}"""
+    return generic_load_json(ACTIVE_LIVRAISON_FILE, key_as_int=False)
+
+
+def save_active_livraisons(livraisons: Dict[str, dict]):
+    """Save active livraisons to JSON file"""
+    generic_save_json(ACTIVE_LIVRAISON_FILE, livraisons)
+
+
+# ============================================================================
+# Gazebo Discovery
+# ============================================================================
+
+def discover_active_livraisons_from_gazebo() -> Dict[str, dict]:
     """
-    Execute spawn_livraison.sh (unified script) to spawn Gazebo model + PX4 + ROS2 components
+    Query Gazebo directly to get list of active livraison models (livraison_*).
+    This is the source of truth - always reflects what's actually in the simulation.
+
+    Merges with JSON metadata (name, position) if available.
+
+    Returns: Dict {livraison_id: metadata} of all active livraisons in Gazebo
+    """
+
+    def livraison_id_generator(match: str) -> tuple:
+        """Generate livraison metadata from regex match"""
+        livraison_model_name = match
+
+        # Try to find matching livraison in existing JSON by model name
+        existing = generic_load_json(ACTIVE_LIVRAISON_FILE)
+        livraison_id = None
+
+        for lid, ldata in existing.items():
+            if ldata.get('livraison_model_name') == livraison_model_name:
+                livraison_id = lid
+                break
+
+        # If not found in JSON, create a new ID
+        if livraison_id is None:
+            livraison_id = f"discovered_{livraison_model_name}"
+
+        return livraison_id, {
+            'livraison_id': livraison_id,
+            'livraison_model_name': livraison_model_name,
+            'livraison_name': livraison_model_name.replace('livraison_', '').replace('_', ' ').title(),  # Pretty name
+            'position': None,      # Unknown position
+            'spawned_at': None,    # Unknown timestamp
+            'discovered': True     # Flag to indicate auto-discovered
+        }
+
+    discovered = generic_discover_from_gazebo(
+        pattern=r'(livraison_\w+)',
+        entity_type='livraison',
+        storage_file=ACTIVE_LIVRAISON_FILE,
+        id_generator=livraison_id_generator
+    )
+
+    # Additional sync logic: keep livraisons by model name match
+    existing = generic_load_json(ACTIVE_LIVRAISON_FILE)
+    discovered_model_names = {ldata['livraison_model_name'] for ldata in discovered.values()}
+    merged = dict(discovered)
+
+    for livraison_id, livraison_data in existing.items():
+        livraison_model_name = livraison_data.get('livraison_model_name')
+        if livraison_model_name and livraison_model_name in discovered_model_names and livraison_id not in merged:
+            # This livraison's model exists in Gazebo but wasn't matched yet - keep it
+            merged[livraison_id] = livraison_data
+
+    # Save merged list if changed
+    if merged != existing:
+        generic_save_json(ACTIVE_LIVRAISON_FILE, merged)
+        print(f"Synchronized {ACTIVE_LIVRAISON_FILE.name} with Gazebo (found {len(merged)} livraison(s))")
+
+    return merged
+
+
+# ============================================================================
+# Auto-numbering
+# ============================================================================
+
+def find_next_livraison_number() -> int:
+    """Find next available livraison number (0, 1, 2, ...)"""
+    active = load_active_livraisons()
+    used_numbers = set()
+
+    for livraison_id in active.keys():
+        if livraison_id.startswith('livraison_'):
+            try:
+                num = int(livraison_id.split('_')[1]) - 1  # livraison_1 -> num 0
+                used_numbers.add(num)
+            except (IndexError, ValueError):
+                pass
+
+    next_num = 0
+    while next_num in used_numbers:
+        next_num += 1
+
+    return next_num
+
+
+# ============================================================================
+# Spawn/Despawn Operations
+# ============================================================================
+
+def spawn_livraison(livraison_num: int, name: str, x: Optional[float] = None,
+                   y: Optional[float] = None, z: Optional[float] = None,
+                   livraison_type: str = 'general') -> dict:
+    """
+    Execute spawn_livraison.sh script to spawn Gazebo livraison model
 
     Args:
-        livraison_num: Livraison number (0-9)
+        livraison_num: Livraison number (0, 1, 2, ...)
+        name: Livraison display name
         x, y, z: Optional spawn position
+        livraison_type: Type of delivery (medicaments, munitions, equipements, nourritures, or custom)
 
-    Returns: {'success': bool, 'message': str, 'drone_id': str, 'drone_num': int}
+    Returns: {'success': bool, 'message': str, 'livraison_id': str, 'livraison_num': int}
     """
     livraison_id = f"livraison_{livraison_num + 1}"
 
+    # Prepare spawn script arguments
+    # spawn_livraison.sh <livraison_num> <name> <x> <y> <z>
+    script_args = [
+        str(livraison_num),
+        name,
+        str(x) if x is not None else "0",
+        str(y) if y is not None else "0",
+        str(z) if z is not None else "0"
+    ]
 
-    # ========================================================================
-    # Execute unified spawn_drone.sh script (Gazebo + PX4 + ROS2)
-    # ========================================================================
-    print(f"[Spawn {livraison_id}] Launching livraison using unified spawn script...")
+    # Normalize livraison name for Gazebo model
+    normalized_name = name.lower().replace(' ', '_')
+    # Remove non-alphanumeric characters except underscore
+    normalized_name = ''.join(c for c in normalized_name if c.isalnum() or c == '_')
+    livraison_model_name = f"livraison_{normalized_name}"
 
-    spawn_script_path = SCRIPTS_DIR / "spawn_livraison.sh"
-    spawn_cmd = ["bash", str(spawn_script_path), str(drone_num)]  # BUG: drone_num undefined
+    # Prepare metadata
+    metadata = {
+        'livraison_id': livraison_id,
+        'livraison_name': name,
+        'livraison_type': livraison_type,
+        'livraison_model_name': livraison_model_name,  # Gazebo model name for discovery
+        'position': {'x': x, 'y': y, 'z': z} if x is not None else None,
+        'spawned_at': datetime.now().isoformat(),
+    }
 
-    # Add position if provided
-    if x is not None and y is not None and z is not None:
-        spawn_cmd.extend([str(x), str(y), str(z)])
+    # Execute spawn using generic function
+    result = generic_spawn_entity(
+        script_name="spawn_livraison.sh",
+        script_args=script_args,
+        entity_id=livraison_id,
+        metadata=metadata,
+        storage_file=ACTIVE_LIVRAISON_FILE,
+        storage_key=livraison_id,
+        mqtt_topic="livraisons/presence",
+        timeout=60
+    )
 
-    try:
-        result = subprocess.run(
-            spawn_cmd,
-            capture_output=True,
-            text=True,
-            timeout=60,  # Unified script needs more time (Gazebo + PX4 + ROS2)
-            cwd=str(SCRIPTS_DIR)
-        )
+    # Add livraison-specific fields to result
+    result['livraison_id'] = livraison_id
+    result['livraison_num'] = livraison_num
 
-        if result.returncode != 0:
-            print(f"[Spawn {livraison_id}] ✗ Spawn failed")
-            print(f"STDOUT: {result.stdout}")
-            print(f"STDERR: {result.stderr}")
-            return {
-                'success': False,
-                'message': f'Spawn failed: {result.stderr or result.stdout}',
-                'livraison_id': livraison_id,
-                'livraison_num': livraison_num
-            }
+    return result
 
-        print(f"[Spawn {livraison_id}] ✓ Drone spawned successfully (Gazebo)")
 
-        # ====================================================================
-        # SUCCESS: All components spawned
-        # ====================================================================
+def despawn_livraison(livraison_id: str) -> dict:
+    """
+    Execute despawn_livraison.sh script
 
-        # Store drone metadata
-        active_livraison = load_active_livraison()  # BUG: function doesn't exist
-        active_livraison[livraison_num] = {
-            'livraison_id': livraison_id,
-            'livraison_name': f'livraison_{livraison_num}',
-            'position': {'x': x, 'y': y, 'z': z} if x is not None else None,
-            'spawned_at': datetime.now().isoformat(),
-        }
-        save_active_livraison(active_livraison)  # BUG: function name is save_active_livrasion()
+    Args:
+        livraison_id: Livraison identifier (e.g., "livraison_1")
 
-        # Publish presence event to MQTT
-        publish_drone_presence(drone_id, "connected", reason="spawn")  # BUG: drone_id undefined, wrong function
+    Returns: {'success': bool, 'message': str, 'livraison_id': str}
+    """
+    # Load livraison metadata to get Gazebo model name
+    active_livraisons = load_active_livraisons()
 
+    if livraison_id not in active_livraisons:
         return {
-            'success': True,
-            'message': f'livraison {livraison_id} spawned successfully',
-            'livraison_id': livraison_id,
-            'lovraison_num': livraison_num  # BUG: typo "lovraison"
+            'success': False,
+            'message': f'Livraison {livraison_id} not found in active livraisons',
+            'livraison_id': livraison_id
         }
 
-    except subprocess.TimeoutExpired:
-        return {'success': False, 'message': 'Spawn timeout (>60s)', 'drone_id': drone_id, 'drone_num': drone_num}  # BUG: undefined variables
-    except FileNotFoundError:
-        return {'success': False, 'message': 'spawn_drone.sh not found', 'drone_id': drone_id, 'drone_num': drone_num}  # BUG: undefined variables
-    except Exception as e:
-        return {'success': False, 'message': f'Spawn error: {str(e)}', 'drone_id': drone_id, 'drone_num': drone_num}  # BUG: undefined variables
+    livraison_data = active_livraisons[livraison_id]
+    livraison_model_name = livraison_data.get('livraison_model_name', livraison_id)
 
+    # Use livraison_model_name for Gazebo
+    result = generic_despawn_entity(
+        script_name="despawn_livraison.sh",
+        script_args=[livraison_model_name],
+        entity_id=livraison_id,
+        storage_file=ACTIVE_LIVRAISON_FILE,
+        storage_key=livraison_id,
+        mqtt_topic="livraisons/presence",
+        timeout=10
+    )
 
-def execute_despawn_livraison(drone_num: int) -> dict:  # BUG: parameter should be livraison_num
-    """
-    Execute despawn_drone.sh script
-    Returns: {'success': bool, 'message': str, 'drone_id': str}
-    """
-    script_path = SCRIPTS_DIR / "despawn_drone.sh"  # BUG: should be despawn_livraison.sh
-    drone_id = f"drone_{drone_num + 1}"  # BUG: should be livraison_id
-
-    try:
-        result = subprocess.run(
-            ["bash", str(script_path), str(drone_num)],
-            capture_output=True,
-            text=True,
-            timeout=15,
-            cwd=str(SCRIPTS_DIR)
-        )
-
-        if result.returncode == 0:
-            # Remove from active drones
-            active_drones = load_active_drones()  # BUG: should be load_active_livraison()
-            if drone_num in active_drones:
-                del active_drones[drone_num]
-                save_active_drones(active_drones)  # BUG: should be save_active_livraison()
-
-            # Publish presence event to MQTT
-            publish_drone_presence(drone_id, "disconnected", reason="despawn")  # BUG: should be publish_livraison_presence()
-
-            return {
-                'success': True,
-                'message': f'Drone {drone_id} removed successfully',
-                'drone_id': drone_id
-            }
-        else:
-            return {
-                'success': False,
-                'message': f'Failed to remove drone: {result.stderr}',
-                'drone_id': drone_id
-            }
-
-    except subprocess.TimeoutExpired:
-        return {'success': False, 'message': 'Despawn timeout (>15s)', 'drone_id': drone_id}
-    except Exception as e:
-        return {'success': False, 'message': f'Error: {str(e)}', 'drone_id': drone_id}
-
-
-def save_active_livrasion(livraison: Dict[int, dict]):  # BUG: typo in function name
-    """Save active drones to JSON file"""
-    with open(ACTIVE_LIVRAISON_FILE, 'w') as f:
-        import json
-        json.dump(livraison, f, indent=2)
-
-
-# MISSING: load_active_livraison() function
-# MISSING: discover_active_livraisons_from_gazebo() function
-# MISSING: find_next_livraison_number() function
-# MISSING: publish_livraison_presence() function
+    return result

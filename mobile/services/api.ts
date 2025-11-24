@@ -27,6 +27,14 @@ export interface Zone {
   created_at?: string;
 }
 
+export interface Entrepot {
+  entrepot_id: string;
+  name: string;
+  type: 'medicaments' | 'munitions' | 'equipements' | 'nourritures' | string; // Allow custom types
+  position: { x: number; y: number; z: number };
+  created_at?: string;
+}
+
 export interface DroneModel {
   id: string;
   description: string;
@@ -53,12 +61,20 @@ export interface CreateZoneRequest {
   radius: number;
 }
 
+export interface CreateEntrepotRequest {
+  name: string;
+  type: string; // medicaments, munitions, equipements, nourritures, or custom
+  position: { x: number; y: number; z: number };
+}
+
 export interface ApiResponse {
   success: boolean;
   message: string;
   drone_id?: string;
   drone_num?: number;
   zone_id?: string;
+  entrepot_id?: string;
+  entrepot_num?: number;
 }
 
 export interface HealthResponse {
@@ -66,6 +82,7 @@ export interface HealthResponse {
   service: string;
   active_drones_count: number;
   active_zones_count: number;
+  active_entrepots_count?: number;
   max_drones: number;
 }
 
@@ -204,6 +221,41 @@ class SimulationControlApi {
   // Alias for backward compatibility
   async getActiveZones(): Promise<Zone[]> {
     return this.getZones();
+  }
+
+  // --------------------------------------------------------------------------
+  // Entrepôts (Warehouses)
+  // --------------------------------------------------------------------------
+
+  async getEntrepots(): Promise<Entrepot[]> {
+    const response = await this.client.get<{ entrepots: Entrepot[]; count: number }>('/entrepots');
+    return response.data.entrepots;
+  }
+
+  async createEntrepot(entrepot: CreateEntrepotRequest): Promise<ApiResponse> {
+    const response = await this.client.post<ApiResponse>('/entrepots', entrepot);
+    return response.data;
+  }
+
+  async deleteEntrepot(entrepotId: string): Promise<ApiResponse> {
+    const response = await this.client.delete<ApiResponse>(`/entrepots/${entrepotId}`);
+    return response.data;
+  }
+
+  async batchDeleteEntrepots(entrepotIds: string[]): Promise<{
+    success: boolean;
+    message: string;
+    results: Array<{ entrepot_id: string; success: boolean; message: string }>;
+    succeeded_count: number;
+    failed_count: number;
+  }> {
+    const response = await this.client.post('/entrepots/batch-delete', { entrepot_ids: entrepotIds });
+    return response.data;
+  }
+
+  // Alias for consistency
+  async getActiveEntrepots(): Promise<Entrepot[]> {
+    return this.getEntrepots();
   }
 }
 
