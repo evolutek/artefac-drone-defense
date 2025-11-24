@@ -1,10 +1,15 @@
+#ifndef GRAPH_H
+#define GRAPH_H
+
 #include "utils.h"
 #include <stdint.h>
 
 enum Node_type {
 	E_DELIVERY,
 	E_WAREHOUSE
-}
+};
+
+typedef struct Edge Edge;
 
 typedef struct Node {
 	union {
@@ -16,9 +21,11 @@ typedef struct Node {
 	uint32_t nb_edges;
 } Node;
 
-typedef struct Edge {
+struct Edge {
 	float cost;
 	Position *pos;	// Intermediary position due to constraints
 	uint8_t nb_pos;
 	Node *next;
-} Edge;
+};
+
+#endif /* ! GRAPH_H */

@@ -1,9 +1,10 @@
 #pragma once
 
 #include <stdint.h>
-#include "graph.h"
 #include "utils/pool.h"
 #include "utils/index.h"
+
+typedef struct Node Node;
 
 #define MIN_PRIORITY 5
 
@@ -15,6 +16,7 @@ DEFINE_INDEX(Warehouse);
 DEFINE_INDEX(Delivery);
 DEFINE_INDEX(Archetype);
 DEFINE_INDEX(Cluster);
+DEFINE_INDEX(ExclusionZone);
 
 typedef struct {
     /*
@@ -26,6 +28,7 @@ typedef struct {
     Pool delivery_pool;  // Delivery
     Pool warehouse_pool; // Warehouse
     Pool drone_pool;     // Drone
+    Pool exclusion_zone_pool;     // Drone
 
     Pool archetype_pool; // Archetype
     Pool cluster_pool;   // Cluster
@@ -88,15 +91,16 @@ typedef struct {
 } Warehouse;
 
 
-typedef struct Route_constraint {
+typedef struct {
 	Position center;
 	uint32_t radius;
-} Route_constraint;
+} ExclusionZone;
 
 typedef struct Detour {
 	uint32_t distance;
-	Position *pos;
-}
+	Position pos;
+} Detour;
+
 extern Ctx ctx;
 
 // Functions
@@ -119,4 +123,4 @@ float consumption(Drone *drone, uint32_t distance, uint8_t speed, uint32_t charg
 float can_handle(Drone *drone, uint8_t nb_deliveries, Delivery *deliveries[nb_deliveries], 
 		uint8_t speed);
 
-Position is_constrained(Route_constraint *cnst, const Position* pos1, const Position* pos2);
+bool is_constrained(ExclusionZone *cnst, const Position* pos1, const Position* pos2, Detour* out_detour);

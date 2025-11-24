@@ -127,11 +127,11 @@ static void handle_event(const Event* event) {
     case EVENT_DELIVERY_NEW: {
         const NewDeliveryPkt* pkt = &event->data.new_delivery;
         add_delivery((Delivery) {
-            .quantity   = pkt->quantity,
-            .priority   = pkt->priority,
-            .user = pkt->precedence,
-            .id         = pkt->id,
-            .position   = pkt->position,
+            .quantity      = pkt->quantity,
+            .priority      = pkt->priority,
+            .user_priority = pkt->precedence,
+            .id            = pkt->id,
+            .position      = pkt->position,
         });
         break;
     }
@@ -167,20 +167,20 @@ static void handle_event(const Event* event) {
     case EVENT_ITEM_NEW: {
         Item* item         = _pool_alloc(&ctx.item_pool, NULL);
         size_t name_length = event->data.new_item.name_length;
-        char* name = malloc(name_length + 1);
+        char* name         = malloc(name_length + 1);
         *item              = (Item) {
                          .id   = event->data.new_item.id,
                          .mass = event->data.new_item.mass,
                          .name = name,
         };
         memcpy(name, event->data.new_item.name, name_length);
-    name[name_length] = 0;
+        name[name_length] = 0;
         break;
     }
     case EVENT_ITEM_REMOVE: {
-        //ItemIndex item = find_item_with_id(event->data.id);
+        // ItemIndex item = find_item_with_id(event->data.id);
         abort();
-        //TODO
+        // TODO
 
         break;
     }

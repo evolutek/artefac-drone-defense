@@ -65,7 +65,7 @@ void gab_test(void) {
     Drone* drone = new_drone(100, 0, 0, 95.3, 51 * 60, 32 / 3.6, 0, 0, (Position) {0}, NULL, 0, 0);
     (void) drone;
 
-    Route_constraint c = {
+    ExclusionZone c = {
         .center = {30, 20},
         .radius = 16,
     };
@@ -98,7 +98,7 @@ int main() {
     printf("Cluster count: %zu\n", cluster_count);
 
     for (size_t i = 0; i < cluster_count; i++) {
-        Cluster* cluster = pool_query(&ctx.cluster_pool, INDEX_VALUE(clusters[i]));
+        Cluster* cluster = pool_query(&ctx.cluster_pool, clusters[i]);
         printf("Cluster %zu:\n", i);
         printf("  Archetype count: %zu\n", darray_size(cluster->archetypes_darray));
     }

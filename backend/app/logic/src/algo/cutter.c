@@ -38,7 +38,7 @@ static ClusterIndex find_cluster(WarehouseIndex wh_idx) {
 }
 
 static void remove_delivery_from_archetype(DeliveryIndex del_idx, ArchetypeIndex arch_idx) {
-    Archetype* arch = pool_query(&ctx.archetype_pool, INDEX_VALUE(arch_idx));
+    Archetype* arch = pool_query(&ctx.archetype_pool, arch_idx);
 
     DARRAY_FOR(i, arch->deliveries_darray) {
         if (INDEX_VALUE(arch->deliveries_darray[i]) == INDEX_VALUE(del_idx)) {
@@ -63,7 +63,7 @@ ClusterIndex* cut(void) {
     // First, pre-allocate every cluster for each warehouse.
     DARRAY_FOR(i, ctx.new_warehouses) {
         WarehouseIndex idx = ctx.new_warehouses[i];
-        Warehouse* wh      = pool_query(&ctx.warehouse_pool, INDEX_VALUE(idx));
+        Warehouse* wh      = pool_query(&ctx.warehouse_pool, idx);
         Cluster cluster    = {
                .warehouse_idx     = idx,
                .archetypes_darray = darray_create(4, sizeof(ArchetypeIndex)),
@@ -75,7 +75,7 @@ ClusterIndex* cut(void) {
             // Create an archetype is one does not already exist.
             // Also add the found/created archetype to the current cluster.
             if (INDEX_VALUE(arch_idx) != INVALID_INDEX) {
-                Archetype* arch = pool_query(&ctx.archetype_pool, INDEX_VALUE(arch_idx));
+                Archetype* arch = pool_query(&ctx.archetype_pool, arch_idx);
                 // Mark "unhandled" archetypes as "handled" now!
                 if (arch->ref_count == 0)
                     unmark_unhandled_archetype(arch_idx);
@@ -99,7 +99,7 @@ ClusterIndex* cut(void) {
     // Add every new delivery to their corresponding archetype.
     DARRAY_FOR(i, ctx.new_deliveries) {
         DeliveryIndex del_idx = ctx.new_deliveries[i];
-        Delivery* del         = pool_query(&ctx.delivery_pool, INDEX_VALUE(del_idx));
+        Delivery* del         = pool_query(&ctx.delivery_pool, del_idx);
 
         ArchetypeIndex arch_idx = find_archetype(del->item);
         Archetype* arch;
@@ -110,10 +110,10 @@ ClusterIndex* cut(void) {
                 .deliveries_darray = darray_create(16, sizeof(DeliveryIndex)),
             };
             pool_add(&ctx.archetype_pool, Archetype, new_arch, arch_idx);
-            arch = pool_query(&ctx.archetype_pool, INDEX_VALUE(arch_idx));
+            arch = pool_query(&ctx.archetype_pool, arch_idx);
             darray_add(ctx.unhandled_archetypes, arch_idx);
         } else {
-            arch      = pool_query(&ctx.archetype_pool, INDEX_VALUE(arch_idx));
+            arch      = pool_query(&ctx.archetype_pool, arch_idx);
         }
         darray_add(arch->deliveries_darray, del_idx);
     }
@@ -136,18 +136,18 @@ void add_item(Item item) {
 }
 void remove_warehouse(WarehouseIndex idx) {
     ClusterIndex cluster_idx = find_cluster(idx);
-    Cluster* cluster         = pool_query(&ctx.cluster_pool, INDEX_VALUE(cluster_idx));
+    Cluster* cluster         = pool_query(&ctx.cluster_pool, cluster_idx);
 
     for (size_t i = 0; i < darray_size(cluster->archetypes_darray); i++) {
         ArchetypeIndex arch_idx = cluster->archetypes_darray[i];
-        Archetype* arch         = pool_query(&ctx.archetype_pool, INDEX_VALUE(arch_idx));
+        Archetype* arch         = pool_query(&ctx.archetype_pool, arch_idx);
         arch->ref_count--;
         if (arch->ref_count == 0)
             darray_add(ctx.unhandled_archetypes, arch_idx);
     }
 }
 void remove_delivery(DeliveryIndex idx) {
-    Delivery* del           = pool_query(&ctx.delivery_pool, INDEX_VALUE(idx));
+    Delivery* del           = pool_query(&ctx.delivery_pool, idx);
     ArchetypeIndex arch_idx = find_archetype(del->item);
     remove_delivery_from_archetype(idx, arch_idx);
 }

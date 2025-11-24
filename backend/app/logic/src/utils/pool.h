@@ -31,7 +31,7 @@ void pool_cleanup(Pool* pool);
 void* _pool_alloc(Pool* pool, size_t* out_idx);
 void pool_free(Pool* pool, void* block);
 
-void* pool_query(const Pool* pool, long idx);
+void* _pool_query(const Pool* pool, long idx);
 void pool_foreach(Pool* pool, action action, void* user_data);
 
 PoolIter pool_iter_init(const Pool* pool);
@@ -61,5 +61,7 @@ size_t pool_iter_idx(const PoolIter* iter);
         for (type* var_name = (type*) pool_iter_next(&_it); var_name; var_name = NULL)             \
             for (type##Index idx_name = MAKE_INDEX(type, pool_iter_idx(&_it)); var_name;           \
                  var_name             = NULL)
+
+#define pool_query(pool, index) _pool_query(pool, INDEX_VALUE(index))
 
 #endif /* ! POOL_H */
