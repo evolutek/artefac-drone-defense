@@ -132,7 +132,7 @@ def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
     """
     entrepot_id = f"entrepot_{entrepot_num + 1}"
     etype = etype.lower()
-    if etype != "medicaments" or etype != "foods" or etype != "ammo" or etype != "equipements":
+    if etype != "medicaments" and etype != "foods" and etype != "ammo" and etype != "equipements":
          return {
             'success': False,
             'message': f'Invalid entrepot type: {ltype}. Must be foods, medicaments, equipments or ammo',
@@ -160,7 +160,7 @@ def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
     metadata = {
         'entrepot_id': entrepot_id,
         'entrepot_name': name,
-        'entrepot_type': entrepot_type,
+        'entrepot_type': etype,
         'entrepot_model_name': entrepot_model_name,  # Gazebo model name for discovery
         'position': {'x': x, 'y': y, 'z': z} if x is not None else None,
         'spawned_at': datetime.now().isoformat(),
