@@ -28,30 +28,27 @@ float consumption(Drone* drone, uint32_t distance, uint8_t speed, uint32_t charg
 // Return the remaining autonomy of the drone after delivering or
 // a negative value if it can not be delivered.
 // nb_deliveries must be strictly higher than 0
-float can_handle(Drone* drone,
-                 uint8_t nb_deliveries,
-                 Delivery* deliveries[nb_deliveries],
-                 uint8_t speed) {
-    uint32_t distance, payload;
-    payload    = 0;
-    float cons = 0;
+float can_handle(Drone *drone, uint8_t nb_deliveries, Node *deliveries[nb_deliveries], 
+		uint8_t speed) {
+	uint32_t distance, payload;
+	payload = 0;
+	float cons = 0;
 
-    while (--nb_deliveries && cons < drone->autonomy && payload < drone->max_capacity) {
-        payload += deliveries[nb_deliveries]->mass;
-        distance = distance_2D(deliveries[nb_deliveries]->position,
-                               deliveries[nb_deliveries - 1]->position);
-        cons += consumption(drone, distance, speed, payload);
-    }
+	while (--nb_deliveries && cons < drone->autonomy && payload < drone->max_capacity) {
+		payload += deliveries[nb_deliveries]->content.delivery->mass;
+		distance = distance_2D(deliveries[nb_deliveries]->content.delivery->position, deliveries[nb_deliveries - 1]->content.delivery->position);
+		cons += consumption(drone, distance, speed, payload);
+	}
+	
+	payload += deliveries[0]->content.delivery->mass;
+	
+	if (drone->autonomy <= cons || drone->max_capacity < payload)
+		return -1;
 
-    payload += deliveries[0]->mass;
-
-    if (drone->autonomy <= cons || drone->max_capacity < payload)
-        return -1;
-
-    distance = distance_2D(drone->position, deliveries[0]->position);
-    cons += consumption(drone, distance, speed, payload);
-
-    return drone->autonomy - cons;
+	distance = distance_2D(drone->position, deliveries[0]->content.delivery->position);
+	cons += consumption(drone, distance, speed, payload);
+		
+	return drone->autonomy - cons;
 }
 
 static void vec_multf(Position* vec, float f) {
