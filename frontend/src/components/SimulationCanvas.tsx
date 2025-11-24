@@ -1,6 +1,7 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, OrthographicCamera } from '@react-three/drei';
-import { useState } from 'react';
+import { useState, useRef, forwardRef, useImperativeHandle, Ref } from 'react';
+import * as THREE from 'three';
 
 // Simulation bounds (from Gazebo world)
 const TERRAIN_WIDTH = 1200;  // meters (X axis)
@@ -10,11 +11,68 @@ interface SimulationCanvasProps {
   children?: React.ReactNode;
 }
 
+type ZoomControllerHandle = { applyZoom: (delta: number, is3D: boolean) => void };
+
+function CameraZoomController(_: {}, ref: Ref<ZoomControllerHandle>) {
+  const { camera, invalidate } = useThree();
+  useImperativeHandle(ref, () => ({
+    applyZoom(delta: number, is3D: boolean) {
+      const dir = Math.sign(delta);
+      if (!dir) return;
+      if (is3D && (camera as THREE.Camera).type === 'PerspectiveCamera') {
+        const target = new THREE.Vector3(0, 0, 0);
+        const step = dir * 20;
+        const vec = new THREE.Vector3().subVectors(target, (camera as THREE.PerspectiveCamera).position).normalize();
+        (camera as THREE.PerspectiveCamera).position.addScaledVector(vec, step);
+        (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+      } else if ((camera as THREE.Camera).type === 'OrthographicCamera') {
+        const ortho = camera as THREE.OrthographicCamera;
+        const step = dir * 0.05;
+        ortho.zoom = Math.min(Math.max(ortho.zoom + step, 0.3), 3);
+        ortho.updateProjectionMatrix();
+      }
+      invalidate();
+    }
+  }), [camera, invalidate]);
+  return null as any;
+}
+
+const CameraZoomControllerWithRef = forwardRef<ZoomControllerHandle, {}>(CameraZoomController);
+
 export default function SimulationCanvas({ children }: SimulationCanvasProps) {
   const [is3D, setIs3D] = useState(true);
+  const scrollState = useRef<{ acc: number; dir: number }>({ acc: 0, dir: 0 });
+  const lastSwitchRef = useRef(0);
+  const SCROLL_THRESHOLD = 150;
+  const SWITCH_COOLDOWN_MS = 250;
+  const zoomCtrlRef = useRef<ZoomControllerHandle | null>(null);
 
   return (
-    <div className="relative w-full h-full">
+    <div
+      className="relative w-full h-full"
+      onWheelCapture={(e) => {
+        if (Date.now() - lastSwitchRef.current < SWITCH_COOLDOWN_MS) return;
+        const raw = e.deltaY || 0;
+        const delta = e.deltaMode === 1 ? raw * 16 : raw;
+        zoomCtrlRef.current?.applyZoom(delta, is3D);
+        const dir = delta > 0 ? 1 : delta < 0 ? -1 : 0;
+        if (!dir) return;
+        if (scrollState.current.dir !== dir) {
+          scrollState.current.acc = 0;
+          scrollState.current.dir = dir;
+        }
+        scrollState.current.acc += delta;
+        if (is3D && scrollState.current.acc >= SCROLL_THRESHOLD && dir === 1) {
+          scrollState.current.acc = 0;
+          lastSwitchRef.current = Date.now();
+          setIs3D(false);
+        } else if (!is3D && scrollState.current.acc <= -SCROLL_THRESHOLD && dir === -1) {
+          scrollState.current.acc = 0;
+          lastSwitchRef.current = Date.now();
+          setIs3D(true);
+        }
+      }}
+    >
       {/* Toggle Button */}
       <div className="absolute top-4 right-4 z-10">
         <button
@@ -41,11 +99,12 @@ export default function SimulationCanvas({ children }: SimulationCanvasProps) {
               fov={60}
             />
             <OrbitControls
+              enableZoom={false}
               enableDamping
               dampingFactor={0.05}
               minDistance={100}
               maxDistance={2000}
-              maxPolarAngle={Math.PI / 2.1} // Prevent camera going below ground
+              maxPolarAngle={Math.PI / 2.1}
             />
           </>
         ) : (
@@ -58,16 +117,18 @@ export default function SimulationCanvas({ children }: SimulationCanvasProps) {
               far={2000}
             />
             <OrbitControls
+              enableZoom={false}
               enableRotate={false}
               enableDamping
               dampingFactor={0.05}
               minZoom={0.3}
               maxZoom={3}
-              target={[0, -300, -5]} // Look at terrain center (Y=-300, Z=-5)
+              target={[0, -300, -5]}
             />
           </>
         )}
 
+        <CameraZoomControllerWithRef ref={zoomCtrlRef} />
         {/* Scene Content */}
         {children}
 

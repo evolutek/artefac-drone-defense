@@ -42,6 +42,12 @@ if [ "$HOST_OS" != "linux" ] && [ "$HOST_OS" != "macos" ] && [ "$HOST_OS" != "wi
     exit 1
 fi
 
+# macOS-specific: Check for native GUI option
+if [ "$HOST_OS" = "macos" ] && [ "$MACOS_NATIVE_GUI" = "1" ]; then
+    log_info "macOS: Using native Gazebo GUI (Metal rendering)"
+    exec bash ./scripts/start_macos_native.sh "$@"
+fi
+
 # Run display setup script
 log_step "Setting up display for $HOST_OS"
 SCRIPT_PATH="./scripts/start_display_${HOST_OS}.sh"

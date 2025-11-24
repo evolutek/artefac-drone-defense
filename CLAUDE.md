@@ -268,6 +268,81 @@ docker compose build simulation --no-cache
 ./start.sh up simulation
 ```
 
+#### Native Gazebo GUI (Recommended Alternative to XQuartz) ✅
+
+**Problem**: XQuartz on macOS suffers from:
+- Black window due to lack of GPU passthrough in Docker
+- Software rendering (llvmpipe) instead of native Metal
+- Poor performance and high latency with X11 forwarding
+- OpenGL limitations (deprecated by Apple since 2018)
+
+**Solution**: Run Gazebo **server** in Docker and **GUI natively** on macOS with Metal rendering.
+
+**Architecture**:
+```
+Docker Container (Ubuntu)         macOS Host
+┌─────────────────────┐          ┌─────────────────────┐
+│ gz sim -s (server)  │  <────>  │ gz sim -g (GUI)     │
+│ - Physics engine    │  gz-     │ - Native Cocoa      │
+│ - PX4 SITL          │  transport│ - Metal rendering   │
+│ - ROS2 integration  │  (DDS)   │ - Full GPU access   │
+└─────────────────────┘          └─────────────────────┘
+```
+
+**Prerequisites**:
+```bash
+# Install Gazebo Harmonic on macOS
+brew tap osrf/simulation
+brew install gz-harmonic
+
+# Verify installation
+gz sim --version
+# Should show: Gazebo Sim, version 8.x.x
+```
+
+**Usage**:
+1. Edit your `.env` file and add:
+   ```bash
+   MACOS_NATIVE_GUI=1
+   ```
+
+2. Launch with the standard script:
+   ```bash
+   ./start.sh up
+   ```
+
+The script will automatically:
+- Detect `MACOS_NATIVE_GUI=1`
+- Launch Docker containers in server-only mode (`HEADLESS=1`)
+- Wait for Gazebo server to initialize
+- Launch native GUI with `gz sim -g` using Metal rendering
+- Configure Gazebo Transport for server/client communication
+
+**Benefits**:
+- ✅ Native Metal rendering (hardware accelerated)
+- ✅ No black window issues
+- ✅ Better performance than XQuartz
+- ✅ Uses Apple's recommended graphics API
+- ✅ No X11 configuration needed
+- ✅ Zero impact on Linux/Windows teammates
+
+**Troubleshooting**:
+
+*"Unable to find service" or empty Gazebo window*:
+- Check server is running: `docker compose ps | grep simulation`
+- Verify gz-transport topics: `gz topic -l` (should show `/clock`, `/stats`, etc.)
+- Ensure `GZ_PARTITION` matches in both Docker and GUI (default: `artefac`)
+
+*GUI freezes or crashes*:
+- Check gz-transport version: `gz sim --version` (should be 8.x for Harmonic)
+- Restart with verbose logging: `gz sim -g -v 4 simulation/gazebo_worlds/harmonic_heightmap.sdf`
+
+*PX4 MAVLink connection issues*:
+- Docker networking on macOS doesn't support `network_mode: host`
+- Connections should use `host.docker.internal` if needed (already configured)
+
+**Note**: This is the **recommended approach** for macOS users. XQuartz remains available as fallback (set `MACOS_NATIVE_GUI=0` or leave unset).
+
 ### MAVROS not connecting
 1. Verify PX4 MAVLink port: `netstat -tulpn | grep 14540`
 2. Check MAVROS launch file FCU URL

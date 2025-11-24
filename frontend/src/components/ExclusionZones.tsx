@@ -29,7 +29,8 @@ export default function ExclusionZones() {
     // Fetch active zones from simulation control API
     const fetchZones = async () => {
       try {
-        const response = await fetch('http://localhost:8080/zones');
+        const host = window.location.hostname || '127.0.0.1';
+        const response = await fetch(`http://${host}:8080/zones`);
         if (response.ok) {
           const data = await response.json();
           setZones(data.zones || []);
