@@ -1,5 +1,5 @@
 """Entrepôt entity management - business logic for warehouses"""
-
+import time
 from datetime import datetime
 from typing import Dict, Optional
 
@@ -74,7 +74,7 @@ def discover_active_entrepots_from_gazebo() -> Dict[str, dict]:
     existing = generic_load_json(ACTIVE_ENTREPOTS_FILE)
     discovered_model_names = {edata['entrepot_model_name'] for edata in discovered.values()}
     merged = dict(discovered)
-
+    time.sleep(2)
     for entrepot_id, entrepot_data in existing.items():
         entrepot_model_name = entrepot_data.get('entrepot_model_name')
         if entrepot_model_name and entrepot_model_name in discovered_model_names and entrepot_id not in merged:

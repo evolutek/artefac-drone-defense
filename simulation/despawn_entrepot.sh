@@ -1,42 +1,41 @@
 #!/bin/bash
 ###############################################################################
-# Despawn Entrepôt Script - Artefac Drone Defense
-# Removes an entrepôt (warehouse) from the running simulation dynamically
+# Despawn Exclusion entrepot Script - Artefac Drone Defense
+# Removes an exclusion entrepot visual marker from Gazebo simulation
 #
 # Usage:
-#   bash despawn_entrepot.sh <entrepot_num>
+#   bash despawn_entrepot.sh <entrepot_model_name>
 #
 # Arguments:
-#   entrepot_num : Entrepôt number to remove (0, 1, 2, 3, ...)
+#   entrepot_model_name : Gazebo model name to remove (e.g., "entrepot_jamming_alpha")
 #
 # Examples:
-#   bash despawn_entrepot.sh 0  # Remove entrepot_1
-#   bash despawn_entrepot.sh 2  # Remove entrepot_3
+#   bash despawn_entrepot.sh entrepot_jamming_alpha
+#   bash despawn_entrepot.sh entrepot_no_fly_beta
 #
 # What it does:
-#   1. Removes entrepot model from Gazebo
+#   1. Removes the entrepot model from Gazebo by model name
 #
 # Prerequisites:
-#   - Entrepôt was spawned with spawn_entrepot.sh
+#   - Gazebo simulation running
+#   - entrepot was spawned with spawn_entrepot.sh
 ###############################################################################
 
 set -e
 
 # Check arguments
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <entrepot_num>"
-    echo "Example: $0 0  # Remove entrepot_1"
+    echo "Usage: $0 <entrepot_model_name>"
+    echo "Example: $0 entrepot_jamming_alpha  # Remove entrepot with this model name"
     exit 1
 fi
 
-ENTR_NUM=$1
-ENTR_ID="entrepot_$((ENTR_NUM + 1))"
-ENTR_NAME="entrepot_${ENTR_NUM}"
+entrepot_MODEL_NAME=$1
 
 echo "=================================================="
-echo "  Despawning Entrepôt ${ENTR_ID}"
+echo "  Despawning entrepot"
 echo "=================================================="
-echo "Model Name:  $ENTR_NAME"
+echo "Model Name:  $entrepot_MODEL_NAME"
 echo "=================================================="
 
 echo -e "\n[1/1] Removing model from Gazebo..."
@@ -54,17 +53,16 @@ REMOVE_OUTPUT=$(gz service -s /world/${WORLD_NAME}/remove \
   --reqtype gz.msgs.Entity \
   --reptype gz.msgs.Boolean \
   --timeout 5000 \
-  --req "name: \"${ENTR_NAME}\", type: 2" 2>&1)
+  --req "name: \"${entrepot_MODEL_NAME}\", type: 2" 2>&1)
 
 # Check result
 if echo "$REMOVE_OUTPUT" | grep -q "data: true"; then
-    echo "✓ Model ${ENTR_NAME} removed from Gazebo"
+    echo "✓ Model ${entrepot_MODEL_NAME} removed from Gazebo"
 else
-    echo "⚠ Model ${ENTR_NAME} not found in Gazebo (may have been removed already)"
+    echo "⚠ Model ${entrepot_MODEL_NAME} not found in Gazebo (may have been removed already)"
 fi
 
-echo ""
-echo "=================================================="
-echo "  ✓ Entrepôt ${ENTR_ID} despawned successfully!"
+echo -e "\n=================================================="
+echo "  ✓ entrepot ${entrepot_MODEL_NAME} despawned successfully!"
 echo "=================================================="
 

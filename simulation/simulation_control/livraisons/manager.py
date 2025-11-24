@@ -184,7 +184,7 @@ def spawn_livraison(livraison_num: int, name: Optional[str] = None, x: Optional[
     return result
 
 
-def despawn_livraison(id: str) -> dict:
+def despawn_livraison(livraison_id: str) -> dict:
     """
     Execute despawn_livraison.sh script
 
@@ -194,17 +194,17 @@ def despawn_livraison(id: str) -> dict:
     Returns: {'success': bool, 'message': str, 'livraison_id': str}
     """
     # Load livraison metadata to get Gazebo model name
-    active_livraison = load_active_livraison()
+    active_livraison = load_active_livraisons()
 
-    if id not in active_livraison:
+    if livraison_id not in active_livraison:
         return {
             'success': False,
             'message': f'livraison {livraison_id} not found in active livraisons',
             'livraison_id': livraison_id
         }
 
-    livraison_data = active_livraison[id]
-    livraison_name = livraison_data.get('livraison_name', id)
+    livraison_data = active_livraison[livraison_id]
+    livraison_name = livraison_data.get('livraison_name', livraison_id)
 
     # Use livraison_model_name for Gazebo (e.g., "livraison_jamming_alpha")
     result = generic_despawn_entity(
