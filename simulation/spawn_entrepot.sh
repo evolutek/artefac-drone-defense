@@ -33,12 +33,12 @@ fi
 
 ENTR_NUM=$1
 ENTR_ID="entrepot_$((ENTR_NUM + 1))"  # entrepot_1, entrepot_2, entrepot_3, ...
-ENTR_NAME="entrepot_${ENTR_NUM}"      # entrepot_0, entrepot_1, entrepot_2, ...
+ENTR_NAME="entrepot_$2"      # entrepot_0, entrepot_1, entrepot_2, ...
 
 # Position (defaults to grid pattern)
-X=${2:-$((ENTR_NUM * 3))}  # 0, 3, 6, 9, ... (using bash arithmetic)
-Y=${3:-0}
-Z=${4:-0.5}
+X=${3:-$((ENTR_NUM * 3))}  # 0, 3, 6, 9, ... (using bash arithmetic)
+Y=${4:-0}
+Z=${5:-0.5}
 
 echo "=================================================="
 echo "  Spawning Entrepôt ${ENTR_ID}"
@@ -68,7 +68,7 @@ echo "Detected Gazebo world: $WORLD_NAME"
 
 # Construct SDF without XML declaration (Gazebo doesn't need it and it causes protobuf parsing issues)
 # Use escaped double quotes for proper protobuf text format parsing
-	SDF_CONTENT="<sdf version=\\\"1.9\\\"><model name=\\\"${ENTR_NAME}\\\"><pose>${X} ${Y} ${Z} 0 0 0</pose><static>true</static><include><uri>model://shelf/</uri></include></model></sdf>"
+SDF_CONTENT="<sdf version=\\\"1.9\\\"><model name=\\\"${ENTR_NAME}\\\"><pose>${X} ${Y} ${Z} 0 0 0</pose><static>true</static><include><uri>model://shelf/</uri></include></model></sdf>"
 
 # Spawn via gz service (using detected world name)
 gz service -s /world/${WORLD_NAME}/create \
