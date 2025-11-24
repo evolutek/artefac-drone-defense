@@ -32,7 +32,7 @@ void init() {
     for (size_t i = 0; i < WH_COUNT; i++) {
         size_t item_count = rand_index(ITEM_COUNT / 10) + 1;
         Warehouse wh      = {
-                 .pos        = {i + 1, i * 2, i * i},
+                 .pos        = {i + 1, i * 2},
                  .item_count = item_count,
                  .items      = malloc(item_count * sizeof(ItemIndex)),
         };
@@ -45,7 +45,7 @@ void init() {
 
     for (size_t i = 0; i < DEL_COUNT; i++) {
         Delivery del = {
-            .position = {i / 3 - 5, i * 1.7 + 8, i * i / 4},
+            .position = {i / 3 - 5, i * 1.7 + 8},
             .priority = rand_index(100),
             .item     = items[rand_index(ITEM_COUNT)],
             .quantity = 1,
@@ -66,11 +66,11 @@ void gab_test(void) {
     (void) drone;
 
     Route_constraint c = {
-        .center = {30, 20, 0},
+        .center = {30, 20},
         .radius = 16,
     };
-    Position p1 = {50, 60, 0};
-    Position p2 = {-10, 0, 0};
+    Position p1 = {50, 60};
+    Position p2 = {-10, 0};
     Position p  = is_constrained(&c, &p1, &p2);
 
     printf("x: %u\ny: %u\n", p.x, p.y);
@@ -102,6 +102,20 @@ int main() {
         printf("Cluster %zu:\n", i);
         printf("  Archetype count: %zu\n", darray_size(cluster->archetypes_darray));
     }
+
+    darray_destroy(clusters);
+
+    pool_cleanup(&ctx.item_pool);
+    pool_cleanup(&ctx.warehouse_pool);
+    pool_cleanup(&ctx.delivery_pool);
+    pool_cleanup(&ctx.archetype_pool);
+    pool_cleanup(&ctx.cluster_pool);
+    pool_cleanup(&ctx.drone_pool);
+
+    darray_destroy(ctx.new_deliveries);
+    darray_destroy(ctx.new_warehouses);
+    darray_destroy(ctx.unhandled_archetypes);
+
 
     return 0;
 }

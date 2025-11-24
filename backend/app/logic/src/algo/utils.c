@@ -114,7 +114,7 @@ Position is_constrained(Route_constraint *cnst, const Position *pos1, const Posi
 	intersect.x = p12.x * i + pos1->x;
 	intersect.y = p12.y * i + pos1->y;
 
-	return (Position) {p12.x * i + pos1->x, p12.y * i + pos1->y, 0};
+	return (Position) {p12.x * i + pos1->x, p12.y * i + pos1->y};
 }
 
 // TODO :

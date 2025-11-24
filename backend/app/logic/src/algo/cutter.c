@@ -19,7 +19,7 @@ static ArchetypeIndex find_archetype(ItemIndex item) {
     return MAKE_INDEX(Archetype, INVALID_INDEX);
 }
 
-static void unmark_unhaldled_archetype(ArchetypeIndex to_remove) {
+static void unmark_unhandled_archetype(ArchetypeIndex to_remove) {
     DARRAY_FOR(i, &ctx.unhandled_archetypes) {
         ArchetypeIndex idx = ctx.unhandled_archetypes[i];
         if (INDEX_VALUE(idx) == INDEX_VALUE(to_remove)) {
@@ -78,7 +78,7 @@ ClusterIndex* cut(void) {
                 Archetype* arch = pool_query(&ctx.archetype_pool, INDEX_VALUE(arch_idx));
                 // Mark "unhandled" archetypes as "handled" now!
                 if (arch->ref_count == 0)
-                    unmark_unhaldled_archetype(arch_idx);
+                    unmark_unhandled_archetype(arch_idx);
                 arch->ref_count++;
                 darray_add(cluster.archetypes_darray, arch_idx);
             }

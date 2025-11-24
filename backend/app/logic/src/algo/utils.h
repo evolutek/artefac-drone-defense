@@ -40,7 +40,7 @@ typedef struct Position {
 
 typedef struct Item {
     uint64_t id;
-	char *name;
+	const char *name;
 	uint32_t mass;	// In grams
 } Item;
 
@@ -93,7 +93,7 @@ extern Ctx ctx;
 
 // Functions
 
-Item *new_item(char *name, uint32_t mass);
+Item *new_item(const char *name, const uint32_t mass);
 
 Delivery *new_delivery(ItemIndex item, const uint16_t quantity,
 		const uint8_t priority, Position position, const uint32_t mass);
