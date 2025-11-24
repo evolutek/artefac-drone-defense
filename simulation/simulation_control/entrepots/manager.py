@@ -58,6 +58,7 @@ def discover_active_entrepots_from_gazebo() -> Dict[str, dict]:
             'entrepot_id': entrepot_id,
             'entrepot_model_name': entrepot_model_name,
             'entrepot_name': entrepot_model_name.replace('entrepot_', '').replace('_', ' ').title(),  # Pretty name
+            'entrepot_type': 'general',  # Default type for discovered entrepots
             'position': None,      # Unknown position
             'spawned_at': None,    # Unknown timestamp
             'discovered': True     # Flag to indicate auto-discovered
@@ -118,7 +119,7 @@ def find_next_entrepot_number() -> int:
 # ============================================================================
 
 def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
-                   y: Optional[float] = None, z: Optional[float] = None, etype: str="medicaments") -> dict:
+                   y: Optional[float] = None, z: Optional[float] = None, etype: str = "medecines") -> dict:
     """
     Execute spawn_entrepot.sh script to spawn Gazebo entrepôt model
 
@@ -126,16 +127,19 @@ def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
         entrepot_num: Entrepôt number (0, 1, 2, ...)
         name: Entrepôt display name
         x, y, z: Optional spawn position
-        entrepot_type: Type of warehouse (medicaments, munitions, equipements, nourritures, or custom)
+        etype: Type of warehouse (medecines, ammunition, food, equipment, blood, or custom)
 
     Returns: {'success': bool, 'message': str, 'entrepot_id': str, 'entrepot_num': int}
     """
     entrepot_id = f"entrepot_{entrepot_num + 1}"
     etype = etype.lower()
-    if etype != "medicaments" and etype != "foods" and etype != "ammo" and etype != "equipements":
-         return {
+
+    # Validate entrepot type
+    valid_types = {'medecines', 'ammunition', 'food', 'equipment', 'blood'}
+    if etype not in valid_types and etype != 'custom':
+        return {
             'success': False,
-            'message': f'Invalid entrepot type: {ltype}. Must be foods, medicaments, equipments or ammo',
+            'message': f'Invalid entrepot type: {etype}. Must be one of: {", ".join(sorted(valid_types))} or custom',
             'entrepot_id': entrepot_id,
             'entrepot_num': entrepot_num
         }
@@ -205,7 +209,18 @@ def despawn_entrepot(entrepot_id: str) -> dict:
         }
 
     entrepot_data = active_entrepots[entrepot_id]
-    entrepot_model_name = entrepot_data.get('entrepot_model_name', entrepot_id)
+    entrepot_model_name = entrepot_data.get('entrepot_model_name')
+
+    # If entrepot_model_name is not available, fallback to generating it from entrepot_name
+    if not entrepot_model_name:
+        entrepot_name = entrepot_data.get('entrepot_name', entrepot_id)
+        # Normalize name like spawn script does
+        normalized_name = entrepot_name.lower().replace(' ', '_')
+        normalized_name = ''.join(c for c in normalized_name if c.isalnum() or c == '_')
+        entrepot_model_name = f"entrepot_{normalized_name}"
+        print(f"[despawn_entrepot] Generated model name from entrepot_name: {entrepot_model_name}")
+
+    print(f"[despawn_entrepot] Using model name: {entrepot_model_name}")
 
     # Use entrepot_model_name for Gazebo
     result = generic_despawn_entity(

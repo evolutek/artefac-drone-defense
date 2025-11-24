@@ -58,6 +58,7 @@ def discover_active_livraisons_from_gazebo() -> Dict[str, dict]:
             'livraison_id': livraison_id,
             'livraison_model_name': livraison_model_name,
             'livraison_name': livraison_model_name.replace('livraison_', '').replace('_', ' ').title(),  # Pretty name
+            'type': 'general',  # Default type for discovered livraisons
             'position': None,      # Unknown position
             'spawned_at': None,    # Unknown timestamp
             'discovered': True     # Flag to indicate auto-discovered
@@ -118,35 +119,39 @@ def find_next_livraison_number() -> int:
 # ============================================================================
 
 
-def spawn_livraison(livraison_num: int, name: Optional[str] = None, x: Optional[float] = None,
-               y: Optional[float] = None, z: Optional[float] = None, ltype: str= "medicament", ) -> dict:
+def spawn_livraison(livraison_num: int, name: str, x: Optional[float] = None,
+               y: Optional[float] = None, z: Optional[float] = None, ltype: str= "medecines") -> dict:
     """
     Execute spawn_livraison.sh script to spawn Gazebo livraison marker
 
     Args:
         livraison_num: Livraison number (0, 1, 2, ...)
+        name: Livraison display name (required)
         x, y, z: Optional spawn position
+        ltype: Type of delivery (medecines, ammunition, food, equipment, blood, or custom)
+
     Returns: {'success': bool, 'message': str, 'livraison_id': str, 'livraison_num': int}
     """
     livraison_id = f"livraison_{livraison_num + 1}"
     ltype = ltype.lower()
-    if ltype != "medicaments" and ltype != "foods" and ltype != "ammo" and ltype != "equipements":
-         return {
+
+    # Validate livraison type
+    valid_types = {'medecines', 'ammunition', 'food', 'equipment', 'blood'}
+    if ltype not in valid_types and ltype != 'custom':
+        return {
             'success': False,
-            'message': f'Invalid livraison type: {ltype}. Must be foods, medicaments, equipments or ammo',
+            'message': f'Invalid livraison type: {ltype}. Must be one of: {", ".join(sorted(valid_types))} or custom',
             'livraison_id': livraison_id,
             'livraison_num': livraison_num
         }
 
-
-
     # Prepare spawn script arguments
-    # spawn_livraison.sh <livraison_num> <name> <x> <y> <z> <radius> <R> <G> <B> <A>
+    # spawn_livraison.sh <livraison_num> <name> <x> <y> <z>
     script_args = [
         str(livraison_num),
         name,
-        str(x) if x is not None else "5",
-        str(y) if y is not None else "5",
+        str(x) if x is not None else "0",
+        str(y) if y is not None else "0",
         str(z) if z is not None else "0",
     ]
 
@@ -160,6 +165,7 @@ def spawn_livraison(livraison_num: int, name: Optional[str] = None, x: Optional[
     metadata = {
         'livraison_id': livraison_id,
         'livraison_name': name,
+        'livraison_model_name': livraison_model_name,  # Gazebo model name for discovery
         'position': {'x': x, 'y': y, 'z': z} if x is not None else None,
         'type': ltype,
         'spawned_at': datetime.now().isoformat(),
@@ -204,12 +210,23 @@ def despawn_livraison(livraison_id: str) -> dict:
         }
 
     livraison_data = active_livraison[livraison_id]
-    livraison_name = livraison_data.get('livraison_name', livraison_id)
+    livraison_model_name = livraison_data.get('livraison_model_name')
+
+    # If livraison_model_name is not available, fallback to generating it from livraison_name
+    if not livraison_model_name:
+        livraison_name = livraison_data.get('livraison_name', livraison_id)
+        # Normalize name like spawn script does
+        normalized_name = livraison_name.lower().replace(' ', '_')
+        normalized_name = ''.join(c for c in normalized_name if c.isalnum() or c == '_')
+        livraison_model_name = f"livraison_{normalized_name}"
+        print(f"[despawn_livraison] Generated model name from livraison_name: {livraison_model_name}")
+
+    print(f"[despawn_livraison] Using model name: {livraison_model_name}")
 
     # Use livraison_model_name for Gazebo (e.g., "livraison_jamming_alpha")
     result = generic_despawn_entity(
         script_name="despawn_livraison.sh",
-        script_args=[livraison_name],
+        script_args=[livraison_model_name],
         entity_id=livraison_id,
         storage_file=ACTIVE_LIVRAISON_FILE,
         storage_key=livraison_id,
