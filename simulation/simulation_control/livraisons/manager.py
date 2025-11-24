@@ -121,16 +121,16 @@ def find_next_livraison_number() -> int:
 def spawn_livraison(livraison_num: int, name: Optional[str] = None, x: Optional[float] = None,
                y: Optional[float] = None, z: Optional[float] = None, ltype: str= "medicament", ) -> dict:
     """
-    Execute spawn_livraison.sh script to spawn Gazebo zone marker
+    Execute spawn_livraison.sh script to spawn Gazebo livraison marker
 
     Args:
         livraison_num: Livraison number (0, 1, 2, ...)
         x, y, z: Optional spawn position
-    Returns: {'success': bool, 'message': str, 'zone_id': str, 'zone_num': int}
+    Returns: {'success': bool, 'message': str, 'livraison_id': str, 'livraison_num': int}
     """
-    livraison_id = f"livraison_{zone_num + 1}"
+    livraison_id = f"livraison_{livraison_num + 1}"
     ltype = ltype.lower()
-    if ltype != "medicaments" or ltype != "foods" or ltype != "ammo" or ltype != "equipements":
+    if ltype != "medicaments" and ltype != "foods" and ltype != "ammo" and ltype != "equipements":
          return {
             'success': False,
             'message': f'Invalid livraison type: {ltype}. Must be foods, medicaments, equipments or ammo',
@@ -141,24 +141,24 @@ def spawn_livraison(livraison_num: int, name: Optional[str] = None, x: Optional[
 
 
     # Prepare spawn script arguments
-    # spawn_zone.sh <zone_num> <name> <x> <y> <z> <radius> <R> <G> <B> <A>
+    # spawn_livraison.sh <livraison_num> <name> <x> <y> <z> <radius> <R> <G> <B> <A>
     script_args = [
-        str(zone_num),
+        str(livraison_num),
         name,
         str(x) if x is not None else "5",
         str(y) if y is not None else "5",
         str(z) if z is not None else "0",
     ]
 
-    # Normalize zone name for Gazebo model (same logic as bash script)
+    # Normalize livraison name for Gazebo model (same logic as bash script)
     normalized_name = name.lower().replace(' ', '_')
     # Remove non-alphanumeric characters except underscore
     normalized_name = ''.join(c for c in normalized_name if c.isalnum() or c == '_')
-    zone_model_name = f"zone_{normalized_name}"
+    livraison_model_name = f"livraison_{normalized_name}"
 
     # Prepare metadata
     metadata = {
-        'livraison_id': zone_id,
+        'livraison_id': livraison_id,
         'livraison_name': name,
         'position': {'x': x, 'y': y, 'z': z} if x is not None else None,
         'type': ltype,
@@ -177,42 +177,42 @@ def spawn_livraison(livraison_num: int, name: Optional[str] = None, x: Optional[
         timeout=60
     )
 
-    # Add zone-specific fields to result
-    result['zone_id'] = zone_id
-    result['zone_num'] = zone_num
+    # Add livraison-specific fields to result
+    result['livraison_id'] = livraison_id
+    result['livraison_num'] = livraison_num
 
     return result
 
 
-def despawn_zone(id: str) -> dict:
+def despawn_livraison(id: str) -> dict:
     """
     Execute despawn_livraison.sh script
 
     Args:
-        id: livraison identifier (e.g., "zone_1")
+        id: livraison identifier (e.g., "livraison_1")
 
-    Returns: {'success': bool, 'message': str, 'zone_id': str}
+    Returns: {'success': bool, 'message': str, 'livraison_id': str}
     """
-    # Load zone metadata to get Gazebo model name
+    # Load livraison metadata to get Gazebo model name
     active_livraison = load_active_livraison()
 
     if id not in active_livraison:
         return {
             'success': False,
-            'message': f'Zone {zone_id} not found in active zones',
-            'zone_id': zone_id
+            'message': f'livraison {livraison_id} not found in active livraisons',
+            'livraison_id': livraison_id
         }
 
-    zone_data = active_livraison[id]
+    livraison_data = active_livraison[id]
     livraison_name = livraison_data.get('livraison_name', id)
 
-    # Use zone_model_name for Gazebo (e.g., "zone_jamming_alpha")
+    # Use livraison_model_name for Gazebo (e.g., "livraison_jamming_alpha")
     result = generic_despawn_entity(
         script_name="despawn_livraison.sh",
         script_args=[livraison_name],
-        entity_id=zone_id,
+        entity_id=livraison_id,
         storage_file=ACTIVE_LIVRAISON_FILE,
-        storage_key=zone_id,
+        storage_key=livraison_id,
         mqtt_topic="livraisons/presence",
         timeout=10
     )
