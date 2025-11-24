@@ -118,7 +118,8 @@ def find_next_entrepot_number() -> int:
 # ============================================================================
 
 def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
-                   y: Optional[float] = None, z: Optional[float] = None) -> dict:
+                   y: Optional[float] = None, z: Optional[float] = None,
+                   entrepot_type: str = 'general') -> dict:
     """
     Execute spawn_entrepot.sh script to spawn Gazebo entrepôt model
 
@@ -126,6 +127,7 @@ def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
         entrepot_num: Entrepôt number (0, 1, 2, ...)
         name: Entrepôt display name
         x, y, z: Optional spawn position
+        entrepot_type: Type of warehouse (medicaments, munitions, equipements, nourritures, or custom)
 
     Returns: {'success': bool, 'message': str, 'entrepot_id': str, 'entrepot_num': int}
     """
@@ -151,6 +153,7 @@ def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
     metadata = {
         'entrepot_id': entrepot_id,
         'entrepot_name': name,
+        'entrepot_type': entrepot_type,
         'entrepot_model_name': entrepot_model_name,  # Gazebo model name for discovery
         'position': {'x': x, 'y': y, 'z': z} if x is not None else None,
         'spawned_at': datetime.now().isoformat(),

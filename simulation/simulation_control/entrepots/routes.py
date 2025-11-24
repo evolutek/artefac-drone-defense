@@ -24,6 +24,7 @@ def register_entrepot_routes(app: Flask):
             entrepots_list.append({
                 'entrepot_id': entrepot_id,
                 'name': metadata['entrepot_name'],
+                'type': metadata.get('entrepot_type', 'general'),
                 'position': metadata['position'],
                 'created_at': metadata.get('spawned_at')
             })
@@ -39,6 +40,7 @@ def register_entrepot_routes(app: Flask):
         Create a new entrepôt
         Body: {
             "name": string,
+            "type": string (optional, default: "general"),
             "position": {"x": float, "y": float, "z": float}
         }
         """
@@ -61,6 +63,9 @@ def register_entrepot_routes(app: Flask):
                 'message': 'Position must contain x, y, and z coordinates'
             }), 400
 
+        # Get optional type field (default to 'general')
+        entrepot_type = data.get('type', 'general')
+
         # Find next entrepôt number
         entrepot_num = find_next_entrepot_number()
 
@@ -70,7 +75,8 @@ def register_entrepot_routes(app: Flask):
             data['name'],
             position['x'],
             position['y'],
-            position['z']
+            position['z'],
+            entrepot_type
         )
 
         status_code = 200 if result['success'] else 500
