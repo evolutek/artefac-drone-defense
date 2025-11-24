@@ -60,32 +60,12 @@ float weight(Position pos, Delivery* del) {
     return 0;
 }
 
-void gab_test(void) {
-    // ~DJI Mavic 4 Pro : https://www.dji.com/nl/mavic-4-pro/specs
-    Drone* drone = new_drone(100, 0, 0, 95.3, 51 * 60, 32 / 3.6, 0, 0, (Position) {0}, NULL, 0, 0);
-    (void) drone;
-
-    ExclusionZone c = {
-        .center = {30, 20},
-        .radius = 16,
-    };
-    Position p1 = {50, 60};
-    Position p2 = {-10, 0};
-    Position p  = is_constrained(&c, &p1, &p2);
-
-    printf("x: %u\ny: %u\n", p.x, p.y);
-}
-
 int main() {
 
     puts("==== INTERFACE ====");
     if(init_shared_mem())
         interface_handle();
     puts("===================");
-
-    puts("==== GAB TEST ====");
-    gab_test();
-    puts("==================");
 
     srandom(0);
     init_cutter();

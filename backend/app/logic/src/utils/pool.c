@@ -139,7 +139,7 @@ void pool_free(Pool* pool, void* ptr) {
     pool->size--;
 }
 
-void* pool_query(const Pool* pool, ssize_t idx) {
+void* _pool_query(const Pool* pool, ssize_t idx) {
     if (idx < 0 || (size_t) idx >= pool->capacity)
         return NULL;
     struct slot* slot = from_index(pool, idx);
@@ -170,7 +170,7 @@ void* pool_iter_next(PoolIter* iter) {
 
     const Pool* pool = iter->pool;
 
-    void* ptr = pool_query(pool, iter->in_pool_idx);
+    void* ptr = _pool_query(pool, iter->in_pool_idx);
 
     iter->contiguous_idx++;
     if (iter->contiguous_idx < pool->size) {

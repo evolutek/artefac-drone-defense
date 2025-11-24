@@ -3,63 +3,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-Item* new_item(const char* name, const uint32_t mass) {
-    Item* item = malloc(sizeof(Item));
-
-    item->name = name;
-    item->mass = mass;
-
-    return item;
-}
-
-Delivery* new_delivery(ItemIndex item,
-                       const uint16_t quantity,
-                       const uint8_t priority,
-                       Position position,
-                       const uint32_t mass) {
-    struct Delivery* del = malloc(sizeof(Delivery));
-
-    del->item     = item;
-    del->quantity = quantity;
-    del->priority = priority;
-    del->position = position;
-    del->mass     = mass;
-
-    return del;
-}
-
-Drone* new_drone(const uint32_t max_capacity,
-                 const uint8_t max_speed,
-                 const uint8_t acceleration,
-                 const float energy,
-                 const uint16_t max_flight_time,
-                 const uint8_t max_flight_time_speed,
-                 const uint32_t payload,
-                 const float autonomy,
-                 Position position,
-                 Delivery* const targets,
-                 const uint8_t nb_targets,
-                 const float cost) {
-    Drone* drone = malloc(sizeof(Drone));
-
-    drone->max_capacity          = max_capacity;
-    drone->max_speed             = max_speed;
-    drone->acceleration          = acceleration;
-    drone->energy                = energy;
-    drone->max_flight_time       = max_flight_time;
-    drone->max_flight_time_speed = max_flight_time_speed;
-
-    drone->payload    = payload;
-    drone->autonomy   = autonomy;
-    drone->position   = position;
-    drone->targets    = targets;
-    drone->nb_targets = nb_targets;
-
-    drone->cost = cost;
-
-    return drone;
-}
-
 uint32_t distance_2D(Position pos1, Position pos2) {
     float dx = pos2.x - pos1.x;
     float dy = pos2.y - pos1.y;

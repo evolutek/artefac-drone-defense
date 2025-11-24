@@ -105,17 +105,6 @@ extern Ctx ctx;
 
 // Functions
 
-Item *new_item(const char *name, const uint32_t mass);
-
-Delivery *new_delivery(ItemIndex item, const uint16_t quantity,
-		const uint8_t priority, Position position, const uint32_t mass);
-
-Drone *new_drone(const uint32_t max_capacity, const uint8_t max_speed,
-		const uint8_t acceleration, const float energy,
-		const uint16_t max_flight_time, const uint8_t max_flight_time_speed,
-		const uint32_t payload, const float autonomy, Position position,
-		Delivery *const targets, const uint8_t nb_targets, float cost);
-
 uint32_t distance_2D(Position pos1, Position pos2);
 
 float consumption(Drone *drone, uint32_t distance, uint8_t speed, uint32_t charge);
