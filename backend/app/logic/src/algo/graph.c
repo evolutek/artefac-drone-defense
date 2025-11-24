@@ -23,30 +23,21 @@ float Weight(Delivery* delivery, uint32_t dist) {
 }
 
 Edge link(Position pos, Delivery* del) {
-
-    Position last_pos = pos;
-    pool_foreach2(&ctx.exclusion_zone_pool, ExclusionZone, idx, zone) {
-    Detour detour;
-    if (is_constrained(zone, last_pos, del->position, &detour)) {
-
-    }
-}
-
-    Position detours[nb_constraint];
-    uint8_t nb_detours = 0;
-
     Position last_pos = pos;
     uint32_t distance = 0;
 
-    // foreach dans l'ordre de proximité
-    foreach (constraints) { // Need array of all constraints and nb_constraint
-        Detour detour = is_constrained(cnst, last_pos, del->pos);
-        if (detour.pos) {
-            last_pos = *(detour.pos);
-            dist += detour.distance;
+	Position *detours = malloc(ctx.exclusion_zone_pool.size * sizeof(ExclusionZone));
+	size_t nb_detours = 0;
+
+	// foreach dans l'ordre de proximité
+    pool_foreach2(&ctx.exclusion_zone_pool, ExclusionZone, __attribute__((unused))idx, zone) {
+    	Detour detour;
+        if (is_constrained(zone, &last_pos, &del->position, &detour)) {
+            last_pos = detour.pos;
+            distance += detour.distance;
             detours[nb_detours++] = last_pos;
         }
-    }
+	}
 
     return (Edge) {
         .cost   = Weight(del, distance),

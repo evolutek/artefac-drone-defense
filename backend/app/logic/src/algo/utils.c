@@ -160,8 +160,3 @@ bool is_constrained(ExclusionZone* cnst,
     };
     return true;
 }
-
-// TODO :
-// 	- Poids entre les nœuds
-// 	- Définir contrainte
-// 	- Lier contraites et livraisons
