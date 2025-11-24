@@ -11,7 +11,7 @@ Item *new_item(const char *name, const uint32_t mass) {
 	return item;
 }
 
-Delivery *new_delivery(Item *const item, const uint16_t quantity,
+Delivery *new_delivery(ItemIndex item, const uint16_t quantity,
 		const uint8_t priority, Position position, const uint32_t mass) {
 	struct Delivery* del = malloc(sizeof(Delivery));
 
