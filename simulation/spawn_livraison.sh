@@ -33,12 +33,12 @@ fi
 
 LIVR_NUM=$1
 LIVR_ID="livraison_$((LIVR_NUM + 1))"  # livraison_1, livraison_2, livraison_3, ...
-LIVR_NAME="livraison_${LIVR_NUM}"      # livraison_0, livraison_1, livraison_2, ...
+LIVR_NAME="livraison_$2"      # livraison_0, livraison_1, livraison_2, ...
 
 # Position (defaults to grid pattern)
-X=${2:-$((LIVR_NUM * 3))}  # 0, 3, 6, 9, ... (using bash arithmetic)
-Y=${3:-0}
-Z=${4:-0.5}
+X=${3:-$((LIVR_NUM * 3))}  # 0, 3, 6, 9, ... (using bash arithmetic)
+Y=${4:-0}
+Z=${5:-0.5}
 
 echo "=================================================="
 echo "  Spawning Livraison ${LIVR_ID}"

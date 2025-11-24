@@ -118,8 +118,7 @@ def find_next_entrepot_number() -> int:
 # ============================================================================
 
 def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
-                   y: Optional[float] = None, z: Optional[float] = None,
-                   entrepot_type: str = 'general') -> dict:
+                   y: Optional[float] = None, z: Optional[float] = None, etype: str="medicaments") -> dict:
     """
     Execute spawn_entrepot.sh script to spawn Gazebo entrepôt model
 
@@ -132,6 +131,14 @@ def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
     Returns: {'success': bool, 'message': str, 'entrepot_id': str, 'entrepot_num': int}
     """
     entrepot_id = f"entrepot_{entrepot_num + 1}"
+    etype = etype.lower()
+    if etype != "medicaments" or etype != "foods" or etype != "ammo" or etype != "equipements":
+         return {
+            'success': False,
+            'message': f'Invalid entrepot type: {ltype}. Must be foods, medicaments, equipments or ammo',
+            'entrepot_id': entrepot_id,
+            'entrepot_num': entrepot_num
+        }
 
     # Prepare spawn script arguments
     # spawn_entrepot.sh <entrepot_num> <name> <x> <y> <z>
