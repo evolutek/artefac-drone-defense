@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static Ctx ctx;
+Ctx ctx;
 
 struct archetype_search_data {
     ssize_t archetype_idx;

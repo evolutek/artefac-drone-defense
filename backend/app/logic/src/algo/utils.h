@@ -1,6 +1,9 @@
 #pragma once
 
 #include <stdint.h>
+#include "graph.h"
+
+#define MIN_PRIORITY 5
 
 // Structures
 
@@ -18,10 +21,14 @@ typedef struct Item {
 typedef struct Delivery {
 	Item *item;
 	uint16_t quantity;
-	uint8_t priority;	// 0 -> Max priority | 5 -> Min priority : priority of the delivery
-	uint8_t user; // 0 -> Max precedence | 5 -> Min precedence : if a delevery must be delivered before another one in the same trip
+	float priority;	// 0 -> Max priority | 5 -> Min priority : priority of the delivery
+	uint8_t user_priority; // 0 -> Max user priority | 5 -> Min user priority : if a delevery must be delivered before another one in the same trip
 	Position position;
 	uint32_t mass;		// In grams
+	
+	// Algorithm internal attributes
+	Node *node;
+	uint8_t mark;
 } Delivery;
 
 typedef struct Drone {
@@ -40,15 +47,17 @@ typedef struct Drone {
 	Position position;
 	Delivery *targets;
 	uint8_t nb_targets;
-
-	// Algorithm internal attributes
-	float cost;
 } Drone;
 
 typedef struct Route_constraint {
 	Position center;
 	uint32_t radius;
 } Route_constraint;
+
+typedef struct Detour {
+	uint32_t distance;
+	Position *pos;
+}
 
 // Functions
 

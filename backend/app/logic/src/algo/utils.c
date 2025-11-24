@@ -99,7 +99,7 @@ float can_handle(Drone *drone, uint8_t nb_deliveries, Delivery *deliveries[nb_de
 }
 
 // Calculate and return the distance added by conturning the constraint
-Position is_constrained(Route_constraint *cnst, const Position *pos1, const Position *pos2) {
+Detour is_constrained(Route_constraint *cnst, const Position *pos1, const Position *pos2) {
 	Position p12, p1C, intersect; // Vectors 1 -> 2, 1 -> cnsc->center
     (void)intersect;
 	
@@ -114,23 +114,10 @@ Position is_constrained(Route_constraint *cnst, const Position *pos1, const Posi
 	intersect.x = p12.x * i + pos1->x;
 	intersect.y = p12.y * i + pos1->y;
 
-	return (Position) {p12.x * i + pos1->x, p12.y * i + pos1->y, 0};
+	return (Position) { p12.x * i + pos1->x, p12.y * i + pos1->y };
 }
 
 // TODO :
 // 	- Poids entre les nœuds
 // 	- Définir contrainte
 // 	- Lier contraites et livraisons
-
-
-/*
-double Weight(struct Drone* drone, struct Delivery* delivery, double distance){ // distance = 0 if not calculated before
-    double dist = drone->cost;
-    if (distance == 0)
-        dist += Distance(drone->position, delivery->position);
-    else
-        dist += distance;
-    return dist * (delivery->priority + 1) * 0.5f / drone->max_speed;
-}
-
-*/

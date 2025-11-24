@@ -28,6 +28,8 @@ typedef struct {
     size_t warehouse_idx;
 } Cluster;
 
+extern Ctx ctx;
+
 Cluster* cut(size_t* out_cluster_count);
 
 void add_warehouse(Warehouse wh);
