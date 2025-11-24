@@ -32,7 +32,9 @@ static inline struct slot* from_index(const Pool* pool, size_t idx) {
 }
 
 static inline ptrdiff_t to_index(const Pool* pool, const struct slot* slot) {
-    return (char*) slot - (char*) pool->blocks;
+    ptrdiff_t diff_bytes = (char*) slot - (char*) pool->blocks;
+
+    return diff_bytes / compute_slot_size(pool->stride);
 }
 
 void pool_init(Pool* pool, size_t capacity, size_t stride) {
@@ -94,7 +96,7 @@ static void grow(Pool* pool) {
     pool->capacity = new_cap;
 }
 
-void* pool_alloc(Pool* pool, ssize_t* out_idx) {
+void* _pool_alloc(Pool* pool, size_t* out_idx) {
     if (pool->size == pool->capacity) {
         grow(pool);
     }

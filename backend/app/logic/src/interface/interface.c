@@ -1,5 +1,7 @@
 #include "interface.h"
 #include "algo/cutter.h"
+#include "algo/utils.h"
+#include "utils/index.h"
 #include "utils/pool.h"
 
 #include <fcntl.h>
@@ -20,18 +22,15 @@ static sem_t* sem_buf2;
 
 static bool running = true;
 
-#define MAX_RETRIES 30
+#define MAX_RETRIES 5
 
-static Item* find_item_with_id(uint64_t id) {
-    PoolIter it = pool_iter_init(&ctx.item_pool);
-
-    Item* item;
-    while ((item = pool_iter_next(&it))) {
-        if (item->id == id) {
-            return item;
-        }
+static ItemIndex find_item_with_id(uint64_t id) {
+    pool_foreach2(&ctx.item_pool, Item, item_idx, item) {
+        if (item->id == id)
+            return item_idx;
     }
-    return NULL;
+
+    return MAKE_INDEX(Item, INVALID_INDEX);
 }
 
 static Warehouse* find_warehouse_with_id(uint64_t id) {
@@ -70,7 +69,7 @@ static Drone* find_drone_with_id(uint64_t id) {
     return NULL;
 }
 
-void init_shared_mem(void) {
+bool init_shared_mem(void) {
 
     shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
     ftruncate(shm_fd, SHM_SIZE);
@@ -87,9 +86,9 @@ void init_shared_mem(void) {
             break;
         sleep(1);
     }
-    if (retries == MAX_RETRIES) {
-        abort();
-    }
+    if (retries == MAX_RETRIES)
+        return false;
+    return true;
 }
 void cleanup_shared_mem(void) {
     munmap(shm, SHM_SIZE);
@@ -151,8 +150,8 @@ static void handle_event(const Event* event) {
         };
         wh.items = malloc(sizeof *wh.items * wh.item_count);
         for (size_t i = 0; i < wh.item_count; i++) {
-            const Item* item = find_item_with_id(pkt->items[i]);
-            if (!item)
+            ItemIndex item = find_item_with_id(pkt->items[i]);
+            if (INDEX_VALUE(item) == INVALID_INDEX)
                 abort();
             wh.items[i] = item;
         }
@@ -166,7 +165,7 @@ static void handle_event(const Event* event) {
         break;
     }
     case EVENT_ITEM_NEW: {
-        Item* item         = pool_alloc(&ctx.item_pool, NULL);
+        Item* item         = _pool_alloc(&ctx.item_pool, NULL);
         size_t name_length = event->data.new_item.name_length;
         *item              = (Item) {
                          .id   = event->data.new_item.id,
@@ -178,9 +177,10 @@ static void handle_event(const Event* event) {
         break;
     }
     case EVENT_ITEM_REMOVE: {
-        Item* item = find_item_with_id(event->data.id);
-        if (item)
-            pool_free(&ctx.item_pool, item);
+        //ItemIndex item = find_item_with_id(event->data.id);
+        abort();
+        //TODO
+
         break;
     }
     }

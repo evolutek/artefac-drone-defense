@@ -105,7 +105,7 @@ typedef struct {
     Assignments buf1;
 } PACKED SharedMemory;
 
-void init_shared_mem(void);
+bool init_shared_mem(void);
 void interface_handle(void);
 void cleanup_shared_mem(void);
 

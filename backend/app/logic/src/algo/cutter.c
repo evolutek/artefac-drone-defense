@@ -1,144 +1,169 @@
 #include "cutter.h"
 #include "utils.h"
 #include "utils/darray.h"
+#include "utils/index.h"
 #include "utils/pool.h"
 #include <stdlib.h>
 #include <string.h>
 
 Ctx ctx;
 
-struct archetype_search_data {
-    ssize_t archetype_idx;
-    const Item* item;
-};
+#define DARRAY_FOR(var, array) for (size_t var = 0; var < darray_size(array); i++)
 
-static bool find_archetype_loop(const void* obj, size_t idx, void* data) {
-    const Archetype* arch                     = obj;
-    struct archetype_search_data* search_data = data;
+static ArchetypeIndex find_archetype(ItemIndex item) {
 
-    if (arch->item == search_data->item) {
-        search_data->archetype_idx = idx;
-        return false;
+    pool_foreach2(&ctx.archetype_pool, Archetype, idx, arch) {
+        if (INDEX_VALUE(arch->item) == INDEX_VALUE(item))
+            return idx;
     }
-    return true;
+    return MAKE_INDEX(Archetype, INVALID_INDEX);
 }
 
-static ssize_t find_archetype(Pool* archetype_pool, const Item* item) {
-    struct archetype_search_data data = {
-        .item          = item,
-        .archetype_idx = -1,
-    };
-
-    pool_foreach(archetype_pool, find_archetype_loop, &data);
-
-    return data.archetype_idx;
+static void unmark_unhaldled_archetype(ArchetypeIndex to_remove) {
+    DARRAY_FOR(i, &ctx.unhandled_archetypes) {
+        ArchetypeIndex idx = ctx.unhandled_archetypes[i];
+        if (INDEX_VALUE(idx) == INDEX_VALUE(to_remove)) {
+            darray_remove(ctx.unhandled_archetypes, i, NULL);
+            return;
+        }
+    }
 }
 
-static bool categorize_delivery(const void* obj, size_t idx, void* data) {
-    (void) idx;
-    (void) data;
-    const Delivery* delivery = obj;
+static ClusterIndex find_cluster(WarehouseIndex wh_idx) {
+    pool_foreach2(&ctx.cluster_pool, Cluster, cluster_idx, cluster) {
+        if (INDEX_VALUE(cluster->warehouse_idx) == INDEX_VALUE(wh_idx))
+            return cluster_idx;
+    }
+    return MAKE_INDEX(Cluster, INVALID_INDEX);
+}
 
-    ssize_t archetype_idx = find_archetype(&ctx.archetype_pool, delivery->item);
-    Archetype* arch;
-    if (archetype_idx == -1) {
-        arch  = pool_alloc(&ctx.archetype_pool, NULL);
-        *arch = (Archetype) {
-            .item              = delivery->item,
-            .deliveries_darray = darray_create(4, sizeof(size_t)),
+static void remove_delivery_from_archetype(DeliveryIndex del_idx, ArchetypeIndex arch_idx) {
+    Archetype* arch = pool_query(&ctx.archetype_pool, INDEX_VALUE(arch_idx));
+
+    DARRAY_FOR(i, arch->deliveries_darray) {
+        if (INDEX_VALUE(arch->deliveries_darray[i]) == INDEX_VALUE(del_idx)) {
+            darray_remove(arch->deliveries_darray, i, NULL);
+            return;
+        }
+    }
+}
+
+ClusterIndex* cut(void) {
+
+    decl_darray(dirty_clusters, ClusterIndex, 1);
+
+    /*
+      1. Parcourir les nouveaux entrepôts, créer un archétype par item de l'entrepôt (si
+      inexistant).
+         Associer les archétypes aux entrepôts, dans les clusters.
+      2. Parcourir les nouvelles livraisons, les associer à un archétype.
+         Si aucun archétype existant, en créer un nouveau dans la liste "invalide"
+*/
+
+    // First, pre-allocate every cluster for each warehouse.
+    DARRAY_FOR(i, ctx.new_warehouses) {
+        WarehouseIndex idx = ctx.new_warehouses[i];
+        Warehouse* wh      = pool_query(&ctx.warehouse_pool, INDEX_VALUE(idx));
+        Cluster cluster    = {
+               .warehouse_idx     = idx,
+               .archetypes_darray = darray_create(4, sizeof(ArchetypeIndex)),
         };
-    } else {
-        arch = pool_query(&ctx.archetype_pool, archetype_idx);
+
+        for (size_t j = 0; j < wh->item_count; j++) {
+            ItemIndex item          = wh->items[j];
+            ArchetypeIndex arch_idx = find_archetype(item);
+            // Create an archetype is one does not already exist.
+            // Also add the found/created archetype to the current cluster.
+            if (INDEX_VALUE(arch_idx) != INVALID_INDEX) {
+                Archetype* arch = pool_query(&ctx.archetype_pool, INDEX_VALUE(arch_idx));
+                // Mark "unhandled" archetypes as "handled" now!
+                if (arch->ref_count == 0)
+                    unmark_unhaldled_archetype(arch_idx);
+                arch->ref_count++;
+                darray_add(cluster.archetypes_darray, arch_idx);
+            }
+            // Create a new empty archetype
+            Archetype arch = {
+                .item              = item,
+                .deliveries_darray = darray_create(16, sizeof(DeliveryIndex)),
+                .ref_count         = 1,
+            };
+            pool_add(&ctx.archetype_pool, Archetype, arch, arch_idx);
+            darray_add(cluster.archetypes_darray, arch_idx);
+        }
+        ClusterIndex cluster_idx;
+        pool_add(&ctx.cluster_pool, Cluster, cluster, cluster_idx);
+        darray_add(dirty_clusters, cluster_idx);
     }
-    size_t* idx_ptr = pool_alloc(&ctx.archetype_pool, NULL);
-    *idx_ptr = idx;
-    return true;
-}
 
-static void generate_archetypes(void) {
-    pool_foreach(&ctx.delivery_pool, categorize_delivery, NULL);
-}
+    // Add every new delivery to their corresponding archetype.
+    DARRAY_FOR(i, ctx.new_deliveries) {
+        DeliveryIndex del_idx = ctx.new_deliveries[i];
+        Delivery* del         = pool_query(&ctx.delivery_pool, INDEX_VALUE(del_idx));
 
-bool is_item_in_warehouse(const Item* item, const Item* const* items, size_t item_count) {
-    for (size_t i = 0; i < item_count; i++) {
-        if (items[i] == item)
-            return true;
+        ArchetypeIndex arch_idx = find_archetype(del->item);
+        Archetype* arch;
+        if (INDEX_VALUE(arch_idx) == INVALID_INDEX) {
+            // No archetype exists for this item, delivery cannot be handled.
+            Archetype new_arch = {
+                .item              = del->item,
+                .deliveries_darray = darray_create(16, sizeof(DeliveryIndex)),
+            };
+            pool_add(&ctx.archetype_pool, Archetype, new_arch, arch_idx);
+            arch = pool_query(&ctx.archetype_pool, INDEX_VALUE(arch_idx));
+            darray_add(ctx.unhandled_archetypes, arch_idx);
+        } else {
+            arch      = pool_query(&ctx.archetype_pool, INDEX_VALUE(arch_idx));
+        }
+        darray_add(arch->deliveries_darray, del_idx);
     }
-    return false;
-}
 
-struct archetype_dispatch_data {
-    size_t** cluster_archetype_darray;
-    const Item** warehouse_items;
-    size_t warehouse_item_count;
-};
-
-static bool dispatch_archetype(const void* obj, size_t idx, void* user_data) {
-    const Archetype* arch = obj;
-
-    struct archetype_dispatch_data* data = user_data;
-
-    if (is_item_in_warehouse(arch->item, data->warehouse_items, data->warehouse_item_count))
-        darray_add(*data->cluster_archetype_darray, idx);
-
-    return true;
-}
-
-struct cluter_dispatch_data {
-    Cluster* clusters;
-    size_t cluster_idx;
-};
-
-static bool dispatch_archetypes(const void* obj, size_t idx, void* user_data) {
-    const Warehouse* wh = obj;
-
-    struct cluter_dispatch_data* super_data = user_data;
-
-    super_data->clusters[super_data->cluster_idx] = (Cluster) {
-        .warehouse_idx     = idx,
-        .archetypes_darray = darray_create(4, sizeof(size_t)),
-    };
-
-    struct archetype_dispatch_data data = {
-        .cluster_archetype_darray = &super_data->clusters[super_data->cluster_idx].archetypes_darray,
-        .warehouse_items          = wh->items,
-        .warehouse_item_count     = wh->item_count,
-    };
-    pool_foreach(&ctx.archetype_pool, dispatch_archetype, &data);
-
-    super_data->cluster_idx++;
-
-    return true;
-}
-
-Cluster* cut(size_t* out_cluster_count) {
-    generate_archetypes();
-
-    size_t cluster_size = ctx.warehouse_pool.size;
-    Cluster* clusters   = calloc(cluster_size, sizeof *clusters);
-
-    struct cluter_dispatch_data data = {
-        .clusters    = clusters,
-        .cluster_idx = 0,
-    };
-    pool_foreach(&ctx.warehouse_pool, dispatch_archetypes, &data);
-    *out_cluster_count = cluster_size;
-
-    return clusters;
+    return dirty_clusters;
 }
 
 void add_warehouse(Warehouse wh) {
-    pool_add(&ctx.warehouse_pool, wh, NULL);
+    WarehouseIndex idx;
+    pool_add(&ctx.warehouse_pool, Warehouse, wh, idx);
+    darray_add(ctx.new_warehouses, idx);
 }
 void add_delivery(Delivery del) {
-    pool_add(&ctx.delivery_pool, del, NULL);
+    DeliveryIndex idx;
+    pool_add(&ctx.delivery_pool, Delivery, del, idx);
+    darray_add(ctx.new_deliveries, idx);
+}
+void add_item(Item item) {
+    pool_add(&ctx.item_pool, Item, item);
+}
+void remove_warehouse(WarehouseIndex idx) {
+    ClusterIndex cluster_idx = find_cluster(idx);
+    Cluster* cluster         = pool_query(&ctx.cluster_pool, INDEX_VALUE(cluster_idx));
+
+    for (size_t i = 0; i < darray_size(cluster->archetypes_darray); i++) {
+        ArchetypeIndex arch_idx = cluster->archetypes_darray[i];
+        Archetype* arch         = pool_query(&ctx.archetype_pool, INDEX_VALUE(arch_idx));
+        arch->ref_count--;
+        if (arch->ref_count == 0)
+            darray_add(ctx.unhandled_archetypes, arch_idx);
+    }
+}
+void remove_delivery(DeliveryIndex idx) {
+    Delivery* del           = pool_query(&ctx.delivery_pool, INDEX_VALUE(idx));
+    ArchetypeIndex arch_idx = find_archetype(del->item);
+    remove_delivery_from_archetype(idx, arch_idx);
 }
 void add_drone(Drone dr) {
-    pool_add(&ctx.drone_pool, dr, NULL);
+    pool_add(&ctx.drone_pool, Drone, dr);
 }
 
 void init_cutter(void) {
+    pool_init(&ctx.item_pool, 16, sizeof(Item));
     pool_init(&ctx.delivery_pool, 16, sizeof(Delivery));
     pool_init(&ctx.warehouse_pool, 16, sizeof(Warehouse));
+    pool_init(&ctx.drone_pool, 16, sizeof(Drone));
     pool_init(&ctx.archetype_pool, 16, sizeof(Archetype));
+    pool_init(&ctx.cluster_pool, 16, sizeof(Cluster));
+
+    ctx.new_warehouses = darray_create(4, sizeof *ctx.new_warehouses);
+    ctx.new_deliveries = darray_create(4, sizeof *ctx.new_deliveries);
+    ctx.unhandled_archetypes = darray_create(4, sizeof *ctx.unhandled_archetypes);
 }

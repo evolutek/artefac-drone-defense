@@ -1,8 +1,36 @@
 #pragma once
 
 #include <stdint.h>
+#include "utils/pool.h"
+#include "utils/index.h"
 
 // Structures
+
+DEFINE_INDEX(Drone);
+DEFINE_INDEX(Item);
+DEFINE_INDEX(Warehouse);
+DEFINE_INDEX(Delivery);
+DEFINE_INDEX(Archetype);
+DEFINE_INDEX(Cluster);
+
+typedef struct {
+    /*
+      These pools hold all objects used by the algorithm.
+      All references to these objects should use indices of slots inside those pools instead of
+      pointers.
+      */
+    Pool item_pool;      // Item
+    Pool delivery_pool;  // Delivery
+    Pool warehouse_pool; // Warehouse
+    Pool drone_pool;     // Drone
+
+    Pool archetype_pool; // Archetype
+    Pool cluster_pool;   // Cluster
+
+    WarehouseIndex* new_warehouses;
+    DeliveryIndex* new_deliveries;
+    ArchetypeIndex* unhandled_archetypes;
+} Ctx;
 
 typedef struct Position {
 	int32_t x;
@@ -18,7 +46,7 @@ typedef struct Item {
 
 typedef struct Delivery {
     uint64_t id;
-	Item *item;
+	ItemIndex item;
 	uint16_t quantity;
 	uint8_t priority;	// 0 -> Max priority | 5 -> Min priority : priority of the delivery
 	uint8_t user; // 0 -> Max precedence | 5 -> Min precedence : if a delevery must be delivered before another one in the same trip
@@ -48,16 +76,26 @@ typedef struct Drone {
 	float cost;
 } Drone;
 
+typedef struct {
+    uint64_t id;
+    ItemIndex* items;
+    size_t item_count;
+    Position pos;
+} Warehouse;
+
+
 typedef struct Route_constraint {
 	Position center;
 	uint32_t radius;
 } Route_constraint;
 
+extern Ctx ctx;
+
 // Functions
 
 Item *new_item(char *name, uint32_t mass);
 
-Delivery *new_delivery(Item *const item, const uint16_t quantity,
+Delivery *new_delivery(ItemIndex item, const uint16_t quantity,
 		const uint8_t priority, Position position, const uint32_t mass);
 
 Drone *new_drone(const uint32_t max_capacity, const uint8_t max_speed,

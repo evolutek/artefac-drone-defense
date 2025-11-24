@@ -2,6 +2,7 @@
 #include "algo/utils.h"
 #include "interface/interface.h"
 #include "utils/darray.h"
+#include "utils/pool.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -9,7 +10,7 @@
 #define WH_COUNT 5
 #define DEL_COUNT 4000
 
-static Item items[ITEM_COUNT];
+static ItemIndex items[ITEM_COUNT];
 
 size_t rand_index(size_t max) {
 #define RANDOM_MAX ((1LL << 31) - 1)
@@ -21,10 +22,11 @@ void init() {
     for (size_t i = 0; i < ITEM_COUNT; i++) {
         char* name = malloc(512);
         snprintf(name, 512, "%zu", i);
-        items[i] = (Item) {
+        Item item = {
             .mass = i,
             .name = name,
         };
+        pool_add(&ctx.item_pool, Item, item, items[i]);
     }
 
     for (size_t i = 0; i < WH_COUNT; i++) {
@@ -32,11 +34,11 @@ void init() {
         Warehouse wh      = {
                  .pos        = {i + 1, i * 2, i * i},
                  .item_count = item_count,
-                 .items      = malloc(item_count * sizeof(Item*)),
+                 .items      = malloc(item_count * sizeof(ItemIndex)),
         };
 
         for (size_t j = 0; j < item_count; j++) {
-            wh.items[j] = &items[rand_index(ITEM_COUNT)];
+            wh.items[j] = items[rand_index(ITEM_COUNT)];
         }
         add_warehouse(wh);
     }
@@ -45,7 +47,7 @@ void init() {
         Delivery del = {
             .position = {i / 3 - 5, i * 1.7 + 8, i * i / 4},
             .priority = rand_index(100),
-            .item     = &items[rand_index(ITEM_COUNT)],
+            .item     = items[rand_index(ITEM_COUNT)],
             .quantity = 1,
         };
         add_delivery(del);
@@ -77,8 +79,8 @@ void gab_test(void) {
 int main() {
 
     puts("==== INTERFACE ====");
-    init_shared_mem();
-    interface_handle();
+    if(init_shared_mem())
+        interface_handle();
     puts("===================");
 
     puts("==== GAB TEST ====");
@@ -89,14 +91,14 @@ int main() {
     init_cutter();
     init();
 
-    size_t cluster_count;
     printf("Cutting!\n");
-    Cluster* clusters = cut(&cluster_count);
+    ClusterIndex* clusters = cut();
+    size_t cluster_count = darray_size(clusters);
 
     printf("Cluster count: %zu\n", cluster_count);
 
     for (size_t i = 0; i < cluster_count; i++) {
-        Cluster* cluster = &clusters[i];
+        Cluster* cluster = pool_query(&ctx.cluster_pool, INDEX_VALUE(clusters[i]));
         printf("Cluster %zu:\n", i);
         printf("  Archetype count: %zu\n", darray_size(cluster->archetypes_darray));
     }
