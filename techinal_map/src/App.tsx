@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import MapView from './components/MapView';
 import MissionForm from './components/MissionForm';
 import { useDroneStore, type DroneState } from './state/store';
 import Modal from './components/Modal';
-import type { Payload } from './types';
+import type { Payload, PayloadItem } from './types';
 import ProductCatalog from './components/ProductCatalog';
 import SearchInput from './components/SearchInput';
 import * as mgrs from 'mgrs';
@@ -17,8 +17,11 @@ export default function App() {
   const [modalOpen, setModalOpen] = useState<boolean>(false);
   const missions = useDroneStore((s: DroneState) => s.missions);
   const [replayPayload, setReplayPayload] = useState<Payload | undefined>(undefined);
-  const [mode, setMode] = useState<'catalogue' | 'carte'>('catalogue');
-  const [authenticated, setAuthenticated] = useState<boolean>(false);
+  const [replayPayloads, setReplayPayloads] = useState<PayloadItem[] | undefined>(undefined);
+  const [mode, setMode] = useState<'catalogue' | 'carte' | 'historique'>('catalogue');
+  const [authenticated, setAuthenticated] = useState<boolean>(() => {
+    try { return localStorage.getItem('session_auth') === '1'; } catch { return false; }
+  });
   const [pin, setPin] = useState<string>('');
   const DEFAULT_PIN = (import.meta.env.VITE_PIN as string) ?? '123123123';
   const PIN_LENGTH = DEFAULT_PIN.length;
@@ -39,6 +42,7 @@ export default function App() {
     try { sessionStorage.clear(); } catch {}
     try { useDroneStore.setState({ missions: [], drones: {}, trajectories: {}, draftTarget: null, selectedDroneId: null }); } catch {}
     setAuthenticated(false);
+    try { localStorage.setItem('session_auth', '0'); } catch {}
     setPin('');
     setModalOpen(false);
     setMode('catalogue');
@@ -53,6 +57,7 @@ export default function App() {
   function handleAccess() {
     if (pin === DEFAULT_PIN) {
       setAuthenticated(true);
+      try { localStorage.setItem('session_auth', '1'); } catch {}
       setPin('');
       setPinError('');
       setWrongAttempts(0);
@@ -72,11 +77,14 @@ export default function App() {
     setLocked(wrongAttempts >= 3);
   }, [wrongAttempts]);
 
+  const enableIdleLock = (import.meta.env.VITE_IDLE_LOCK as string) === 'true';
   useEffect(() => {
+    if (!enableIdleLock) return;
     function resetInactivity() {
       if (inactiveTimer) { clearTimeout(inactiveTimer); setInactiveTimer(null); }
       const id = window.setTimeout(() => {
         setAuthenticated(false);
+        try { localStorage.setItem('session_auth', '0'); } catch {}
         setPin('');
         setModalOpen(false);
         setMode('catalogue');
@@ -95,9 +103,46 @@ export default function App() {
       if (inactiveTimer) { clearTimeout(inactiveTimer); setInactiveTimer(null); }
       events.forEach((ev) => window.removeEventListener(ev, resetInactivity));
     };
-  }, [authenticated]);
+  }, [authenticated, enableIdleLock]);
   const [catalogSearch, setCatalogSearch] = useState<string>('');
   const [catalogCategory, setCatalogCategory] = useState<string>('');
+  const [tick, setTick] = useState<number>(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 1000);
+    return () => { window.clearInterval(id); };
+  }, []);
+  const [missionsPanelPos, setMissionsPanelPos] = useState<{ x: number; y: number }>({ x: 12, y: 80 });
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const dragOffsetRef = useRef<{ dx: number; dy: number } | null>(null);
+  const draggingRef = useRef<boolean>(false);
+  const dragMovedRef = useRef<boolean>(false);
+  function startDrag(clientX: number, clientY: number) {
+    const rect = panelRef.current?.getBoundingClientRect();
+    const dx = rect ? clientX - rect.left : 0;
+    const dy = rect ? clientY - rect.top : 0;
+    dragOffsetRef.current = { dx, dy };
+    draggingRef.current = true;
+    dragMovedRef.current = false;
+    function onMove(ev: MouseEvent) {
+      if (!draggingRef.current || !dragOffsetRef.current) return;
+      const nx = ev.clientX - dragOffsetRef.current.dx;
+      const ny = ev.clientY - dragOffsetRef.current.dy;
+      const rect2 = panelRef.current?.getBoundingClientRect();
+      const moved = rect2 && (Math.abs(rect2.left - nx) > 3 || Math.abs(rect2.top - ny) > 3);
+      if (moved) dragMovedRef.current = true;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      setMissionsPanelPos({ x: Math.max(0, Math.min(vw - 200, nx)), y: Math.max(48, Math.min(vh - 100, ny)) });
+    }
+    function onUp() {
+      draggingRef.current = false;
+      dragOffsetRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+    window.addEventListener('mousemove', onMove, { passive: true });
+    window.addEventListener('mouseup', onUp, { passive: true });
+  }
 
   return (
     <div style={{ height: '100vh' }}>
@@ -163,6 +208,7 @@ export default function App() {
               if (logoTimer) { clearTimeout(logoTimer); setLogoTimer(null); }
               setLogoClicks(0);
               setAuthenticated(false);
+              try { localStorage.setItem('session_auth', '0'); } catch {}
               setPin('');
               setModalOpen(false);
               setMode('catalogue');
@@ -178,6 +224,18 @@ export default function App() {
           }}
         />
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', paddingLeft: 12 }}>
+          <button
+            type="button"
+            aria-label="Historique des commandes"
+            onClick={() => setMode('historique')}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 6 }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <rect x="4" y="6" width="16" height="2" fill="#fff"/>
+              <rect x="4" y="11" width="16" height="2" fill="#fff"/>
+              <rect x="4" y="16" width="16" height="2" fill="#fff"/>
+            </svg>
+          </button>
           <button
             type="button"
             className="btn"
@@ -224,11 +282,12 @@ export default function App() {
             </div>
             <ProductCatalog onSelectProduct={(p) => {
               setReplayPayload({ item_name: p.name, weight_kg: p.weight_kg ?? 1, quantity: 1 });
+              setReplayPayloads(undefined);
               setMode('carte');
               setModalOpen(true);
             }} searchTerm={catalogSearch} category={catalogCategory} />
           </>
-        ) : (
+        ) : mode === 'carte' ? (
         <MapView setWaypointFromMap={(lat, lon) => {
           setLastClick({ lat, lon });
           setDraftTarget([lat, lon]);
@@ -238,36 +297,102 @@ export default function App() {
             setSelectedDroneId(drones[0].drone_id);
           }
           setReplayPayload(undefined);
+          setReplayPayloads(undefined);
           setModalOpen(true);
         }} />
+        ) : (
+          <div style={{ padding: 16 }}>
+            <h3 style={{ marginTop: 0 }}>Historique des commandes</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[...missions].sort((a, b) => (b.started_at ?? b.id) - (a.started_at ?? a.id)).map((m) => (
+                <div key={m.id} style={{ display: 'inline-block' }}>
+                  <button
+                    onClick={() => {
+                      const first = m.waypoints?.[0];
+                      if (first) {
+                        setLastClick({ lat: first[0], lon: first[1] });
+                        setDraftTarget([first[0], first[1]]);
+                      }
+                      setSelectedDroneId(m.drone_id);
+                      setReplayPayload(m.payload);
+                      setReplayPayloads(m.payloads);
+                      setMode('carte');
+                      setModalOpen(true);
+                    }}
+                    className="btn"
+                    style={{ padding: '6px 10px', textAlign: 'left', justifyContent: 'flex-start' }}
+                  >
+                    #{m.id} • {m.drone_id}
+                    {Array.isArray((m as any).payloads) && m.payloads && m.payloads.length > 0
+                      ? ` — ${m.payloads.map((p) => `${p.item_name} x${p.quantity}`).join(', ')}`
+                      : (m.payload ? ` — ${m.payload.item_name} x${m.payload.quantity} (${m.payload.weight_kg}kg)` : '')}
+                    {m.status ? ` — ${m.status}` : ''}
+                    {m.eta ? ` • ETA ${m.eta}` : ''}
+                  </button>
+                  {typeof m.progress === 'number' && (
+                    <div style={{ marginTop: 4, height: 6, background: 'rgba(255,255,255,0.12)', borderRadius: 6, overflow: 'hidden', width: '100%' }}>
+                      <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, m.progress))}%`, background: '#4caf50' }} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         )}
-        {missions.length > 0 && (
-          <div style={{
-            position: 'fixed', top: 80, left: 12, display: 'flex', flexDirection: 'column', gap: 8,
-            zIndex: 1000
-          }}>
-            {missions.map((m) => (
-              <button key={m.id}
-                onClick={() => {
-                  const first = m.waypoints?.[0];
-                  if (first) {
-                    setLastClick({ lat: first[0], lon: first[1] });
-                    setDraftTarget([first[0], first[1]]);
-                  }
-                  setSelectedDroneId(m.drone_id);
-                  setReplayPayload(m.payload);
-                  setModalOpen(true);
-                }}
-                className="btn"
-                style={{
-                  padding: '6px 10px', textAlign: 'left', minWidth: 220, justifyContent: 'flex-start'
-                }}>
-                #{m.id} • {m.drone_id}
-                {Array.isArray((m as any).payloads) && m.payloads && m.payloads.length > 0
-                  ? ` — ${m.payloads.map((p) => `${p.item_name} x${p.quantity}`).join(', ')}`
-                  : (m.payload ? ` — ${m.payload.item_name} x${m.payload.quantity} (${m.payload.weight_kg}kg)` : '')}
-                {m.status ? ` — ${m.status}` : ''}
-              </button>
+        {mode === 'carte' && missions.length > 0 && (
+          <div
+            ref={panelRef}
+            style={{
+              position: 'fixed', top: missionsPanelPos.y, left: missionsPanelPos.x,
+              display: 'flex', flexDirection: 'column', gap: 8, zIndex: 1000,
+              maxWidth: 'min(540px, 94vw)'
+            }}
+          >
+            <div
+              style={{ height: 10, background: 'rgba(255,255,255,0.12)', borderRadius: 6, cursor: 'move' }}
+              onMouseDown={(e) => startDrag(e.clientX, e.clientY)}
+              onTouchStart={(e) => {
+                const t = e.touches[0];
+                startDrag(t.clientX, t.clientY);
+              }}
+            />
+            {missions.filter((m) => {
+              if (m.status !== 'livré') return true;
+              const d = (m as any).delivered_at as number | undefined;
+              return typeof d === 'number' && (Date.now() - d) < 3 * 60 * 1000;
+            }).map((m) => (
+              <div key={m.id} style={{ display: 'inline-block' }}>
+                <button
+                  onClick={() => {
+                    if (draggingRef.current || dragMovedRef.current) { draggingRef.current = false; dragMovedRef.current = false; return; }
+                    const first = m.waypoints?.[0];
+                    if (first) {
+                      setLastClick({ lat: first[0], lon: first[1] });
+                      setDraftTarget([first[0], first[1]]);
+                    }
+                    setSelectedDroneId(m.drone_id);
+                    setReplayPayload(m.payload);
+                    setReplayPayloads(m.payloads);
+                    setModalOpen(true);
+                  }}
+                  className="btn"
+                  style={{ padding: '6px 10px', textAlign: 'left', justifyContent: 'flex-start', cursor: 'move' }}
+                  onMouseDown={(e) => startDrag(e.clientX, e.clientY)}
+                  onTouchStart={(e) => { const t = e.touches[0]; startDrag(t.clientX, t.clientY); }}
+                >
+                  #{m.id} • {m.drone_id}
+                  {Array.isArray((m as any).payloads) && m.payloads && m.payloads.length > 0
+                    ? ` — ${m.payloads.map((p) => `${p.item_name} x${p.quantity}`).join(', ')}`
+                    : (m.payload ? ` — ${m.payload.item_name} x${m.payload.quantity} (${m.payload.weight_kg}kg)` : '')}
+                  {m.status ? ` — ${m.status}` : ''}
+                  {m.status && m.status !== 'livré' && m.eta ? ` • ETA ${m.eta}` : ''}
+                </button>
+                {typeof m.progress === 'number' && (
+                  <div style={{ marginTop: 4, height: 6, background: 'rgba(255,255,255,0.12)', borderRadius: 6, overflow: 'hidden', width: '100%' }}>
+                    <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, m.progress))}%`, background: '#4caf50' }} />
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -293,6 +418,8 @@ export default function App() {
           initialLat={lastClick?.lat}
           initialLon={lastClick?.lon}
           initialPayload={replayPayload}
+          initialPayloads={replayPayloads}
+          onSubmitted={() => setModalOpen(false)}
         />
       </Modal>
       )}

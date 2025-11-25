@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useDroneStore, type DroneState } from '../state/store';
-import type { MissionCreate, Payload } from '../types';
+import type { MissionCreate, Payload, PayloadItem } from '../types';
 import ProductCatalog from './ProductCatalog';
 import SearchInput from './SearchInput';
 import { PRODUCTS, type Product } from '../data/products';
@@ -13,11 +13,15 @@ const BANDS = 'CDEFGHJKLMNPQRSTUVWX'.split(''); // sans I et O
 export default function MissionForm({
   initialLat,
   initialLon,
-  initialPayload
+  initialPayload,
+  initialPayloads,
+  onSubmitted
 }: {
   initialLat?: number;
   initialLon?: number;
   initialPayload?: Payload;
+  initialPayloads?: PayloadItem[];
+  onSubmitted?: () => void;
 }) {
   const submitMission = useDroneStore((s: DroneState) => s.submitMission);
   const setDraftTarget = useDroneStore((s: DroneState) => s.setDraftTarget);
@@ -99,6 +103,17 @@ export default function MissionForm({
   }, [initialPayload]);
 
   useEffect(() => {
+    if (initialPayloads && initialPayloads.length > 0) {
+      const mapped: Array<{ product: Product; quantity: number }> = [];
+      for (const item of initialPayloads) {
+        const match = PRODUCTS.find((p) => p.name === item.item_name);
+        if (match) mapped.push({ product: match, quantity: item.quantity });
+      }
+      if (mapped.length > 0) setSelectedProducts(mapped);
+    }
+  }, [initialPayloads]);
+
+  useEffect(() => {
     if (selectedProducts.length > 0) {
       const totalQuantity = selectedProducts.reduce((sum, e) => sum + e.quantity, 0);
       const totalWeight = selectedProducts.reduce((sum, e) => sum + (e.product.weight_kg ?? 1) * e.quantity, 0);
@@ -177,6 +192,7 @@ export default function MissionForm({
       }, payloads);
       setStatus('Mission envoyée');
       setDraftTarget(null);
+      onSubmitted?.();
     } catch (err: any) {
       setStatus(`Erreur: ${err.message}`);
     }
@@ -277,18 +293,20 @@ export default function MissionForm({
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{entry.product.weight_kg ?? '-'} kg</span>
               <label style={{ marginLeft: 'auto' }}>
                 Quantité
-                <input
+                <select
                   className="input input-sm"
-                  type="number"
-                  min={1}
-                  step={1}
                   value={entry.quantity}
                   onChange={(e) => {
                     const q = Math.max(1, parseInt(e.target.value) || 1);
                     setSelectedProducts((list) => list.map((it) => it.product.id === entry.product.id ? { ...it, quantity: q } : it));
                   }}
                   style={{ marginLeft: 8, width: 80 }}
-                />
+                  aria-label="Quantité (menu)"
+                >
+                  {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
               </label>
               <button
                 type="button"
