@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "graph.h"
+#include "utils/darray.h"
 
 uint32_t distance_2D(Position pos1, Position pos2) {
     float dx = pos2.x - pos1.x;
@@ -30,10 +31,19 @@ float consumption(Drone* drone, uint32_t distance, uint8_t speed, uint32_t charg
 // a negative value if it can not be delivered.
 // nb_deliveries must be strictly higher than 0
 float can_handle(Drone *drone, uint8_t nb_deliveries, Node *deliveries[nb_deliveries], 
-		uint8_t speed) {
+		uint8_t speed, Node** warehouses) {
 	uint32_t distance, payload;
 	payload = 0;
 	float cons = 0;
+
+    float min_dist = -1;
+    for (size_t i = 0; i < darray_size(warehouses); i++){
+        float dist = distance_2D(deliveries[nb_deliveries - 1]->content.delivery->position, warehouses[i]->content.warehouse->pos);
+        if (min_dist == -1 || dist < min_dist){
+            min_dist = dist;
+        }
+    }
+    cons += consumption(drone, min_dist, speed, 0);
 
 	while (--nb_deliveries && cons < drone->autonomy && payload < drone->max_capacity) {
 		payload += deliveries[nb_deliveries]->content.delivery->mass;
@@ -46,8 +56,11 @@ float can_handle(Drone *drone, uint8_t nb_deliveries, Node *deliveries[nb_delive
 	if (drone->autonomy <= cons || drone->max_capacity < payload)
 		return -1;
 
-	distance = distance_2D(drone->position, deliveries[0]->content.delivery->position);
+	distance = distance_2D(drone->final_position, deliveries[0]->content.delivery->position);
 	cons += consumption(drone, distance, speed, payload);
+
+    
+    
 		
 	return drone->autonomy - cons;
 }

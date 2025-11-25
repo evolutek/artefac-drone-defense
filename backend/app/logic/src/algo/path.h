@@ -13,17 +13,17 @@ typedef struct Element_deliveries {
 Node*** choose_drone_naive(struct Drone** drones, Node** warehouses);
 
 Node*** choose_drone_naive_warehouse(struct Drone** drones, size_t index, Node** warehouse, Node*** warehouse_solution, 
-    Node*** deliveries, size_t* index_return, float* score_return);
+    Node*** deliveries, size_t* index_return, float* score_return, Node** warehouses);
 
 char create_new_solution_warehouse(Node*** warehouse_solution, size_t index_to_add, struct Drone* drone, Node* selected_warehouse, Node**** new_warehouse_solution);
 
 Node*** copy_solution(Node*** solution);
 
-Node*** choose_drone_naive_aux(struct Drone** drones, Node*** deliveries, size_t* actual_index, Node*** solution, float* score, size_t** all_edited_indexs);
+Node*** choose_drone_naive_aux(struct Drone** drones, Node*** deliveries, size_t* actual_index, Node*** solution, float* score, size_t** all_edited_indexs, Node** warehouses);
 
 char good_warehouse(Node** drone_path, Node** delivery);
 
-char create_new_solution(Node*** solution, Node* new_element, size_t drone_to_add, struct Drone* drone, Node**** new_solution);
+char create_new_solution(Node*** solution, Node* new_element, size_t drone_to_add, struct Drone* drone, Node**** new_solution, Node** warehouses);
 
 float cost_between(Node* start, Node* next);
 

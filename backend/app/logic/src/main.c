@@ -58,7 +58,7 @@ void init() {
 }
 */
 
-
+/*
 void init_context(void) {
     pool_init(&ctx.item_pool, 16, sizeof(Item));
     pool_init(&ctx.delivery_pool, 16, sizeof(Delivery));
@@ -111,9 +111,9 @@ int main(void) {
 
     return 0;
 }
+*/
 
 
-/*
 #include "algo/graph.h"
 #include "algo/path.h"
 
@@ -124,7 +124,7 @@ int main(void){
     *drone = (struct Drone){
         0, 1000, 100, 100, 100, 100.0f,
         100, 100, 100, position_drone,
-        darray_create(10,sizeof(struct Delivery*)), 0
+        darray_create(10,sizeof(struct Delivery*)), 0, position_drone
     };
 
     struct Position position_drone2 = { .x = -10, .y = -1 };
@@ -132,7 +132,7 @@ int main(void){
     *drone2 = (struct Drone){
         0, 1000, 100, 100, 100, 100.0f,
         100, 100, 100, position_drone2,
-        darray_create(10,sizeof(struct Delivery*)), 0
+        darray_create(10,sizeof(struct Delivery*)), 0, position_drone2
     };
 
     Drone** array_drones = darray_create(10, sizeof(Drone*));
@@ -255,8 +255,7 @@ int main(void){
 
     // === Call algorithm ===
     Node*** result =
-        choose_drone_naive(array_drones, array_deliveries,
-                           darray_size(array_deliveries));
+        choose_drone_naive(array_drones, array_deliveries);
 
 
     // === Display result ===
@@ -309,4 +308,3 @@ int main(void){
     printf("end\n");
     return 0;
 }
-    */
