@@ -106,20 +106,20 @@ void link_intra_archetype(Archetype* at, Node* wh, uint32_t* i_wh_edge) {
     }
 }
 
-Node** to_graph(Cluster* clusters, uint16_t nb_cluster) {
+Node** to_graph(ClusterIndex* cluster_indices, uint16_t nb_cluster) {
     // List of nb_cluster Node each representing a warehouse
-    Node** warehouses = malloc(nb_cluster * sizeof(Node*));
+    Node** warehouse_nodes = malloc(nb_cluster * sizeof(Node*));
 
     // For each cluster -> for each warehouse
     for (uint16_t i_clt = 0; i_clt < nb_cluster; i_clt++) {
-        Cluster* clt = &clusters[i_clt];
+        Cluster* clt = pool_query(&ctx.cluster_pool, cluster_indices[i_clt]);
         // Node of the warehouse
-        warehouses[i_clt] = malloc(sizeof(Node));
-        warehouses[i_clt]->content.warehouse =
-            pool_query(&ctx.warehouse_pool, clusters[i_clt].warehouse_idx);
-        warehouses[i_clt]->type     = E_WAREHOUSE;
-        warehouses[i_clt]->nb_edges = count_edges(clt);
-        warehouses[i_clt]->edges    = malloc(warehouses[i_clt]->nb_edges * sizeof(Edge));
+        warehouse_nodes[i_clt] = malloc(sizeof(Node));
+        warehouse_nodes[i_clt]->content.warehouse =
+            pool_query(&ctx.warehouse_pool, clt->warehouse_idx);
+        warehouse_nodes[i_clt]->type     = E_WAREHOUSE;
+        warehouse_nodes[i_clt]->nb_edges = count_edges(clt);
+        warehouse_nodes[i_clt]->edges    = malloc(warehouse_nodes[i_clt]->nb_edges * sizeof(Edge));
 
         uint32_t i_wh_edge = 0;
 
@@ -131,23 +131,23 @@ Node** to_graph(Cluster* clusters, uint16_t nb_cluster) {
         // Creation of archetypes
         for (size_t i_at = 0; i_at < nb_at; i_at++) {
             Archetype* at =
-                pool_query(&ctx.archetype_pool, clusters[i_clt].archetypes_darray[i_at]);
-            link_intra_archetype(at, warehouses[i_clt], &i_wh_edge);
+                pool_query(&ctx.archetype_pool, clt->archetypes_darray[i_at]);
+            link_intra_archetype(at, warehouse_nodes[i_clt], &i_wh_edge);
         }
 
         // Linkage of archetypes
         for (size_t i1_at = 0; i1_at < nb_at - 1; i1_at++) {
             Archetype* at1 =
-                pool_query(&ctx.archetype_pool, clusters[i_clt].archetypes_darray[i1_at]);
+                pool_query(&ctx.archetype_pool, clt->archetypes_darray[i1_at]);
             size_t at_size = darray_size(at1->deliveries_darray);
 
             for (size_t i2_at = i1_at + 1; i2_at < at_size; i2_at++) {
                 Archetype* at2 =
-                    pool_query(&ctx.archetype_pool, clusters[i_clt].archetypes_darray[i2_at]);
+                    pool_query(&ctx.archetype_pool, clt->archetypes_darray[i2_at]);
                 link_archetypes(at1, at2);
             }
         }
     }
 
-    return warehouses;
+    return warehouse_nodes;
 }
