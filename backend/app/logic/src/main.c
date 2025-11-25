@@ -1,7 +1,7 @@
 #include "interface/interface.h"
 #include "algo/utils.h"
 #include "algo/cutter.h"
-#include "utils/graph.h"
+#include "algo/graph.h"
 #include "utils/darray.h"
 #include "utils/pool.h"
 
@@ -9,19 +9,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define ITEM_COUNT 200
-#define WH_COUNT 5
-#define DEL_COUNT 4000
-
-static ItemIndex items[ITEM_COUNT];
+/*
+// For init_test
+//#define ITEM_COUNT 200
+//#define WH_COUNT 5
+//#define DEL_COUNT 4000
 
 size_t rand_index(size_t max) {
 #define RANDOM_MAX ((1LL << 31) - 1)
     long x = random();
     return x * max / RANDOM_MAX;
 }
-/*
-void init() {
+
+static ItemIndex items[ITEM_COUNT];
+void init_test() {
     for (size_t i = 0; i < ITEM_COUNT; i++) {
         char* name = malloc(512);
         snprintf(name, 512, "%zu", i);
@@ -58,31 +59,22 @@ void init() {
 }
 */
 
+Ctx ctx;
 
-void init_context(void) {
-    pool_init(&ctx.item_pool, 16, sizeof(Item));
-    pool_init(&ctx.delivery_pool, 16, sizeof(Delivery));
-    pool_init(&ctx.warehouse_pool, 16, sizeof(Warehouse));
-    pool_init(&ctx.drone_pool, 16, sizeof(Drone));
-    pool_init(&ctx.archetype_pool, 16, sizeof(Archetype));
-    pool_init(&ctx.cluster_pool, 16, sizeof(Cluster));
-    pool_init(&ctx.node_pool, 16, sizeof(Node));
-
-    ctx.new_warehouses = darray_create(4, sizeof *ctx.new_warehouses);
-    ctx.new_deliveries = darray_create(4, sizeof *ctx.new_deliveries);
-    ctx.unhandled_archetypes = darray_create(4, sizeof *ctx.unhandled_archetypes);
-}
+void init_context(void);
 
 int main(void) {
+	// INTERFACE
     puts("==== INTERFACE ====");
     if(init_shared_mem())
         interface_handle();
     puts("===================");
 
-    srandom(0);
     init_context();
+    //srandom(0);
     //init();
 
+	// CUTS
     printf("Cutting!\n");
     ClusterIndex* clusters = cut();
     size_t cluster_count = darray_size(clusters);
@@ -110,6 +102,21 @@ int main(void) {
 
 
     return 0;
+}
+
+void init_context(void) {
+    pool_init(&ctx.item_pool, 16, sizeof(Item));
+    pool_init(&ctx.delivery_pool, 16, sizeof(Delivery));
+    pool_init(&ctx.warehouse_pool, 16, sizeof(Warehouse));
+    pool_init(&ctx.drone_pool, 16, sizeof(Drone));
+    pool_init(&ctx.archetype_pool, 16, sizeof(Archetype));
+    pool_init(&ctx.cluster_pool, 16, sizeof(Cluster));
+    pool_init(&ctx.node_pool, 16, sizeof(Node));
+	pool_init(&ctx.edge_pool, 16, sizeof(Edge));
+
+    ctx.new_warehouses = darray_create(4, sizeof *ctx.new_warehouses);
+    ctx.new_deliveries = darray_create(4, sizeof *ctx.new_deliveries);
+    ctx.unhandled_archetypes = darray_create(4, sizeof *ctx.unhandled_archetypes);
 }
 
 
