@@ -149,7 +149,7 @@ def spawn_livraison(livraison_num: int, name: str, x: Optional[float] = None,
         x = 10
     if y is None :
         y = 10
-    offset = 1
+    offset = 1.5
     z = get_height(x, y) + offset
     print(z)
 

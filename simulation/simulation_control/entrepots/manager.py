@@ -148,7 +148,7 @@ def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
         x = 10
     if y is None :
         y = 10
-    offset = 0.5
+    offset = 0
     z = get_height(x, y) + offset
     print(z)
     # spawn_entrepot.sh <entrepot_num> <name> <x> <y> <z>
