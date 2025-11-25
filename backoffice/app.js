@@ -22,9 +22,16 @@ async function loadWarehouses() {
   for (const w of renderItems) {
     const card = document.createElement('div');
     card.className = 'card';
-    card.innerHTML = `<div><strong>${w.name}</strong></div>
-      <div class="muted">Lat/Lon: ${w.latitude.toFixed(5)}, ${w.longitude.toFixed(5)}</div>
-      <div class="row"><button data-id="${w.id}" class="btn btn primary btn-inventory">Voir inventaire</button></div>`;
+    card.className = 'card warehouse-card';
+    card.innerHTML = `
+      <div class="warehouse-info">
+        <div class="warehouse-title"><strong>${w.name}</strong></div>
+        <div class="muted">Lat/Lon: ${w.latitude.toFixed(5)}, ${w.longitude.toFixed(5)}</div>
+      </div>
+      <div class="row warehouse-actions" style="margin-top:auto; justify-content:flex-end;">
+        <button data-id="${w.id}" class="btn btn primary btn-inventory">Voir inventaire</button>
+      </div>
+    `;
     container.appendChild(card);
   }
   listEl.appendChild(container);
@@ -221,7 +228,7 @@ async function loadDrones() {
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `<div><strong>${d.drone_id}</strong> <span class="muted">${d.model ?? ''}</span></div>
-      <div class="muted">Nom: ${d.name ?? '-'}</div>`;
+      <div class="muted"> ${d.name ?? '-'}</div>`;
     container.appendChild(card);
   }
   listEl.appendChild(container);
@@ -349,6 +356,34 @@ async function loadMissions(filter = '') {
   for (const m of items) {
     const card = document.createElement('div');
     card.className = 'card';
+    function statusColor(s) {
+      if (!s) return '#b0b0b8';
+      const k = String(s).trim().toLowerCase().replace(/[_-]+/g, ' ');
+      const colors = {
+        'assigned': '#64b5f6',
+        'en cours': '#ffca28',
+        'in progress': '#ffca28',
+        'en route': '#4fc3f7',
+        'in transit': '#4fc3f7',
+        'completed': '#4caf50',
+        'delivered': '#4caf50',
+        'livré': '#4caf50',
+        'cancelled': '#e57373',
+        'canceled': '#e57373',
+        'failed': '#f44336',
+        'error': '#e53935',
+        'queued': '#90a4ae',
+        'scheduled': '#9575cd',
+        'pending': '#ff9800',
+        'en attente': '#ff9800',
+        'mission': '#ff7043',
+        'returning': '#29b6f6',
+        'armed': '#81c784',
+        'idle': '#9e9e9e',
+        'blocked': '#f44336',
+      };
+      return colors[k] || '#b0b0b8';
+    }
     const waypoints = (() => {
       try { const arr = JSON.parse(m.waypoints ?? '[]'); return Array.isArray(arr) ? arr : []; } catch { return []; }
     })();
@@ -380,10 +415,12 @@ async function loadMissions(filter = '') {
         <div class="muted" style="margin-top:6px">Commande: ${payloadOne.item_name} x${payloadOne.quantity} (${payloadOne.weight_kg}kg)</div>
       ` : ''}
       <div class="row" style="margin-top:8px;">
-        <label style="flex:1;">
-          <input type="text" id="${noteInputId}" placeholder="Ajouter une note" value="${m.note ?? ''}" />
+        <label style="flex:2;">
+          <textarea id="${noteInputId}" placeholder="Ajouter une note" rows="3">${m.note ?? ''}</textarea>
         </label>
-        <button data-id="${m.id}" class="btn btn primary btn-update-note">Enregistrer note</button>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button data-id="${m.id}" class="btn btn primary btn-update-note" style="margin-left:auto">Enregistrer note</button>
       </div>
       <div class="row" style="margin-top:8px;">
         <label>
@@ -399,6 +436,10 @@ async function loadMissions(filter = '') {
         <button data-id="${m.id}" class="btn btn primary btn-update-status">Mettre à jour</button>
       </div>
     `;
+    try {
+      const bc = statusColor(m.status);
+      card.style.border = `2px solid ${bc}`;
+    } catch {}
     container.appendChild(card);
   }
   listEl.appendChild(container);
