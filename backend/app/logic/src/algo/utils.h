@@ -84,6 +84,7 @@ typedef struct Drone {
 	Position position;
 	DeliveryIndex *targets;
 	uint8_t nb_targets;
+	Position final_position;
 } Drone;
 
 typedef struct {
@@ -112,6 +113,6 @@ float distance_2D(Position pos1, Position pos2);
 float consumption(Drone *drone, float distance, uint8_t speed, uint32_t charge);
 
 float can_handle(Drone *drone, uint8_t nb_deliveries, Node *deliveries[nb_deliveries], 
-		uint8_t speed);
+		uint8_t speed, Node** warehouses);
 
 bool is_constrained(ExclusionZone *cnst, const Position* pos1, const Position* pos2, Detour* out_detour);
