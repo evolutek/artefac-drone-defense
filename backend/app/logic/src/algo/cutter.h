@@ -27,6 +27,4 @@ void remove_delivery(DeliveryIndex idx);
 void remove_drone(DroneIndex idx);
 void remove_item(ItemIndex idx);
 
-void init_cutter(void);
-
 #endif /* ! CUTTER_H */

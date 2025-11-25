@@ -154,16 +154,3 @@ void remove_delivery(DeliveryIndex idx) {
 void add_drone(Drone dr) {
     pool_add(&ctx.drone_pool, Drone, dr);
 }
-
-void init_cutter(void) {
-    pool_init(&ctx.item_pool, 16, sizeof(Item));
-    pool_init(&ctx.delivery_pool, 16, sizeof(Delivery));
-    pool_init(&ctx.warehouse_pool, 16, sizeof(Warehouse));
-    pool_init(&ctx.drone_pool, 16, sizeof(Drone));
-    pool_init(&ctx.archetype_pool, 16, sizeof(Archetype));
-    pool_init(&ctx.cluster_pool, 16, sizeof(Cluster));
-
-    ctx.new_warehouses = darray_create(4, sizeof *ctx.new_warehouses);
-    ctx.new_deliveries = darray_create(4, sizeof *ctx.new_deliveries);
-    ctx.unhandled_archetypes = darray_create(4, sizeof *ctx.unhandled_archetypes);
-}

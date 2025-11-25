@@ -1,8 +1,11 @@
-#include "algo/cutter.h"
-#include "algo/utils.h"
 #include "interface/interface.h"
+#include "algo/utils.h"
+#include "algo/cutter.h"
+#include "utils/graph.h"
 #include "utils/darray.h"
 #include "utils/pool.h"
+
+#include "algo/path.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -17,7 +20,7 @@ size_t rand_index(size_t max) {
     long x = random();
     return x * max / RANDOM_MAX;
 }
-
+/*
 void init() {
     for (size_t i = 0; i < ITEM_COUNT; i++) {
         char* name = malloc(512);
@@ -53,24 +56,32 @@ void init() {
         add_delivery(del);
     }
 }
+*/
 
-float weight(Position pos, Delivery* del) {
-    uint32_t distance = distance_2D(pos, del->position);
-    (void) distance;
-    return 0;
+
+void init_context(void) {
+    pool_init(&ctx.item_pool, 16, sizeof(Item));
+    pool_init(&ctx.delivery_pool, 16, sizeof(Delivery));
+    pool_init(&ctx.warehouse_pool, 16, sizeof(Warehouse));
+    pool_init(&ctx.drone_pool, 16, sizeof(Drone));
+    pool_init(&ctx.archetype_pool, 16, sizeof(Archetype));
+    pool_init(&ctx.cluster_pool, 16, sizeof(Cluster));
+    pool_init(&ctx.node_pool, 16, sizeof(Node));
+
+    ctx.new_warehouses = darray_create(4, sizeof *ctx.new_warehouses);
+    ctx.new_deliveries = darray_create(4, sizeof *ctx.new_deliveries);
+    ctx.unhandled_archetypes = darray_create(4, sizeof *ctx.unhandled_archetypes);
 }
 
-/*
-int main() {
-
+int main(void) {
     puts("==== INTERFACE ====");
     if(init_shared_mem())
         interface_handle();
     puts("===================");
 
     srandom(0);
-    init_cutter();
-    init();
+    init_context();
+    //init();
 
     printf("Cutting!\n");
     ClusterIndex* clusters = cut();
@@ -100,9 +111,9 @@ int main() {
 
     return 0;
 }
-    */
 
 
+/*
 #include "algo/graph.h"
 #include "algo/path.h"
 
@@ -298,3 +309,4 @@ int main(void){
     printf("end\n");
     return 0;
 }
+    */

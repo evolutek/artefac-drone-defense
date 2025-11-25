@@ -32,6 +32,7 @@ typedef struct {
 
     Pool archetype_pool; // Archetype
     Pool cluster_pool;   // Cluster
+	Pool node_pool; 	 // Node
 
     WarehouseIndex* new_warehouses;
     DeliveryIndex* new_deliveries;
