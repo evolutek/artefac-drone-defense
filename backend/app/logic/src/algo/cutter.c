@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <pthread.h>
+
 Ctx ctx;
 
 #define DARRAY_FOR(var, array) for (size_t var = 0; var < darray_size(array); i++)
@@ -166,4 +168,7 @@ void init_cutter(void) {
     ctx.new_warehouses = darray_create(4, sizeof *ctx.new_warehouses);
     ctx.new_deliveries = darray_create(4, sizeof *ctx.new_deliveries);
     ctx.unhandled_archetypes = darray_create(4, sizeof *ctx.unhandled_archetypes);
+
+    pthread_mutex_init(&ctx.pool_mutex, NULL);
+    ctx.main_thread = pthread_self();
 }
