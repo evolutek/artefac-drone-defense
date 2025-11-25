@@ -45,6 +45,7 @@ typedef struct {
     sigjmp_buf restart_point;
     pthread_t main_thread;
     pthread_cond_t compute_ready_var;
+    bool running;
 } Ctx;
 
 typedef struct Position {

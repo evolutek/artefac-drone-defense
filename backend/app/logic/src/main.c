@@ -1,11 +1,12 @@
-#include "interface/interface.h"
-#include "algo/utils.h"
 #include "algo/cutter.h"
 #include "algo/graph.h"
+#include "algo/utils.h"
+#include "interface/interface.h"
 #include "utils/darray.h"
 #include "utils/pool.h"
 
 #include <setjmp.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -59,41 +60,6 @@ void init() {
     }
 }
 */
-
-
-void init_context(void) {
-    pool_init(&ctx.item_pool, 16, sizeof(Item));
-    pool_init(&ctx.delivery_pool, 16, sizeof(Delivery));
-    pool_init(&ctx.warehouse_pool, 16, sizeof(Warehouse));
-    pool_init(&ctx.drone_pool, 16, sizeof(Drone));
-    pool_init(&ctx.archetype_pool, 16, sizeof(Archetype));
-    pool_init(&ctx.cluster_pool, 16, sizeof(Cluster));
-    pool_init(&ctx.node_pool, 16, sizeof(Node));
-
-    ctx.new_warehouses = darray_create(4, sizeof *ctx.new_warehouses);
-    ctx.new_deliveries = darray_create(4, sizeof *ctx.new_deliveries);
-    ctx.unhandled_archetypes = darray_create(4, sizeof *ctx.unhandled_archetypes);
-
-    pthread_cond_init(&ctx.compute_ready_var, NULL);
-    pthread_mutex_init(&ctx.pool_mutex, NULL);
-    ctx.main_thread = pthread_self();
-}
-
-void cleanup_context(void) {
-    pthread_mutex_destroy(&ctx.pool_mutex);
-    pthread_cond_destroy(&ctx.compute_ready_var);
-
-    pool_cleanup(&ctx.item_pool);
-    pool_cleanup(&ctx.warehouse_pool);
-    pool_cleanup(&ctx.delivery_pool);
-    pool_cleanup(&ctx.archetype_pool);
-    pool_cleanup(&ctx.cluster_pool);
-    pool_cleanup(&ctx.drone_pool);
-
-    darray_destroy(ctx.new_deliveries);
-    darray_destroy(ctx.new_warehouses);
-    darray_destroy(ctx.unhandled_archetypes);
-}    
 
 /*
 void test_clustering(void) {
@@ -321,8 +287,49 @@ int repart_test(void) {
     */
 
 void usr1_handler(int sig) {
-    (void)sig;
+    (void) sig;
     siglongjmp(ctx.restart_point, 1);
+}
+
+void init_context(void) {
+    pool_init(&ctx.item_pool, 16, sizeof(Item));
+    pool_init(&ctx.delivery_pool, 16, sizeof(Delivery));
+    pool_init(&ctx.warehouse_pool, 16, sizeof(Warehouse));
+    pool_init(&ctx.drone_pool, 16, sizeof(Drone));
+    pool_init(&ctx.archetype_pool, 16, sizeof(Archetype));
+    pool_init(&ctx.cluster_pool, 16, sizeof(Cluster));
+    pool_init(&ctx.node_pool, 16, sizeof(Node));
+
+    ctx.new_warehouses       = darray_create(4, sizeof *ctx.new_warehouses);
+    ctx.new_deliveries       = darray_create(4, sizeof *ctx.new_deliveries);
+    ctx.unhandled_archetypes = darray_create(4, sizeof *ctx.unhandled_archetypes);
+
+    pthread_cond_init(&ctx.compute_ready_var, NULL);
+    pthread_mutex_init(&ctx.pool_mutex, NULL);
+    ctx.main_thread = pthread_self();
+    ctx.running     = true;
+
+    struct sigaction action = {
+        .sa_handler = &usr1_handler,
+    };
+    sigaction(SIGUSR1, &action, NULL);
+}
+
+void cleanup_context(void) {
+    ctx.running = false;
+    pthread_mutex_destroy(&ctx.pool_mutex);
+    pthread_cond_destroy(&ctx.compute_ready_var);
+
+    pool_cleanup(&ctx.item_pool);
+    pool_cleanup(&ctx.warehouse_pool);
+    pool_cleanup(&ctx.delivery_pool);
+    pool_cleanup(&ctx.archetype_pool);
+    pool_cleanup(&ctx.cluster_pool);
+    pool_cleanup(&ctx.drone_pool);
+
+    darray_destroy(ctx.new_deliveries);
+    darray_destroy(ctx.new_warehouses);
+    darray_destroy(ctx.unhandled_archetypes);
 }
 
 int main(void) {
@@ -334,11 +341,19 @@ int main(void) {
         pthread_mutex_lock(&ctx.pool_mutex);
         pthread_cond_wait(&ctx.compute_ready_var, &ctx.pool_mutex);
         // Recompute needed, discard
-        //ClusterIndex* dirty_cluster_indices = cut();
+        puts("Interrupted!");
+        if (!ctx.running)
+            goto ending;
+        // ClusterIndex* dirty_cluster_indices = cut();
     }
 
     // Wave compute
+    puts("Computing...");
+    while (1)
+        ;
 
+ending:
+    pthread_mutex_unlock(&ctx.pool_mutex);
     stop_interface();
     cleanup_context();
     return 0;

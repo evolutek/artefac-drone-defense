@@ -4,7 +4,6 @@
 #include "utils/index.h"
 #include "utils/pool.h"
 
-#include <bits/types/sigset_t.h>
 #include <fcntl.h>
 #include <semaphore.h>
 #include <signal.h>
@@ -23,7 +22,6 @@ static SharedMemory* shm;
 static sem_t* sem_buf1;
 static sem_t* sem_buf2;
 
-static bool running = true;
 static pthread_t thread;
 
 #define MAX_RETRIES 5
@@ -81,8 +79,8 @@ static void handle_event(const Event* event) {
     pthread_mutex_lock(&ctx.pool_mutex);
     switch (event->type) {
     case EVENT_STOP:
-        running = false;
-        return;
+        ctx.running = false;
+        break;
     case EVENT_DRONE_NEW: {
         const NewDronePkt* pkt = &event->data.new_drone;
         add_drone((Drone) {
@@ -180,7 +178,7 @@ static void* interface_handle(void* _unused) {
     sigaddset(&mask, SIGUSR1);
     pthread_sigmask(SIG_BLOCK, &mask, NULL);
 
-    while (running) {
+    while (ctx.running) {
         puts("IF: Waiting for backend messages...");
         if (sem_wait(sem_buf2) < 0) {
             perror("sem_wait");
@@ -188,7 +186,7 @@ static void* interface_handle(void* _unused) {
 
         handle_event(&shm->buf2);
     }
-    stop_interface();
+    puts("Interface finished.");
     return NULL;
 }
 
@@ -212,13 +210,11 @@ bool init_interface(void) {
     if (retries == MAX_RETRIES)
         return false;
 
-    running = true;
     pthread_create(&thread, NULL, &interface_handle, NULL);
     return true;
 }
 
 void stop_interface(void) {
-    running = false;
     pthread_join(thread, NULL);
 
     munmap(shm, SHM_SIZE);
