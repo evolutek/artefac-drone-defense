@@ -24,6 +24,7 @@ size_t rand_index(size_t max) {
     long x = random();
     return x * max / RANDOM_MAX;
 }
+
 void init() {
     for (size_t i = 0; i < ITEM_COUNT; i++) {
         char* name = malloc(512);

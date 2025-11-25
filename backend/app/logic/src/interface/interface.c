@@ -92,6 +92,7 @@ static void handle_event(const Event* event) {
             .max_flight_time       = pkt->max_flight_time,
             .max_flight_time_speed = pkt->max_flight_time_speed,
             .position              = pkt->position,
+            .final_position        = pkt->position,
         });
         break;
     }
