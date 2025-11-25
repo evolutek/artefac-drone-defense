@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include "utils/pool.h"
 #include "utils/index.h"
+#include <pthread.h>
+#include <setjmp.h>
 
 typedef struct Node Node;
 
@@ -36,7 +38,13 @@ typedef struct {
 
     WarehouseIndex* new_warehouses;
     DeliveryIndex* new_deliveries;
+    DroneIndex* new_drones;
     ArchetypeIndex* unhandled_archetypes;
+
+    pthread_mutex_t pool_mutex;
+    sigjmp_buf restart_point;
+    pthread_t main_thread;
+    pthread_cond_t compute_ready_var;
 } Ctx;
 
 typedef struct Position {

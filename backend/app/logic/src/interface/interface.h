@@ -84,8 +84,8 @@ typedef struct {
 
 typedef struct {
     uint64_t drone_id;
-    uint32_t delivery_count;
-    uint64_t deliveries[MAX_DELIVERIES_PER_DRONE];
+    uint32_t waypoint_count;
+    Position waypoints[MAX_DELIVERIES_PER_DRONE];
 } PACKED DroneAssignment;
 
 typedef struct {
@@ -105,8 +105,7 @@ typedef struct {
     Assignments buf1;
 } PACKED SharedMemory;
 
-bool init_shared_mem(void);
-void interface_handle(void);
-void cleanup_shared_mem(void);
+bool init_interface(void);
+void stop_interface(void);
 
 #endif /* ! INTERFACE_H */
