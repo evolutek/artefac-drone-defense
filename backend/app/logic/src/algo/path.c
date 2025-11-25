@@ -123,7 +123,7 @@ Node*** choose_drone_naive_warehouse(struct Drone** drones, size_t index, Node**
 //create a copy with the drone->selected_warehouse
 char create_new_solution_warehouse(Node*** warehouse_solution, size_t index_to_add, struct Drone* drone, Node* selected_warehouse, Node**** new_warehouse_solution){
 
-    if (consumption(drone, distance_2D(drone->position, selected_warehouse->content.warehouse->pos), drone->max_speed, 0) < drone->autonomy){
+    if (consumption(drone, distance_2D(drone->final_postion, selected_warehouse->content.warehouse->pos), drone->max_speed, 0) < drone->autonomy){
         //copie
         *new_warehouse_solution = darray_create(darray_size(warehouse_solution), sizeof(Node**));
         for (size_t i = 0; i < darray_size(warehouse_solution); i++){
@@ -157,16 +157,20 @@ Node*** choose_drone_naive_aux(struct Drone** drones, Node*** deliveries, size_t
 
     //End of the recursion
     if (*actual_index == darray_size(deliveries)){
-        float new_score = 0;
+        float max_score = 0;
         for (size_t i = 0; i < darray_size(drones); i++){
             struct Node* ancient = solution[i][0];
+            float total_score = 0;
             for (size_t j = 1; j < darray_size(solution[i]); j++){
-                new_score += cost_between(ancient, solution[i][j]); //EDIT
+                total_score += cost_between(ancient, solution[i][j]); //EDIT
                 ancient = solution[i][j]; //EDIT
+            }
+            if (total_score > max_score){
+                max_score = total_score;
             }
         }
         
-        *score = new_score;
+        *score = max_score;
         return solution;
     }
 
@@ -222,16 +226,20 @@ Node*** choose_drone_naive_aux(struct Drone** drones, Node*** deliveries, size_t
     }
     //no solution created
     if (best_score == 0){
-        float new_score = 0;
+        float max_score = 0;
         for (size_t i = 0; i < darray_size(drones); i++){
             struct Node* ancient = solution[i][0];
+            float total_score = 0;
             for (size_t j = 1; j < darray_size(solution[i]); j++){
-                new_score += cost_between(ancient, solution[i][j]); //EDIT
+                total_score += cost_between(ancient, solution[i][j]); //EDIT
                 ancient = solution[i][j]; //EDIT
+            }
+            if (total_score > max_score){
+                max_score = total_score;
             }
         }
         
-        *score = new_score;
+        *score = max_score;
         return solution;
     }
 

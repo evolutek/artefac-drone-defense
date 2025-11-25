@@ -82,6 +82,7 @@ typedef struct Drone {
 	Position position;
 	Delivery *targets;
 	uint8_t nb_targets;
+	Position final_position;
 } Drone;
 
 typedef struct {
