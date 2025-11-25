@@ -10,7 +10,7 @@ from ..config import (
     SCRIPTS_DIR
 )
 from ..common.storage import generic_load_json, generic_save_json
-from ..common.gazebo import generic_discover_from_gazebo
+from ..common.gazebo import generic_discover_from_gazebo, get_height
 from ..common.executor import generic_spawn_entity, generic_despawn_entity
 
 
@@ -113,7 +113,7 @@ def spawn_drone(drone_num: int, x: Optional[float] = None,
         x = 10
     if y is None :
         y = 10
-    offset = 4
+    offset = 10
     z = get_height(x, y) + offset
     print(z)
     # Prepare spawn script arguments
