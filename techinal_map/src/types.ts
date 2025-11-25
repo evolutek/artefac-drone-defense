@@ -28,6 +28,7 @@ export type MissionCreate = {
   mission_type: string;
   waypoints: MissionWaypoint[];
   priority?: number;
+  note?: string;
 };
 
 export type Payload = {

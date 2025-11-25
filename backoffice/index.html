@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Evolutek Backoffice Logistique</title>
+    <link rel="icon" href="/admin/assets/logo-artifact-ago-white.png" type="image/png" sizes="32x32" />
+    <link rel="stylesheet" href="/admin/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="row" style="gap:10px; align-items:center;">
+        <img src="/admin/assets/logo-artifact-ago-white.png" alt="Artefac" class="logo" />
+        <h1>Backoffice Logistique</h1>
+      </div>
+      <p>Gérer entrepôts, produits, inventaire et drones</p>
+    </header>
+
+    <main>
+      <section id="warehouses">
+        <h2>Entrepôts</h2>
+        <div class="row" style="margin-bottom:8px;">
+          <label><input type="checkbox" id="warehouse-filter-fr" checked /> Afficher seulement France</label>
+        </div>
+        <form id="warehouse-form">
+          <input type="text" name="name" placeholder="Nom" required />
+          <input type="number" step="any" name="latitude" placeholder="Latitude" required />
+          <input type="number" step="any" name="longitude" placeholder="Longitude" required />
+          <input type="text" name="address" placeholder="Adresse (optionnel)" />
+          <input type="number" name="capacity" placeholder="Capacité (optionnel)" />
+          <button type="submit">Ajouter</button>
+        </form>
+        <div id="warehouse-list"></div>
+      </section>
+
+      <section id="products">
+        <h2>Produits</h2>
+        <div class="row" style="margin-bottom:8px">
+          <button id="seed-products" class="btn">Ajouter articles de test</button>
+          <span class="muted" style="margin-left:8px">Ajoute un ensemble d’articles démo</span>
+        </div>
+        <form id="product-form">
+          <input type="text" name="name" placeholder="Nom" required />
+          <input type="text" name="description" placeholder="Description" />
+          <input type="text" name="category" placeholder="Catégorie" />
+          <input type="number" step="any" name="weight_kg" placeholder="Poids (kg)" />
+          <input type="url" name="image_url" placeholder="Image URL" />
+          <button type="submit">Ajouter</button>
+        </form>
+        <div id="product-list"></div>
+      </section>
+
+      <section id="inventory">
+        <h2>Inventaire</h2>
+        <form id="inventory-form">
+          <select name="warehouse_id" required></select>
+          <select name="product_id" required></select>
+          <input type="number" name="quantity" placeholder="Quantité" required />
+          <button type="submit">Enregistrer</button>
+        </form>
+        <div id="inventory-view"></div>
+      </section>
+
+      <section id="drones">
+        <h2>Drones</h2>
+        <form id="drone-form">
+          <input type="text" name="drone_id" placeholder="ID unique (ex: drone_2)" required />
+          <input type="text" name="name" placeholder="Nom" />
+          <input type="text" name="model" placeholder="Modèle (ex: gz_x500)" />
+          <button type="submit">Ajouter</button>
+        </form>
+        <div id="drone-list"></div>
+      </section>
+
+      <section id="missions">
+        <h2>Suivi des livraisons</h2>
+        <div class="row" style="margin-bottom: 10px;">
+          <label class="muted">Filtrer par état
+            <select id="mission-status-filter">
+              <option value="">Tous</option>
+              <option value="pending">Préparation</option>
+              <option value="assigned">Assignée</option>
+              <option value="in_progress">En vol</option>
+              <option value="blocked">Bloqué</option>
+              <option value="completed">Livré</option>
+              <option value="failed">Annulé</option>
+            </select>
+          </label>
+          <button id="mission-refresh" class="btn" style="margin-left:auto">Rafraîchir</button>
+        </div>
+        <div id="mission-list" class="list"></div>
+      </section>
+    </main>
+
+    <script src="/admin/app.js"></script>
+  </body>
+  </html>

@@ -19,7 +19,10 @@ class Mission(Base):
     # Waypoints stored as JSON text
     waypoints = Column(Text, nullable=True)  # JSON array of {lat, lon, alt}
 
-    # Metadata
+    # Order payload(s) stored as JSON text
+    payload = Column(Text, nullable=True)   # JSON object {item_name, weight_kg, quantity}
+    payloads = Column(Text, nullable=True)  # JSON string
+    note = Column(Text, nullable=True)  # Free-form operator note
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     started_at = Column(DateTime, nullable=True)

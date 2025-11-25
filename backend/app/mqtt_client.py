@@ -7,7 +7,12 @@ import json
 import logging
 import threading
 from typing import Optional, Dict, Any
-import paho.mqtt.client as mqtt
+try:
+    import paho.mqtt.client as mqtt  # type: ignore
+except Exception:
+    mqtt = None  # Fallback: allow backend to run without MQTT dependency
+    logger = logging.getLogger(__name__)
+    logger.warning("paho-mqtt not available; MQTT will be disabled.")
 
 logger = logging.getLogger(__name__)
 
@@ -238,6 +243,10 @@ class MQTTClient:
             logger.warning("MQTT client already started")
             return
 
+        if mqtt is None:
+            logger.warning("Cannot start MQTT: paho-mqtt not installed")
+            return
+
         logger.info(f"Starting MQTT client connecting to {self.broker_host}:{self.broker_port}")
 
         self.client = mqtt.Client(client_id=self.client_id)
@@ -271,7 +280,7 @@ class MQTTClient:
         Publish command to drone via MQTT
         Topic: drone/{drone_id}/command
         """
-        if not self.connected:
+        if not self.connected or self.client is None:
             logger.error("Cannot publish command: MQTT client not connected")
             return False
 

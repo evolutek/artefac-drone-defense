@@ -343,3 +343,38 @@ artefac-drone-defense/
 **Email**: evolutek.ionis@gmail.com  
 **Challenge**: 4 - Livraison en Situation de Crise  
 **Event**: Hackathon Artefac Drone Defense  
+
+---
+
+## Client Electron (Globe topographique Three.js)
+
+### Lancement en dev
+
+- Pré-requis: Node.js 18+ installé sur l’hôte (macOS)
+- Commandes:
+
+```bash
+cd electron-client
+npm install
+npm run start
+```
+
+Cela démarre le serveur Vite (`http://localhost:5173`) et ouvre la fenêtre Electron qui charge le renderer.
+
+### Fonctionnalités incluses
+- Globe topographique (texture relief) avec `three-globe`
+- Contrôles Orbite (zoom/rotation)
+- UI pour saisie des coordonnées de départ/arrivée (lat/lon WGS84)
+- Tracé de la trajectoire en arc animé sur le globe
+
+### Personnalisation
+- Texture du globe: modifier `globeImageUrl` dans `electron-client/src/main.ts`
+- Couleur/altitude des arcs: ajuster `.arcColor`, `.arcAltitude`
+- Intégration backend: utiliser `ws://localhost:8001/ws/drone/<id>` pour télémetrie (TODO)
+
+### Build (production)
+```bash
+cd electron-client
+npm run build
+# Puis charger dist via un main.js de prod (non inclus)
+```

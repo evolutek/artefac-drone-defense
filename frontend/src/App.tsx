@@ -16,7 +16,7 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 mt-6">
         <div className="grid grid-cols-1 gap-6">
           {/* Health Dashboard */}
           <HealthDashboard />

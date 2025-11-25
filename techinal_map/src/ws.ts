@@ -1,10 +1,11 @@
 import type { WSMessage, TelemetryMessage } from './types';
 import { useDroneStore } from './state/store';
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8000/ws/telemetry';
+const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8001/ws/telemetry';
 
 let socket: WebSocket | null = null;
 let reconnectTimer: number | null = null;
+const stateCallbacks: Array<(msg: WSMessage) => void> = [];
 
 export function startWebSocket() {
   if (socket) return;
@@ -27,9 +28,17 @@ export function startWebSocket() {
   socket.onmessage = (event) => {
     try {
       const msg: WSMessage = JSON.parse(event.data);
+      // Debug: trace incoming state events
+      if (msg.type === 'state') {
+        console.debug('[WS] state event', msg);
+      }
       if (msg.type === 'telemetry') {
         const t = (msg as TelemetryMessage).data;
         useDroneStore.getState().upsertTelemetry(t);
+      } else if (msg.type === 'state') {
+        for (const cb of stateCallbacks) {
+          try { cb(msg); } catch {}
+        }
       }
       // other message types can be handled here
     } catch (e) {
@@ -53,4 +62,13 @@ export function startWebSocket() {
       startWebSocket();
     }, 2000);
   }
+}
+
+export function onStateEvent(cb: (msg: WSMessage) => void) {
+  stateCallbacks.push(cb);
+}
+
+export function offStateEvent(cb: (msg: WSMessage) => void) {
+  const i = stateCallbacks.indexOf(cb);
+  if (i >= 0) stateCallbacks.splice(i, 1);
 }

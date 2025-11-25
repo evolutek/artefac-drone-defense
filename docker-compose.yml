@@ -113,9 +113,6 @@ services:
   mqtt:
     image: eclipse-mosquitto:2.0
     container_name: artefac_mqtt
-    ports:
-      - "1883:1883"
-      - "9001:9001"
     volumes:
       - ./mqtt/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mqtt_data:/mosquitto/data:rw
@@ -137,7 +134,7 @@ services:
         PYTHON_VERSION: "3.10"
     container_name: artefac_backend
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./backend_data/app.db}
       - BACKEND_PORT=${BACKEND_PORT:-8000}

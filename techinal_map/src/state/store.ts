@@ -5,19 +5,21 @@ export type DroneState = {
   drones: Record<string, DroneTelemetry>;
   trajectories: Record<string, Array<[number, number]>>; // [lat, lon]
   zones: Array<{ id: string; name: string; center: [number, number]; radius: number; color?: string }>;
-  missions: Array<{ id: number; drone_id: string; waypoints: Array<[number, number]>; status?: string; payload?: Payload; payloads?: PayloadItem[]; progress?: number; eta?: string; started_at?: number; delivered_at?: number }>;
+  missions: Array<{ id: number; drone_id: string; waypoints: Array<[number, number]>; status?: string; payload?: Payload; payloads?: PayloadItem[]; note?: string; progress?: number; eta?: string; started_at?: number; delivered_at?: number }>;
   showTrajectories: boolean;
   draftTarget?: [number, number] | null;
   selectedDroneId?: string | null;
   setShowTrajectories: (show: boolean) => void;
   upsertTelemetry: (t: DroneTelemetry) => void;
-  addMission: (m: { id: number; drone_id: string; waypoints: Array<[number, number]>; status?: string; payload?: Payload; payloads?: PayloadItem[]; progress?: number; eta?: string; started_at?: number; delivered_at?: number }) => void;
+  addMission: (m: { id: number; drone_id: string; waypoints: Array<[number, number]>; status?: string; payload?: Payload; payloads?: PayloadItem[]; note?: string; progress?: number; eta?: string; started_at?: number; delivered_at?: number }) => void;
   submitMission: (m: MissionCreate, payload?: Payload, payloads?: PayloadItem[]) => Promise<void>;
   setDraftTarget: (pt: [number, number] | null) => void;
   setSelectedDroneId: (id: string | null) => void;
+  loadMissions: () => Promise<void>;
+  setMissionStatus: (mission_id: number, status: string) => void;
 };
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8001';
 function loadPersistedMissions(): DroneState['missions'] {
   try {
     const raw = localStorage.getItem('missions');
@@ -51,7 +53,7 @@ const createStore: StateCreator<DroneState> = (set, get) => ({
       trajectories: { ...state.trajectories, [t.drone_id]: nextTraj }
     };
   }),
-  addMission: (m: { id: number; drone_id: string; waypoints: Array<[number, number]>; status?: string; payload?: Payload; payloads?: PayloadItem[]; progress?: number; eta?: string; started_at?: number }) =>
+  addMission: (m: { id: number; drone_id: string; waypoints: Array<[number, number]>; status?: string; payload?: Payload; payloads?: PayloadItem[]; note?: string; progress?: number; eta?: string; started_at?: number }) =>
     set((state: DroneState) => {
       const next = [...state.missions, m];
       try { localStorage.setItem('missions', JSON.stringify(next)); } catch {}
@@ -59,6 +61,28 @@ const createStore: StateCreator<DroneState> = (set, get) => ({
     }),
   setDraftTarget: (pt: [number, number] | null) => set({ draftTarget: pt }),
   setSelectedDroneId: (id: string | null) => set({ selectedDroneId: id }),
+  setMissionStatus: (mission_id: number, status: string) => {
+    const mapProgress = (s: string): number | undefined => {
+      const k = (s || '').toLowerCase();
+      if (['created', 'pending', 'queued', 'préparation'].includes(k)) return 0;
+      if (['loading', 'chargement'].includes(k)) return 20;
+      if (['in_progress', 'running', 'en vol'].includes(k)) return 50;
+      if (['near_destination', 'approche', 'près de la destination'].includes(k)) return 80;
+      if (['completed', 'done', 'livré'].includes(k)) return 100;
+      if (['failed', 'error'].includes(k)) return undefined;
+      return undefined;
+    };
+    const prog = mapProgress(status);
+    set((state: DroneState) => {
+      const next = state.missions.map((m) => {
+        if (m.id !== mission_id) return m;
+        const delivered_at = (prog === 100) ? Date.now() : m.delivered_at;
+        return { ...m, status, progress: prog, delivered_at };
+      });
+      try { localStorage.setItem('missions', JSON.stringify(next)); } catch {}
+      return { missions: next };
+    });
+  },
   submitMission: async (m: MissionCreate, payload?: Payload, payloads?: PayloadItem[]) => {
     const useMock = import.meta.env.DEV && (import.meta.env.VITE_USE_MOCK ?? 'true') !== 'false';
     const waypoints: [number, number][] = m.waypoints.map(
@@ -108,10 +132,50 @@ const createStore: StateCreator<DroneState> = (set, get) => ({
     set((state: DroneState) => ({
       missions: [
         ...state.missions,
-        { id: created.id ?? Date.now(), drone_id: m.drone_id, waypoints, status: created.status, payload, payloads }
+        { id: created.id ?? Date.now(), drone_id: m.drone_id, waypoints, status: created.status, payload, payloads, note: created.note }
       ]
     }));
-  }
+  },
+  loadMissions: async () => {
+    try {
+      const res = await fetch(`${API_URL}/missions`);
+      if (!res.ok) return;
+      const items = await res.json();
+      const normalized = Array.isArray(items)
+        ? items.map((mm: any) => ({
+            id: mm.id,
+            drone_id: mm.drone_id,
+            waypoints: (() => {
+              const w = mm.waypoints;
+              if (Array.isArray(w)) return w.map((wp: any) => [wp.lat, wp.lon] as [number, number]);
+              try { const parsed = JSON.parse(w ?? '[]'); return parsed.map((wp: any) => [wp.lat, wp.lon] as [number, number]); } catch { return []; }
+            })(),
+            status: mm.status,
+            note: mm.note,
+            // Derive progress from status for initial load
+            progress: (() => {
+              const k = (mm.status || '').toLowerCase();
+              if (['created', 'pending', 'queued', 'préparation'].includes(k)) return 0;
+              if (['loading', 'chargement'].includes(k)) return 20;
+              if (['in_progress', 'running', 'en vol'].includes(k)) return 50;
+              if (['near_destination', 'approche', 'près de la destination'].includes(k)) return 80;
+              if (['completed', 'done', 'livré'].includes(k)) return 100;
+              return undefined;
+            })(),
+            started_at: (() => {
+              const s = mm.started_at;
+              try { return s ? new Date(s).getTime() : undefined; } catch { return undefined; }
+            })(),
+            delivered_at: (() => {
+              const s = mm.completed_at;
+              try { return s ? new Date(s).getTime() : undefined; } catch { return undefined; }
+            })(),
+          }))
+        : [];
+      set({ missions: normalized });
+    } catch {}
+  },
+  // La mise à jour d’état est déléguée au backoffice
 });
 
 export const useDroneStore = create<DroneState>(createStore);

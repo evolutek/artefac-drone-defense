@@ -1,0 +1,122 @@
+
+DRONE DELIVERY SYSTEM - DEFENSE HACKATHON - TECHNICAL SPEC v1
+==============================================================
+
+DOCUMENT TYPE: Full technical .txt specification
+MISSION: Build the ultimate drone delivery system for the Ministry of Defense
+SCOPE: Verification of drone specs + unified operational model + system architecture
+
+--------------------------------------------------------------
+1. DRONE SPEC VERIFICATION
+--------------------------------------------------------------
+
+1.1 DELAIR DT46 (Voilure fixe / VTOL)
+- Masse max: 20 à 25 kg selon version
+- Charge utile: 5 kg confirmé constructeur
+- Autonomie: jusqu’à 6h30 (en mode voilure fixe)
+- Portée: ~100 km
+- Vitesse typique: 50–70 km/h
+- Usage: Longue distance / logistique stratégique
+
+1.2 HEXADRONE TUNDRA 2 (Filaire / Anti-jam selon config)
+- Poids drone: < 10 kg selon configuration
+- Charge utile: 5 kg confirmé (certaines versions permettent plus)
+- Autonomie: 30 à 60 minutes selon payload
+- Vitesse: 50–65 km/h
+- Portée: 12–20 km selon autonomie embarquée
+- Version filaire / anti-jamming: disponible selon configuration
+- Usage: Moyenne distance, missions tactiques robustes
+
+1.3 DJI MAVIC 2 / MAVIC 3
+- Poids: ~0.895 kg
+- Payload: ~500 g (non officiel mais communément admis)
+- Autonomie: 40 à 46 minutes
+- Portée: ~30 km
+- Vitesse: 40–50 km/h (croisière), jusqu'à 70 km/h en mode sport
+- Usage: Courte distance / rapide déploiement / missions urbaines
+
+1.4 RISQUE METEO / VENT
+- Impact fort sur autonomie (perte 20–40%)
+- Impact sur vitesse sol
+- Doit être intégré au moteur de mission
+
+--------------------------------------------------------------
+2. ARCHITECTURE DE SOLUTION - DRONE DELIVERY SYSTEM
+--------------------------------------------------------------
+
+2.1 CLASSES DE DRONES
+- Classe L (Long Range): DT46 – 70 à 100+ km
+- Classe M (Medium Range): Tundra 2 – 20 à 70 km
+- Classe S (Short Range): Mavic 2/3 – 5 à 20 km
+
+2.2 MODE OPERATOIRE
+- Sélection automatique du drone optimal selon:
+  - distance
+  - météo
+  - charge utile
+  - niveau batterie
+  - trajectoire
+- Plan de vol généré automatiquement via moteur IA
+- Suivi temps réel (batterie/position/vent)
+- Recalcul dynamique en cas de changement météo
+
+--------------------------------------------------------------
+3. MOTEUR DE MISSION
+--------------------------------------------------------------
+
+3.1 ENTREE UTILISATEUR
+- Coordonnées de destination
+- Type de payload (1 kg, 5 kg)
+- Priorité
+- Contrainte temporelle
+- Mode vol (furtif, normal, filaire)
+
+3.2 SORTIE SYSTEME
+- Drone optimal sélectionné
+- Temps total estimé
+- Autonomie requise + marge
+- Altitude et profil de vol
+- Plan de sécurité (RTB, vent, batterie minimale)
+
+--------------------------------------------------------------
+4. SIMULATION & DIGITAL TWIN
+--------------------------------------------------------------
+
+4.1 SIMULATIONS
+- Simulation vent
+- Simulation consommation batterie
+- Simulation portée réelle
+- Test long-range DT46
+- Test medium-range Tundra2
+- Test short-range Mavic
+
+4.2 OBJECTIF
+- Valider qu’une mission est faisable avant de la lancer
+
+--------------------------------------------------------------
+5. RECOMMANDATIONS STRATEGIQUES
+--------------------------------------------------------------
+
+5.1 DRONES
+- DT46 pour longue distance
+- Tundra pour missions tactiques résilientes
+- Mavic pour urgences locales
+
+5.2 LOGICIEL
+- Moteur IA pour routing dynamique
+- Mesure météo obligatoire avant vol
+- Calcul de marge sécurité obligatoire
+- Historique + télémétrie + alertes temps réel
+
+--------------------------------------------------------------
+6. RESUME FINAL
+--------------------------------------------------------------
+
+DT46 = longue distance (100 km, 5 kg, 6h30)
+Tundra 2 = medium range (20–70 km, 5 kg, 30–60 min)
+Mavic 2/3 = short range (20–30 km, 0.5 kg, 40 min)
+
+SOLUTION OPTIMALE =
+Plateforme unifiée + moteur IA + sélection automatique du drone + simulation pré-vol + télémétrie + anti-jam + météo intégrée.
+
+FIN DU DOCUMENT

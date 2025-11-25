@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import MapView from './components/MapView';
 import MissionForm from './components/MissionForm';
+import { onStateEvent, offStateEvent, startWebSocket } from './ws';
 import { useDroneStore, type DroneState } from './state/store';
 import Modal from './components/Modal';
 import type { Payload, PayloadItem } from './types';
@@ -16,6 +17,7 @@ export default function App() {
   const setSelectedDroneId = useDroneStore((s: DroneState) => s.setSelectedDroneId);
   const [modalOpen, setModalOpen] = useState<boolean>(false);
   const missions = useDroneStore((s: DroneState) => s.missions);
+  const [selectedMissionId, setSelectedMissionId] = useState<number | null>(null);
   const [replayPayload, setReplayPayload] = useState<Payload | undefined>(undefined);
   const [replayPayloads, setReplayPayloads] = useState<PayloadItem[] | undefined>(undefined);
   const [mode, setMode] = useState<'catalogue' | 'carte' | 'historique'>('catalogue');
@@ -144,6 +146,45 @@ export default function App() {
     window.addEventListener('mouseup', onUp, { passive: true });
   }
 
+  // Charger les missions depuis le backend au démarrage
+  useEffect(() => {
+    if (!authenticated) return;
+    // Assurer la connexion WebSocket pour recevoir les mises à jour en temps réel
+    startWebSocket();
+    const fn = useDroneStore.getState().loadMissions;
+    if (typeof fn === 'function') {
+      fn().catch(() => {});
+    }
+  }, [authenticated]);
+
+  // Écoute temps réel des missions: création, statut, note, suppression
+  useEffect(() => {
+    if (!authenticated) return;
+    const handler = (msg: any) => {
+      if (msg?.type !== 'state') return;
+      const t = msg?.data?.type;
+      if (t === 'mission_status_update') {
+        const mission_id = msg?.data?.mission_id;
+        const status = msg?.data?.status;
+        if (typeof mission_id === 'number' && typeof status === 'string') {
+          const setStatus = useDroneStore.getState().setMissionStatus;
+          if (typeof setStatus === 'function') {
+            setStatus(mission_id, status);
+          }
+          return; // éviter rechargement complet pour simple mise à jour de statut
+        }
+      }
+      if (t === 'mission_upsert' || t === 'mission_note_update' || t === 'mission_delete') {
+        const fn = useDroneStore.getState().loadMissions;
+        if (typeof fn === 'function') {
+          fn().catch(() => {});
+        }
+      }
+    };
+    onStateEvent(handler);
+    return () => offStateEvent(handler);
+  }, [authenticated]);
+
   return (
     <div style={{ height: '100vh' }}>
       {!authenticated && (
@@ -236,6 +277,7 @@ export default function App() {
               <rect x="4" y="16" width="16" height="2" fill="#fff"/>
             </svg>
           </button>
+
           <button
             type="button"
             className="btn"
@@ -313,6 +355,7 @@ export default function App() {
                         setLastClick({ lat: first[0], lon: first[1] });
                         setDraftTarget([first[0], first[1]]);
                       }
+                      setSelectedMissionId(m.id);
                       setSelectedDroneId(m.drone_id);
                       setReplayPayload(m.payload);
                       setReplayPayloads(m.payloads);
@@ -328,6 +371,7 @@ export default function App() {
                       : (m.payload ? ` — ${m.payload.item_name} x${m.payload.quantity} (${m.payload.weight_kg}kg)` : '')}
                     {m.status ? ` — ${m.status}` : ''}
                     {m.eta ? ` • ETA ${m.eta}` : ''}
+                    {(m as any).note ? ` • Note: ${(m as any).note}` : ''}
                   </button>
                   {typeof m.progress === 'number' && (
                     <div style={{ marginTop: 4, height: 6, background: 'rgba(255,255,255,0.12)', borderRadius: 6, overflow: 'hidden', width: '100%' }}>
@@ -370,6 +414,7 @@ export default function App() {
                       setLastClick({ lat: first[0], lon: first[1] });
                       setDraftTarget([first[0], first[1]]);
                     }
+                    setSelectedMissionId(m.id);
                     setSelectedDroneId(m.drone_id);
                     setReplayPayload(m.payload);
                     setReplayPayloads(m.payloads);
@@ -386,6 +431,7 @@ export default function App() {
                     : (m.payload ? ` — ${m.payload.item_name} x${m.payload.quantity} (${m.payload.weight_kg}kg)` : '')}
                   {m.status ? ` — ${m.status}` : ''}
                   {m.status && m.status !== 'livré' && m.eta ? ` • ETA ${m.eta}` : ''}
+                  {(m as any).note ? ` • Note: ${(m as any).note}` : ''}
                 </button>
                 {typeof m.progress === 'number' && (
                   <div style={{ marginTop: 4, height: 6, background: 'rgba(255,255,255,0.12)', borderRadius: 6, overflow: 'hidden', width: '100%' }}>
@@ -404,6 +450,11 @@ export default function App() {
             fontFamily: 'apple-system, sans-serif',
           }}>
             MGRS: {mgrs.forward([lastClick.lon, lastClick.lat])}
+            {(() => {
+              const m = missions.find((mm) => mm.id === selectedMissionId);
+              const note = (m as any)?.note as string | undefined;
+              return note ? (<div style={{ marginTop: 4, color: 'rgba(255,255,255,0.85)' }}>Note: {note}</div>) : null;
+            })()}
           </div>
         )}
       </main>
