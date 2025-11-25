@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="256" viewBox="0 0 512 256">
+  <defs>
+    <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#90caf9"/>
+      <stop offset="1" stop-color="#42a5f5"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="256" fill="url(#g)"/>
+  <text x="256" y="132" fill="#ffffff" font-size="22" text-anchor="middle" font-family="Arial, Helvetica, sans-serif">Carte par défaut</text>
+  <text x="256" y="230" fill="#e3f2fd" font-size="14" text-anchor="middle">Aperçu</text>
+</svg>

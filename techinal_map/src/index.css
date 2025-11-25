@@ -1,0 +1,224 @@
+/* Global font: Apple system stack */
+html, body, #root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #0b0b0e;
+  color: #e6e6e6;
+}
+
+/* Inputs and buttons inherit font */
+input, select, button, textarea {
+  font-family: inherit;
+}
+
+/* Utility for the catalog search bar container */
+.catalog-toolbar {
+  border-radius: 4px;
+  position: sticky;
+  top: 54px; /* below header */
+  background: var(--glass);
+  backdrop-filter: saturate(180%) blur(8px);
+  border-bottom: 1px solid var(--border);
+  z-index: 900;
+  margin-bottom: 24px; /* plus d'espace en dessous en mode catalogue */
+}
+
+/* Adjust Leaflet Layers control to avoid overlapping header */
+.leaflet-top.leaflet-right .leaflet-control-layers {
+  margin-top: 96px; /* push below header */
+}
+
+/* Adjust Leaflet Zoom control to avoid overlapping header */
+.leaflet-top.leaflet-left .leaflet-control-zoom,
+.leaflet-top.leaflet-right .leaflet-control-zoom {
+  margin-top: 96px; /* push below header */
+}
+
+/* Thème sombre pour le contrôle des calques Leaflet */
+.leaflet-control-layers-toggle {
+  background-color: #000; /* bouton noir pour meilleure lisibilité */
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  box-shadow: none;
+}
+.leaflet-control-layers-toggle:hover {
+  background-color: #000; /* fond noir au survol */
+  color: #fff; /* texte/icône en blanc au survol */
+  border-color: rgba(255,255,255,0.24);
+}
+.leaflet-control-layers,
+.leaflet-control-layers-expanded {
+  background: #000; /* fond noir pour le panneau étendu */
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.leaflet-control-layers label,
+.leaflet-control-layers .leaflet-control-layers-list {
+  color: var(--text);
+}
+.leaflet-control-layers-separator {
+  border-top: 1px solid var(--border);
+}
+
+/* Thème sombre pour Zoom / Bar / Control */
+.leaflet-bar {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: none;
+}
+.leaflet-bar a {
+  background: rgba(0,0,0,0.38);
+  color: #fff;
+  border-bottom: 1px solid var(--border);
+}
+.leaflet-bar a:last-child {
+  border-bottom: none;
+}
+.leaflet-bar a:hover {
+  background: rgba(0,0,0,0.50);
+  border-color: rgba(255,255,255,0.24);
+}
+.leaflet-bar a.leaflet-disabled {
+  opacity: 0.6;
+}
+.leaflet-control-zoom {
+  border-radius: 8px;
+}
+.leaflet-control {
+  background: transparent;
+  color: var(--text);
+}
+
+/* Intro splash screen */
+.intro-splash {
+  position: fixed;
+  inset: 0;
+  background: #000; /* fond noir derrière le globe */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  pointer-events: auto; /* block interaction while intro is visible */
+}
+.intro-logo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.intro-splash img {
+  width: 160px;
+  height: auto;
+  opacity: 0;
+  animation: introFade 800ms ease forwards;
+}
+@keyframes introFade {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+/* Fond sombre global pour l'application */
+html, body, #root {
+  background: #0b0b0e;
+  min-height: 100%;
+}
+/* Palette sombre (variables globales) */
+:root {
+  --bg: #0b0b0e;
+  --bg-elevated: #141419;
+  --text: #e6e6e6;
+  --text-muted: #b0b0b8;
+  --border: rgba(255,255,255,0.14);
+  --border-soft: rgba(255,255,255,0.10);
+  --overlay: rgba(0,0,0,0.38);
+  --glass: rgba(20,20,24,0.34);
+  --accent: #00e5ff;
+}
+
+/* Liens (si présents) */
+a { color: var(--accent); }
+a:hover { color: #4df2ff; }
+
+/* Boutons sombres translucides pour cohérence UI */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.38);
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: saturate(160%) blur(8px);
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.btn:hover {
+  background: rgba(0,0,0,0.50);
+  border-color: rgba(255,255,255,0.24);
+}
+.btn:active {
+  background: rgba(0,0,0,0.58);
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-sm {
+  height: 32px;
+  padding: 0 10px;
+}
+
+/* Variante icône (cercle, contenu centré) */
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+/* Champs de formulaire sombres translucides */
+.input {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.28);
+  color: #fff;
+  backdrop-filter: saturate(160%) blur(6px);
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.input::placeholder {
+  color: rgba(255,255,255,0.65);
+}
+.input:focus {
+  outline: none;
+  border-color: rgba(255,255,255,0.28);
+  background: rgba(0,0,0,0.38);
+  box-shadow: 0 0 0 2px rgba(0,229,255,0.25);
+}
+.input-sm {
+  height: 32px;
+  padding: 0 10px;
+}
+
+/* Forcer le fond noir quand le panneau des calques est étendu */
+.leaflet-control-layers.leaflet-control-expanded,
+.leaflet-control.leaflet-control-layers,
+.leaflet-control.leaflet-control-layers-expanded,
+.leaflet-control.leaflet-control-expanded {
+  background: #000;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
