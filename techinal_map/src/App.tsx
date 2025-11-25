@@ -20,10 +20,57 @@ export default function App() {
   const [mode, setMode] = useState<'catalogue' | 'carte'>('catalogue');
   const [authenticated, setAuthenticated] = useState<boolean>(false);
   const [pin, setPin] = useState<string>('');
-  const DEFAULT_PIN = '123123';
+  const DEFAULT_PIN = (import.meta.env.VITE_PIN as string) ?? '123123123';
+  const PIN_LENGTH = DEFAULT_PIN.length;
   const [logoClicks, setLogoClicks] = useState<number>(0);
   const [logoTimer, setLogoTimer] = useState<number | null>(null);
   const [inactiveTimer, setInactiveTimer] = useState<number | null>(null);
+  const [wrongAttempts, setWrongAttempts] = useState<number>(() => {
+    try {
+      const v = parseInt(localStorage.getItem('pin_fail_count') || '0');
+      return (import.meta.env.DEV ? 0 : v);
+    } catch { return 0; }
+  });
+  const [pinError, setPinError] = useState<string>('');
+  const [locked, setLocked] = useState<boolean>(false);
+
+  function wipeAll() {
+    try { localStorage.clear(); } catch {}
+    try { sessionStorage.clear(); } catch {}
+    try { useDroneStore.setState({ missions: [], drones: {}, trajectories: {}, draftTarget: null, selectedDroneId: null }); } catch {}
+    setAuthenticated(false);
+    setPin('');
+    setModalOpen(false);
+    setMode('catalogue');
+    setReplayPayload(undefined);
+    setLastClick(null);
+    setDraftTarget(null);
+    setWrongAttempts(0);
+    try { localStorage.setItem('pin_fail_count', '0'); } catch {}
+    window.location.reload();
+  }
+
+  function handleAccess() {
+    if (pin === DEFAULT_PIN) {
+      setAuthenticated(true);
+      setPin('');
+      setPinError('');
+      setWrongAttempts(0);
+      try { localStorage.setItem('pin_fail_count', '0'); } catch {}
+      return;
+    }
+    const next = wrongAttempts + 1;
+    setWrongAttempts(next);
+    try { localStorage.setItem('pin_fail_count', String(next)); } catch {}
+    setPinError(`PIN incorrect — tentative ${next}/3`);
+    if (next >= 3) {
+      setLocked(true);
+    }
+  }
+
+  useEffect(() => {
+    setLocked(wrongAttempts >= 3);
+  }, [wrongAttempts]);
 
   useEffect(() => {
     function resetInactivity() {
@@ -57,41 +104,45 @@ export default function App() {
       {!authenticated && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.35)' }}>
           <IntroSplash loop speed={0.05} />
-          <div
-            style={{
-              position: 'absolute', left: '50%', top: 'calc(50% + 8rem)', transform: 'translate(-50%, -50%)',
-              width: 'min(360px, 92vw)',
-              background: 'var(--glass)', backdropFilter: 'saturate(180%) blur(8px)',
-              border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
-              padding: 16,
-              zIndex: 3001
-            }}
-          >
-            <div style={{ textAlign: 'center', fontWeight: 600, marginBottom: 6 }}>Entrer le PIN</div>
-            <input
-              type="password"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              className="input"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
-              placeholder="••••••"
-              style={{ display: 'block', margin: '0 auto', width: 'min(260px, 100%)', textAlign: 'center', fontSize: 24, letterSpacing: '6px', color: '#fff', border: '1px solid var(--border)' }}
-              aria-label="PIN agent"
-              onKeyDown={(e) => { if (e.key === 'Enter' && pin === DEFAULT_PIN) setAuthenticated(true); }}
-            />
-            <div style={{ display: 'flex', marginTop: 12 }}>
-              <button
-                type="button"
-                className="btn"
-                style={{ marginLeft: 'auto' }}
-                onClick={() => { if (pin === DEFAULT_PIN) setAuthenticated(true); }}
-              >Accéder</button>
+          {!locked && (
+            <div
+              style={{
+                position: 'absolute', left: '50%', top: 'calc(50% + 8rem)', transform: 'translate(-50%, -50%)',
+                width: 'min(360px, 92vw)',
+                background: 'var(--glass)', backdropFilter: 'saturate(180%) blur(8px)',
+                border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+                padding: 16,
+                zIndex: 3001
+              }}
+            >
+              <div style={{ textAlign: 'center', fontWeight: 600, marginBottom: 6 }}>Entrer le PIN</div>
+              <input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={PIN_LENGTH}
+                className="input"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, PIN_LENGTH))}
+                placeholder={"•".repeat(PIN_LENGTH)}
+                style={{ display: 'block', margin: '0 auto', width: 'min(260px, 100%)', textAlign: 'center', fontSize: 24, letterSpacing: '6px', color: '#fff', border: '1px solid var(--border)' }}
+                aria-label="PIN agent"
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAccess(); }}
+              />
+              {pinError && (<div style={{ color: '#f44336', textAlign: 'center', marginTop: 8, fontSize: 13 }}>{pinError}</div>)}
+              <div style={{ display: 'flex', marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ marginLeft: 'auto' }}
+                  onClick={() => { handleAccess(); }}
+                >Accéder</button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
+      {authenticated && (
       <header style={{
         position: 'fixed', top: 0, left: 0, right: 0, height: 48,
         display: 'flex', alignItems: 'center', paddingBottom: '3rem 3rem', gap: 16,
@@ -140,6 +191,8 @@ export default function App() {
           >Créer mission</button>
         </div>
       </header>
+      )}
+      {authenticated && (
       <main style={{ height: '100vh', paddingTop: mode === 'carte' ? 48 : 80 }}>
         {mode === 'catalogue' ? (
           <>
@@ -229,6 +282,8 @@ export default function App() {
           </div>
         )}
       </main>
+      )}
+      {authenticated && (
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -240,6 +295,7 @@ export default function App() {
           initialPayload={replayPayload}
         />
       </Modal>
+      )}
     </div>
   );
 }
