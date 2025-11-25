@@ -54,7 +54,7 @@
 
         <!-- Include Nathan Park Model from models directory -->
         <include>
-            <uri>model://Harmonic Terrain</uri>
+            <uri>model://Harmonic</uri>
             <name>nb_park</name>
             <pose>0 0 0 0 0 0</pose>
         </include>

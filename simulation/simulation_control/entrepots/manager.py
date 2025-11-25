@@ -5,9 +5,8 @@ from typing import Dict, Optional
 
 from ..config import ACTIVE_ENTREPOTS_FILE, SCRIPTS_DIR
 from ..common.storage import generic_load_json, generic_save_json
-from ..common.gazebo import generic_discover_from_gazebo
+from ..common.gazebo import generic_discover_from_gazebo, get_height
 from ..common.executor import generic_spawn_entity, generic_despawn_entity
-
 
 # ============================================================================
 # Storage Operations
@@ -132,6 +131,16 @@ def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
     Returns: {'success': bool, 'message': str, 'entrepot_id': str, 'entrepot_num': int}
     """
     print("start spawn entrepot")
+
+    if (x is None) :
+        x = 0
+    if y is None :
+        y = 0
+    #y = get_height(x, z)
+    print ("=" * 60)    
+    print(y)
+    print ("=" * 60)
+
     entrepot_id = f"entrepot_{entrepot_num + 1}"
     etype = etype.lower()
 
@@ -150,9 +159,9 @@ def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
     script_args = [
         str(entrepot_num),
         name,
-        str(x) if x is not None else "0",
-        str(y) if y is not None else "0",
-        str(z) if z is not None else "0"
+        x,
+        y,
+        z
     ]
 
     # Normalize entrepôt name for Gazebo model

@@ -96,6 +96,7 @@ COPY spawn_livraison.sh /root/spawn_livraison.sh
 COPY simulation_control/ /root/simulation_control/
 COPY simulation_control_server.py /root/simulation_control_server.py
 COPY models_config.json /root/models_config.json
+COPY models/Harmonic/materials/textures/Heightmap.png /root/Heightmap.png
 
 
 # Initialisation rosdep
