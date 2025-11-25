@@ -123,7 +123,7 @@ Node*** choose_drone_naive_warehouse(struct Drone** drones, size_t index, Node**
 //create a copy with the drone->selected_warehouse
 char create_new_solution_warehouse(Node*** warehouse_solution, size_t index_to_add, struct Drone* drone, Node* selected_warehouse, Node**** new_warehouse_solution){
 
-    if (consumption(drone, distance_2D(drone->final_postion, selected_warehouse->content.warehouse->pos), drone->max_speed, 0) < drone->autonomy){
+    if (consumption(drone, distance_2D(drone->final_position, selected_warehouse->content.warehouse->pos), drone->max_speed, 0) < drone->autonomy){
         //copie
         *new_warehouse_solution = darray_create(darray_size(warehouse_solution), sizeof(Node**));
         for (size_t i = 0; i < darray_size(warehouse_solution); i++){

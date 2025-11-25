@@ -10,7 +10,7 @@ typedef struct Element_deliveries {
     size_t*  warehouses; //liste des warehouse qui peuvent y accéder
 } Element_deliveries;
 
-Node*** choose_drone_naive(struct Drone** drones, Node** warehouses, size_t size);
+Node*** choose_drone_naive(struct Drone** drones, Node** warehouses);
 
 Node*** choose_drone_naive_warehouse(struct Drone** drones, size_t index, Node** warehouse, Node*** warehouse_solution, 
     Node*** deliveries, size_t* index_return, float* score_return);

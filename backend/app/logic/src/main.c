@@ -1,7 +1,7 @@
 #include "interface/interface.h"
 #include "algo/utils.h"
 #include "algo/cutter.h"
-#include "utils/graph.h"
+#include "algo/graph.h"
 #include "utils/darray.h"
 #include "utils/pool.h"
 
@@ -12,7 +12,7 @@
 #define ITEM_COUNT 200
 #define WH_COUNT 5
 #define DEL_COUNT 4000
-
+/*
 static ItemIndex items[ITEM_COUNT];
 
 size_t rand_index(size_t max) {
@@ -20,7 +20,7 @@ size_t rand_index(size_t max) {
     long x = random();
     return x * max / RANDOM_MAX;
 }
-/*
+
 void init() {
     for (size_t i = 0; i < ITEM_COUNT; i++) {
         char* name = malloc(512);
