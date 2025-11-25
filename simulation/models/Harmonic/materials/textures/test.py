@@ -41,6 +41,7 @@ try:
     hauteur = p * 205 / 100
     print (p, "/" , hauteur)
     matrix = np.array(img)
+    print(np.max(matrix))
     print(matrix)
     save_array_to_csv(matrix, "array")
 except Exception as e:

@@ -8,7 +8,7 @@ def map_config():
     print("start map_config")
     print("===================")
 
-    spawn_entrepot(1, "start", 0, 30, 0, "food")
-    spawn_livraison(1, "start", 150, 0, 150, "food")
-    spawn_zone(1, "start", 50, 50, 50, 30, "jamming")
+    spawn_entrepot(1, "start", 150, 150, 0, "food")
+    spawn_livraison(1, "start", 70, 70, 0, "food")
+    spawn_zone(1, "start", -300, -300, 0, 30, "jamming")
 

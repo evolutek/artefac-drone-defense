@@ -130,17 +130,6 @@ def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
 
     Returns: {'success': bool, 'message': str, 'entrepot_id': str, 'entrepot_num': int}
     """
-    print("start spawn entrepot")
-
-    if (x is None) :
-        x = 0
-    if y is None :
-        y = 0
-    #y = get_height(x, z)
-    print ("=" * 60)    
-    print(y)
-    print ("=" * 60)
-
     entrepot_id = f"entrepot_{entrepot_num + 1}"
     etype = etype.lower()
 
@@ -155,13 +144,20 @@ def spawn_entrepot(entrepot_num: int, name: str, x: Optional[float] = None,
         }
 
     # Prepare spawn script arguments
+    if x is None :
+        x = 10
+    if y is None :
+        y = 10
+    offset = 0.5
+    z = get_height(x, y) + offset
+    print(z)
     # spawn_entrepot.sh <entrepot_num> <name> <x> <y> <z>
     script_args = [
         str(entrepot_num),
         name,
-        x,
-        y,
-        z
+        str(x) if x is not None else "0",
+        str(y) if y is not None else "0",
+        str(z) if z is not None else "0"
     ]
 
     # Normalize entrepôt name for Gazebo model

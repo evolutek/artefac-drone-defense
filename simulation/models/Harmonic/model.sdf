@@ -4,7 +4,7 @@
     <static>true</static>
     <link name="link">
       <collision name="collision">
-        <pose>0 -300 0: 0 0 0</pose>
+        <pose>600 600 0: 0 0 0</pose>
         <geometry>
           <heightmap>
             <uri>materials/textures/Heightmap.png</uri>
@@ -41,7 +41,7 @@
             </blend>
             <uri>materials/textures/Heightmap.png</uri>
             <size>1200 1200 200</size>
-            <pos>0 -300 -5</pos>
+            <pos>600 600 0</pos>
           </heightmap>
         </geometry>
       </visual>

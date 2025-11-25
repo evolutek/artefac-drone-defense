@@ -109,7 +109,13 @@ def spawn_drone(drone_num: int, x: Optional[float] = None,
 
     model_config = MODELS_CONFIG['models'][model]
     gazebo_model = model_config['gazebo_model']
-
+    if x is None : 
+        x = 10
+    if y is None :
+        y = 10
+    offset = 4
+    z = get_height(x, y) + offset
+    print(z)
     # Prepare spawn script arguments
     script_args = [str(drone_num)]
 

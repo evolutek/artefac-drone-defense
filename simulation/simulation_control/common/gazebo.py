@@ -80,10 +80,16 @@ import cv2
 
 def get_height(x, y) :
     try:
-        val = map[x][y]
-        p = val * 100 / 65535
+        print(len(map))
+        x = x // 2.34
+        y = y // 2.34
+        print(x, " " , y)
+        val = map[513 - int(x)][int(y)]
+        p = val * 100 / 22024 #22024 valeur max de la heightmap
         hauteur = p * 205 / 100
-        print (p, "/" , hauteur)
+        
+        print("x,y ", x, y)
+        print (val, "/" , p, "/" , hauteur)
         return hauteur
     except Exception as e:
         print(">>>> ERREUR :", e)

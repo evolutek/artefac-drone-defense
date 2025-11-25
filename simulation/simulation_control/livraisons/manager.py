@@ -5,7 +5,7 @@ from typing import Dict, Optional
 
 from ..config import ACTIVE_LIVRAISON_FILE, SCRIPTS_DIR
 from ..common.storage import generic_load_json, generic_save_json
-from ..common.gazebo import generic_discover_from_gazebo
+from ..common.gazebo import generic_discover_from_gazebo, get_height
 from ..common.executor import generic_spawn_entity, generic_despawn_entity
 
 
@@ -145,6 +145,13 @@ def spawn_livraison(livraison_num: int, name: str, x: Optional[float] = None,
             'livraison_id': livraison_id,
             'livraison_num': livraison_num
         }
+    if x is None :
+        x = 10
+    if y is None :
+        y = 10
+    offset = 1
+    z = get_height(x, y) + offset
+    print(z)
 
     # Prepare spawn script arguments
     # spawn_livraison.sh <livraison_num> <name> <x> <y> <z>
