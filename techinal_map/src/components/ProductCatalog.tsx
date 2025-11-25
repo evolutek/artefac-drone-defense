@@ -191,8 +191,8 @@ export default function ProductCatalog({
               <div style={{ fontWeight: 600 }}>{p.name}</div>
               <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>{p.description}</div>
               <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: 'var(--text)' }}>Poids: {p.weight_kg ?? '-'} kg</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Catégorie: {p.category}</span>
+                <span style={{ fontSize: 12, color: 'var(--text)' }}> {p.weight_kg ?? '-'} kg </span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}> {p.category}</span>
                 <button
                   type="button"
                   className="btn btn-icon"

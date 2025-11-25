@@ -283,7 +283,7 @@ export default function MissionForm({
           </label>
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-        Exemple: <code>30T YT 26398 28974</code>
+         <code>30T YT 26398 28974</code>
       </div>
       {selectedProducts.length > 0 && (
         <div style={{ marginTop: 12, border: '1px solid var(--border)', borderRadius: 8, padding: 8 }}>
@@ -355,7 +355,7 @@ export default function MissionForm({
           </>
         )}
       </div>
-      
+
       <span style={{ color: status.startsWith('Erreur') ? '#f44336' : '#4caf50' }}>{status}</span>
     </form>
   );

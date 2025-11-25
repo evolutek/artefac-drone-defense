@@ -162,13 +162,11 @@ async function loadProducts() {
     btn.addEventListener('click', async (e) => {
       const id = parseInt(e.target.getAttribute('data-id'), 10);
       if (!id) return;
-      const ok = confirm('Supprimer ce produit ? Cette action est définitive.');
-      if (!ok) return;
       try {
         await fetchJSON(`${API}/products/${id}`, { method: 'DELETE' });
         await loadProducts();
         await loadInventoryView();
-      } catch (err) { alert(err.message); }
+      } catch (err) { console.warn(err); }
     });
   });
 }
