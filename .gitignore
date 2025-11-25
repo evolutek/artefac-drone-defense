@@ -1,3 +1,27 @@
 .env
 __pycache__/
 logs/
+# OS and editor noise
+.DS_Store
+
+# Environment folders
+.venv*/
+venv/
+
+# Node and build artefacts (ignore everywhere)
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+
+# Local env files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+**/*.log
