@@ -8,8 +8,6 @@
 
 #include <pthread.h>
 
-Ctx ctx;
-
 #define DARRAY_FOR(var, array) for (size_t var = 0; var < darray_size(array); i++)
 
 static ArchetypeIndex find_archetype(ItemIndex item) {

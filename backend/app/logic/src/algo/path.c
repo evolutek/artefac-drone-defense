@@ -17,7 +17,7 @@ Node*** choose_drone_naive(struct Drone** drones, Node** warehouses){
             //on a la livraison qu'on veut ajouter : regarder si elle est présente dans deliveries, sinon ajouter : faire une struct
             char found = 0;
             for (size_t k = 0; k < darray_size(deliveries); k++){
-                if (warehouses[i]->edges[j].next == deliveries[k][0]){
+                if (warehouses[i]->edges[j]->next == deliveries[k][0]){
                     darray_add(deliveries[k], warehouses[i]);
                     found = 1;
                     break;
@@ -25,7 +25,7 @@ Node*** choose_drone_naive(struct Drone** drones, Node** warehouses){
             }
             if (found == 0){
                 Node** new_list = darray_create(4, sizeof(Node*));
-                darray_add(new_list, warehouses[i]->edges[j].next);
+                darray_add(new_list, warehouses[i]->edges[j]->next);
                 darray_add(new_list, warehouses[i]);
                 darray_add(deliveries, new_list);
             }
@@ -42,7 +42,7 @@ Node*** choose_drone_naive(struct Drone** drones, Node** warehouses){
 
     size_t indx = 0;
     float score = 0;
-    Node*** result = choose_drone_naive_warehouse(drones, 0, warehouses, warehouse_solution, deliveries, &indx, &score);
+    Node*** result = choose_drone_naive_warehouse(drones, 0, warehouses, warehouse_solution, deliveries, &indx, &score, warehouses);
 
 
     free_darray_matrice((void**)deliveries);
@@ -55,7 +55,7 @@ Node*** choose_drone_naive(struct Drone** drones, Node** warehouses){
 
 //call choose_drone_naive as many times as needed
 Node*** choose_drone_naive_warehouse(struct Drone** drones, size_t index, Node** warehouse, Node*** warehouse_solution, 
-    Node*** deliveries, size_t* index_return, float* score_return){
+    Node*** deliveries, size_t* index_return, float* score_return, Node** warehouses){
 
     //condition d'arrêt
     if (index == darray_size(drones)){
@@ -71,7 +71,7 @@ Node*** choose_drone_naive_warehouse(struct Drone** drones, size_t index, Node**
         float score = 0;
         Node*** temp_solution = copy_solution(warehouse_solution);
 
-        Node*** result = choose_drone_naive_aux(drones, deliveries, &actual_index, temp_solution, &score, &all_edited_indexs);
+        Node*** result = choose_drone_naive_aux(drones, deliveries, &actual_index, temp_solution, &score, &all_edited_indexs, warehouses);
 
         *index_return = actual_index;
         *score_return = score;
@@ -96,7 +96,7 @@ Node*** choose_drone_naive_warehouse(struct Drone** drones, size_t index, Node**
             drones[index]->autonomy = drones[index]->energy; 
             size_t actual_index = 0;
             float score = 0;
-            Node*** result = choose_drone_naive_warehouse(drones, index + 1, warehouse, new_solution, deliveries, &actual_index, &score);
+            Node*** result = choose_drone_naive_warehouse(drones, index + 1, warehouse, new_solution, deliveries, &actual_index, &score, warehouses);
 
             if (best_result == NULL){
                 best_index = actual_index;
@@ -153,7 +153,7 @@ Node*** copy_solution(Node*** solution){
 }
 
 //build all the possible solutions and return the best one with it score
-Node*** choose_drone_naive_aux(struct Drone** drones, Node*** deliveries, size_t* actual_index, Node*** solution, float* score, size_t** all_edited_indexs){
+Node*** choose_drone_naive_aux(struct Drone** drones, Node*** deliveries, size_t* actual_index, Node*** solution, float* score, size_t** all_edited_indexs, Node** warehouses){
 
     //End of the recursion
     if (*actual_index == darray_size(deliveries)){
@@ -184,7 +184,7 @@ Node*** choose_drone_naive_aux(struct Drone** drones, Node*** deliveries, size_t
         //check if we can create a new solution and create it iif it is the case
         Node*** new_solution;
         if (good_warehouse(solution[d], deliveries[*actual_index]) && 
-            create_new_solution(solution, deliveries[*actual_index][0], d, drones[d], &new_solution)){ //EDIT
+            create_new_solution(solution, deliveries[*actual_index][0], d, drones[d], &new_solution, warehouses)){ //EDIT
 
             size_t* indexs_edited = darray_create(5, sizeof(size_t));
             darray_add(indexs_edited, d);
@@ -193,7 +193,7 @@ Node*** choose_drone_naive_aux(struct Drone** drones, Node*** deliveries, size_t
             //get the best solution
             float best_actual_score = 0;
             size_t depth = *actual_index + 1;
-            new_solution = choose_drone_naive_aux(drones, deliveries, &depth, new_solution, &best_actual_score, &indexs_edited);
+            new_solution = choose_drone_naive_aux(drones, deliveries, &depth, new_solution, &best_actual_score, &indexs_edited, warehouses);
             
             //replace the best solution by he current solution if it is better
             if (best_score == 0){
@@ -267,7 +267,7 @@ char good_warehouse(Node** drone_path, Node** delivery){
 //drone_to_add : l'index de du chemin qui doit etre modifié
 // drone : le drone qui doit prendre la nouvelle livraison
 //new_solution : pointeur pour return la 
-char create_new_solution(Node*** solution, Node* new_element, size_t drone_to_add, struct Drone* drone, Node**** new_solution){
+char create_new_solution(Node*** solution, Node* new_element, size_t drone_to_add, struct Drone* drone, Node**** new_solution, Node** warehouses){
 
     //copy and add the element
     Node** drone_to_edit = darray_create(darray_size(solution[drone_to_add]), sizeof(Node*));
@@ -308,7 +308,7 @@ char create_new_solution(Node*** solution, Node* new_element, size_t drone_to_ad
 
 
     //check if the solution can exist
-    if (changed != 0 && can_handle(drone, darray_size(drone_to_edit), drone_to_edit, drone->max_speed) > 0){ //EDIT (que j'ai edit)
+    if (changed != 0 && can_handle(drone, darray_size(drone_to_edit), drone_to_edit, drone->max_speed, warehouses) > 0){ //EDIT (que j'ai edit)
         darray_insert(drone_to_edit, 0, solution[drone_to_add][0]);
         //copy all the list
         *new_solution = darray_create(darray_size(solution), sizeof(Node**));
@@ -334,14 +334,14 @@ char create_new_solution(Node*** solution, Node* new_element, size_t drone_to_ad
 float cost_between(Node* start, Node* next){
     if (next->type == E_WAREHOUSE){
         for (size_t i = 0; i < start->nb_edges; i++){
-            if (start->edges[i].next->type == E_WAREHOUSE && start->edges[i].next->content.warehouse->id == next->content.warehouse->id)
-                return start->edges[i].cost;
+            if (start->edges[i]->next->type == E_WAREHOUSE && start->edges[i]->next->content.warehouse->id == next->content.warehouse->id)
+                return start->edges[i]->cost;
         }
     }
     else{
         for (size_t i = 0; i < start->nb_edges; i++){
-            if (start->edges[i].next->type == E_DELIVERY && start->edges[i].next->content.delivery->id == next->content.delivery->id){
-                return start->edges[i].cost;
+            if (start->edges[i]->next->type == E_DELIVERY && start->edges[i]->next->content.delivery->id == next->content.delivery->id){
+                return start->edges[i]->cost;
             }     
         }
     }

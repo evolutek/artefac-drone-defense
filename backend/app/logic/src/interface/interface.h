@@ -90,7 +90,7 @@ enum DroneWaypointType {
 
 typedef struct {
     Position pos;
-
+    enum DroneWaypointType type;
 } PACKED DroneWaypoint;
 
 typedef struct {
@@ -98,12 +98,6 @@ typedef struct {
     uint32_t waypoint_count;
     Position waypoints[MAX_DELIVERIES_PER_DRONE];
 } PACKED DroneAssignment;
-
-typedef struct {
-    uint8_t assignment_count;
-    DroneAssignment assignments[MAX_ASSIGNMENTS];
-
-} PACKED Assignments;
 
 typedef struct {
 
@@ -114,7 +108,7 @@ typedef struct {
     volatile uint32_t active_buf2;
 
     Event buf2;
-    Assignments buf1;
+    DroneAssignment buf1;
 } PACKED SharedMemory;
 
 bool init_interface(void);

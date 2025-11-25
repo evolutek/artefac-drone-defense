@@ -4,19 +4,19 @@
 #include "interface/interface.h"
 #include "utils/darray.h"
 #include "utils/pool.h"
+#include "algo/path.h"
 
 #include <setjmp.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <pthread.h>
 
-#define ITEM_COUNT 200
-#define WH_COUNT 5
-#define DEL_COUNT 4000
-
 /*
+// For init_test
+//#define ITEM_COUNT 200
+//#define WH_COUNT 5
+//#define DEL_COUNT 4000
 static ItemIndex items[ITEM_COUNT];
 
 size_t rand_index(size_t max) {
@@ -25,7 +25,7 @@ size_t rand_index(size_t max) {
     return x * max / RANDOM_MAX;
 }
 
-void init() {
+void init_test() {
     for (size_t i = 0; i < ITEM_COUNT; i++) {
         char* name = malloc(512);
         snprintf(name, 512, "%zu", i);
@@ -60,14 +60,21 @@ void init() {
         add_delivery(del);
     }
 }
+
+
+
+void init_context(void);
+
 */
 
 /*
 void test_clustering(void) {
     srandom(0);
     init_context();
+    //srandom(0);
     //init();
 
+	// CUTS
     printf("Cutting!\n");
     ClusterIndex* clusters = cut();
     size_t cluster_count = darray_size(clusters);
@@ -287,6 +294,8 @@ int repart_test(void) {
 }
     */
 
+Ctx ctx;
+
 void usr1_handler(int sig) {
     (void) sig;
     siglongjmp(ctx.restart_point, 1);
@@ -299,7 +308,8 @@ void init_context(void) {
     pool_init(&ctx.drone_pool, 16, sizeof(Drone));
     pool_init(&ctx.archetype_pool, 16, sizeof(Archetype));
     pool_init(&ctx.cluster_pool, 16, sizeof(Cluster));
-    pool_init(&ctx.node_pool, 16, sizeof(Node));
+    pool_init(&ctx.node_pool, 64, sizeof(Node));
+	pool_init(&ctx.edge_pool, 256, sizeof(Edge));
 
     ctx.new_warehouses       = darray_create(4, sizeof *ctx.new_warehouses);
     ctx.new_deliveries       = darray_create(4, sizeof *ctx.new_deliveries);

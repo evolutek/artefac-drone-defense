@@ -3,11 +3,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "graph.h"
+#include "utils/darray.h"
 
-uint32_t distance_2D(Position pos1, Position pos2) {
+float distance_2D(Position pos1, Position pos2) {
     float dx = pos2.x - pos1.x;
     float dy = pos2.y - pos1.y;
-    return (uint32_t) sqrtf(dx * dx + dy * dy);
+    return sqrtf(dx * dx + dy * dy);
 }
 
 // distance in m, speed in m/s, charge in g
@@ -18,7 +19,7 @@ uint32_t distance_2D(Position pos1, Position pos2) {
 // 		consumption(drone, max_flight_time * max_flight_time_speed, max_flight_time_speed,
 // 0) = energy 		consumption(drone, 0, speed, charge) = 0 		consumption(drone, distance, 0, charge) = 0
 // O consumption means that the drone can't flight under the current conditions
-float consumption(Drone* drone, uint32_t distance, uint8_t speed, uint32_t charge) {
+float consumption(Drone* drone, float distance, uint8_t speed, uint32_t charge) {
     float f1 = distance * speed;
     float f2 = drone->max_flight_time * drone->max_flight_time_speed * drone->max_flight_time_speed;
     float f3 = drone->max_capacity * 2;
@@ -30,25 +31,39 @@ float consumption(Drone* drone, uint32_t distance, uint8_t speed, uint32_t charg
 // a negative value if it can not be delivered.
 // nb_deliveries must be strictly higher than 0
 float can_handle(Drone *drone, uint8_t nb_deliveries, Node *deliveries[nb_deliveries], 
-		uint8_t speed) {
+		uint8_t speed, Node** warehouses) {
 	uint32_t distance, payload;
 	payload = 0;
 	float cons = 0;
 
-	while (--nb_deliveries && cons < drone->autonomy && payload < drone->max_capacity) {
-		payload += deliveries[nb_deliveries]->content.delivery->mass;
-		distance = distance_2D(deliveries[nb_deliveries]->content.delivery->position, deliveries[nb_deliveries - 1]->content.delivery->position);
+    float min_dist = -1;
+    for (size_t i = 0; i < darray_size(warehouses); i++){
+        float dist = distance_2D(deliveries[nb_deliveries - 1]->content.delivery->position, warehouses[i]->content.warehouse->pos);
+        if (min_dist == -1 || dist < min_dist){
+            min_dist = dist;
+        }
+    }
+    cons += consumption(drone, min_dist, speed, 0);
+
+	Node *n_current, *n_previous;
+	n_previous = deliveries[nb_deliveries - 1];
+	while (--nb_deliveries > 1 && cons < drone->autonomy && payload < drone->max_capacity) {
+		n_current = n_previous;
+		n_previous = deliveries[nb_deliveries - 1];
+		payload += n_current->content.delivery->mass;
+		distance = distance_2D(n_current->content.delivery->position, n_previous->content.delivery->position);
 		cons += consumption(drone, distance, speed, payload);
 	}
 	
-	payload += deliveries[0]->content.delivery->mass;
+	payload += n_previous->content.delivery->mass;
 	
 	if (drone->autonomy <= cons || drone->max_capacity < payload)
 		return -1;
 
-	distance = distance_2D(drone->position, deliveries[0]->content.delivery->position);
+
+	distance = distance_2D(deliveries[0]->content.warehouse->pos, n_previous->content.delivery->position);
 	cons += consumption(drone, distance, speed, payload);
-		
+    
 	return drone->autonomy - cons;
 }
 
@@ -67,7 +82,6 @@ bool is_constrained(ExclusionZone* cnst,
                     const Position* pos2,
                     Detour* out_detour) {
     Position p12, p1C, intersect; // Vectors 1 -> 2, 1 -> cnsc->center
-    (void) intersect;
 
     p12.x = pos2->x - pos1->x;
     p12.y = pos2->y - pos1->y;
@@ -75,15 +89,15 @@ bool is_constrained(ExclusionZone* cnst,
     p1C.x = cnst->center.x - pos1->x;
     p1C.y = cnst->center.y - pos1->y;
 
-    uint32_t dot = p12.x * p1C.x + p12.y * p1C.y;
+    float dot = p12.x * p1C.x + p12.y * p1C.y;
 
-    float i = (float) dot / (float) (p12.x * p12.x + p12.y * p12.y);
+    float i = dot / (p12.x * p12.x + p12.y * p12.y);
 
     intersect.x = p12.x * i + pos1->x;
     intersect.y = p12.y * i + pos1->y;
 
-    uint32_t dist = distance_2D(cnst->center, intersect);
-    if (dist > cnst->radius)
+    float dist = distance_2D(cnst->center, intersect);
+    if (cnst->radius < dist)
         return false;
 
     if (dist == 0) {

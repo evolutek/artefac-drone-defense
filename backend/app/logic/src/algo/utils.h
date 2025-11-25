@@ -19,6 +19,8 @@ DEFINE_INDEX(Delivery);
 DEFINE_INDEX(Archetype);
 DEFINE_INDEX(Cluster);
 DEFINE_INDEX(ExclusionZone);
+DEFINE_INDEX(Node);
+DEFINE_INDEX(Edge);
 
 typedef struct {
     /*
@@ -35,6 +37,7 @@ typedef struct {
     Pool archetype_pool; // Archetype
     Pool cluster_pool;   // Cluster
 	Pool node_pool; 	 // Node
+	Pool edge_pool;		 // Edge
 
     WarehouseIndex* new_warehouses;
     DeliveryIndex* new_deliveries;
@@ -48,20 +51,19 @@ typedef struct {
     bool running;
 } Ctx;
 
-typedef struct Position {
-	int32_t x;
-	int32_t y;
-	//int32_t z;
+typedef struct {
+	float x;
+	float y;
 } Position;
 
-typedef struct Item {
-    uint64_t id;
+typedef struct {
+	uint64_t id;
 	const char *name;
 	uint32_t mass;	// In grams
 } Item;
 
-typedef struct Delivery {
-    uint64_t id;
+typedef struct {
+	uint64_t id;
 	ItemIndex item;
 	uint16_t quantity;
 	float priority;	// 0 -> Max priority | 5 -> Min priority : priority of the delivery
@@ -71,11 +73,11 @@ typedef struct Delivery {
 	
 	// Algorithm internal attributes
 	Node *node;
-	uint8_t mark;
 } Delivery;
 
 typedef struct Drone {
-    uint64_t id;
+	uint64_t id;
+
 	// Technical specifications
 	uint32_t max_capacity;	// In grams
 	uint8_t max_speed;		// In m/s
@@ -89,26 +91,25 @@ typedef struct Drone {
 	uint32_t payload;	// In grams
 	float autonomy;		// In Wh
 	Position position;
-	Delivery *targets;
+	DeliveryIndex *targets;
 	uint8_t nb_targets;
 	Position final_position;
 } Drone;
 
 typedef struct {
-    uint64_t id;
-    ItemIndex* items;
-    size_t item_count;
-    Position pos;
+	uint64_t id;
+	ItemIndex *items;
+	size_t item_count;
+	Position pos;
 } Warehouse;
-
 
 typedef struct {
 	Position center;
-	uint32_t radius;
+	float radius;
 } ExclusionZone;
 
-typedef struct Detour {
-	uint32_t distance;
+typedef struct {
+	float distance;
 	Position pos;
 } Detour;
 
@@ -116,11 +117,11 @@ extern Ctx ctx;
 
 // Functions
 
-uint32_t distance_2D(Position pos1, Position pos2);
+float distance_2D(Position pos1, Position pos2);
 
-float consumption(Drone *drone, uint32_t distance, uint8_t speed, uint32_t charge);
+float consumption(Drone *drone, float distance, uint8_t speed, uint32_t charge);
 
 float can_handle(Drone *drone, uint8_t nb_deliveries, Node *deliveries[nb_deliveries], 
-		uint8_t speed);
+		uint8_t speed, Node** warehouses);
 
 bool is_constrained(ExclusionZone *cnst, const Position* pos1, const Position* pos2, Detour* out_detour);
