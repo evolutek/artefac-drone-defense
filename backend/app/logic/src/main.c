@@ -60,6 +60,7 @@ float weight(Position pos, Delivery* del) {
     return 0;
 }
 
+/*
 int main() {
 
     puts("==== INTERFACE ====");
@@ -97,5 +98,203 @@ int main() {
     darray_destroy(ctx.unhandled_archetypes);
 
 
+    return 0;
+}
+    */
+
+
+#include "algo/graph.h"
+#include "algo/path.h"
+
+int main(void){
+    // Création de deux drones
+    struct Position position_drone = { .x = 0, .y = -1 };
+    struct Drone* drone = malloc(sizeof(*drone));
+    *drone = (struct Drone){
+        0, 1000, 100, 100, 100, 100.0f,
+        100, 100, 100, position_drone,
+        darray_create(10,sizeof(struct Delivery*)), 0
+    };
+
+    struct Position position_drone2 = { .x = -10, .y = -1 };
+    struct Drone* drone2 = malloc(sizeof(*drone2));
+    *drone2 = (struct Drone){
+        0, 1000, 100, 100, 100, 100.0f,
+        100, 100, 100, position_drone2,
+        darray_create(10,sizeof(struct Delivery*)), 0
+    };
+
+    Drone** array_drones = darray_create(10, sizeof(Drone*));
+    darray_add(array_drones, drone);
+    darray_add(array_drones, drone2);
+
+
+    // === Deliveries ===
+    struct Delivery* delivery2 = malloc(sizeof(*delivery2));
+    delivery2->id = 1;
+    delivery2->position = (struct Position){2,2};
+    delivery2->user_priority = 1;
+    delivery2->mass = 10;
+
+    Node* node1 = malloc(sizeof(*node1));
+    node1->content.delivery = delivery2;
+    node1->type = E_DELIVERY;
+    node1->nb_edges = 0;
+    node1->edges = NULL;
+
+    struct Delivery* delivery3 = malloc(sizeof(*delivery3));
+    delivery3->id = 2;
+    delivery3->position = (struct Position){0,2};
+    delivery3->user_priority = 1;
+    delivery3->mass = 10;
+
+    Node* node2 = malloc(sizeof(*node2));
+    node2->content.delivery = delivery3;
+    node2->type = E_DELIVERY;
+    node2->nb_edges = 0;
+    node2->edges = NULL;
+
+    struct Delivery* delivery4 = malloc(sizeof(*delivery4));
+    delivery4->id = 3;
+    delivery4->position = (struct Position){-2,2};
+    delivery4->user_priority = 1;
+    delivery4->mass = 10;
+
+    Node* node3 = malloc(sizeof(*node3));
+    node3->content.delivery = delivery4;
+    node3->type = E_DELIVERY;
+    node3->nb_edges = 0;
+    node3->edges = NULL;
+
+    Node* node4 = malloc(sizeof(*node4));
+    node4->content.delivery = delivery3;
+    node4->type = E_DELIVERY;
+    node4->nb_edges = 0;
+    node4->edges = NULL;
+
+
+    // === Warehouses ===
+    Warehouse* warehouse = malloc(sizeof(Warehouse));
+    warehouse->id = 0;
+    warehouse->pos = (struct Position){0,0};
+    warehouse->item_count = 1;
+
+    Node* wnode1 = malloc(sizeof(*wnode1));
+    wnode1->content.warehouse = warehouse;
+    wnode1->type = E_WAREHOUSE;
+    wnode1->edges = NULL;
+    wnode1->nb_edges = 0;
+
+    Warehouse* warehouse1 = malloc(sizeof(Warehouse));
+    warehouse1->id = 1;
+    warehouse1->pos = (struct Position){-10,0};
+    warehouse1->item_count = 1;
+
+    Node* wnode2 = malloc(sizeof(*wnode2));
+    wnode2->content.warehouse = warehouse1;
+    wnode2->type = E_WAREHOUSE;
+    wnode2->edges = NULL;
+    wnode2->nb_edges = 0;
+
+
+    // === Edges (simplifiés) ===
+    Edge* array_wh1 = calloc(2, sizeof(Edge));
+    array_wh1[0].cost = 1; array_wh1[0].next = node1;
+    array_wh1[1].cost = 1; array_wh1[1].next = node2;
+    wnode1->edges = array_wh1;
+    wnode1->nb_edges = 2;
+
+    Edge* array_wh2 = calloc(2, sizeof(Edge));
+    array_wh2[0].cost = 1; array_wh2[0].next = node2;
+    array_wh2[1].cost = 1; array_wh2[1].next = node3;
+    wnode2->edges = array_wh2;
+    wnode2->nb_edges = 2;
+
+
+    Edge* array_l1 = calloc(1, sizeof(Edge));
+    array_l1[0].cost = 1; array_l1[0].next = node2;
+    node1->edges = array_l1;
+    node1->nb_edges = 1;
+
+    Edge* array_l2 = calloc(1, sizeof(Edge));
+    array_l2[0].cost = 1; array_l2[0].next = node1;
+    node2->edges = array_l2;
+    node2->nb_edges = 1;
+
+    Edge* array_l3 = calloc(1, sizeof(Edge));
+    array_l3[0].cost = 1; array_l3[0].next = node4;
+    node3->edges = array_l3;
+    node3->nb_edges = 1;
+
+    Edge* array_l4 = calloc(1, sizeof(Edge));
+    array_l4[0].cost = 1; array_l4[0].next = node3;
+    node4->edges = array_l4;
+    node4->nb_edges = 1;
+
+    
+
+
+    // === Deliveries list ===
+    Node** array_deliveries = darray_create(10, sizeof(Node*));
+    darray_add(array_deliveries, wnode1);
+    darray_add(array_deliveries, wnode2);
+
+    printf("%zu\n", darray_size(array_deliveries));
+
+
+    // === Call algorithm ===
+    Node*** result =
+        choose_drone_naive(array_drones, array_deliveries,
+                           darray_size(array_deliveries));
+
+
+    // === Display result ===
+    if (result != NULL) {
+        printf("%zu\n", darray_size(result));
+        for (size_t i = 0; i < darray_size(result); i++){
+            printf("\t%zu\n", darray_size(result[i]));
+            for (size_t j = 0; j < darray_size(result[i]); j++){
+                if (result[i][j] && result[i][j]->type == E_DELIVERY)
+                    printf("\t(delivery at %d,%d)\n",
+                           result[i][j]->content.delivery->position.x,
+                           result[i][j]->content.delivery->position.y);
+            }
+            printf("\n");
+        }
+    }
+
+
+    //free_darray_matrice((void**)result);
+
+
+    // === Free ===
+
+    free(array_wh1);
+    free(array_wh2);
+
+    if (result)
+        free_darray_matrice((void**)result);
+
+    darray_clear(array_deliveries);
+    darray_destroy(array_deliveries);
+
+    darray_clear(array_drones);
+    darray_destroy(array_drones);
+
+    free(node1);
+    free(node2);
+    free(node3);
+    free(node4);
+    free(wnode1);
+    free(wnode2);
+
+    free(delivery2);
+    free(delivery3);
+    free(delivery4);
+
+    free(warehouse);
+    free(warehouse1);
+
+    printf("end\n");
     return 0;
 }

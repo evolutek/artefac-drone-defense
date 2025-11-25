@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "graph.h"
 
 uint32_t distance_2D(Position pos1, Position pos2) {
     float dx = pos2.x - pos1.x;
