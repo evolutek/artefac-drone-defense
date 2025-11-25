@@ -185,6 +185,66 @@ export default function App() {
     return () => offStateEvent(handler);
   }, [authenticated]);
 
+  // Afficher les statuts en français et en majuscules pour l'UI
+  function toDisplayStatus(s?: string): string {
+    if (!s) return '';
+    const raw = String(s);
+    const k = raw.trim().toLowerCase().replace(/[_-]+/g, ' ');
+    const map: Record<string, string> = {
+      'assigned': 'ASSIGNÉ',
+      'en cours': 'EN COURS',
+      'in progress': 'EN COURS',
+      'en route': 'EN ROUTE',
+      'in transit': 'EN ROUTE',
+      'completed': 'TERMINÉ',
+      'delivered': 'LIVRÉ',
+      'livré': 'LIVRÉ',
+      'cancelled': 'ANNULÉ',
+      'canceled': 'ANNULÉ',
+      'failed': 'ÉCHOUÉ',
+      'error': 'ERREUR',
+      'queued': 'EN FILE',
+      'scheduled': 'PLANIFIÉ',
+      'pending': 'EN ATTENTE',
+      'en attente': 'EN ATTENTE',
+      'mission': 'EN MISSION',
+      'returning': 'RETOUR',
+      'armed': 'ARMÉ',
+      'idle': 'INACTIF',
+    };
+    if (map[k]) return map[k];
+    return raw.replace(/[_-]+/g, ' ').toUpperCase();
+  }
+
+  // Couleur d'affichage par statut (clé normalisée)
+  function toStatusColor(s?: string): string {
+    if (!s) return '#b0b0b8';
+    const k = String(s).trim().toLowerCase().replace(/[_-]+/g, ' ');
+    const colors: Record<string, string> = {
+      'assigned': '#64b5f6',
+      'en cours': '#ffca28',
+      'in progress': '#ffca28',
+      'en route': '#4fc3f7',
+      'in transit': '#4fc3f7',
+      'completed': '#4caf50',
+      'delivered': '#4caf50',
+      'livré': '#4caf50',
+      'cancelled': '#e57373',
+      'canceled': '#e57373',
+      'failed': '#f44336',
+      'error': '#e53935',
+      'queued': '#90a4ae',
+      'scheduled': '#9575cd',
+      'pending': '#ff9800',
+      'en attente': '#ff9800',
+      'mission': '#ff7043',
+      'returning': '#29b6f6',
+      'armed': '#81c784',
+      'idle': '#9e9e9e',
+    };
+    return colors[k] ?? '#b0b0b8';
+  }
+
   return (
     <div style={{ height: '100vh' }}>
       {!authenticated && (
@@ -346,7 +406,7 @@ export default function App() {
           <div style={{ padding: 16 }}>
             <h3 style={{ marginTop: 0 }}>Historique des commandes</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {[...missions].sort((a, b) => (b.started_at ?? b.id) - (a.started_at ?? a.id)).map((m) => (
+              {[...missions].sort((a, b) => (b.started_at ?? b.id) - (a.started_at ?? a.id)).map((m, idx, arr) => (
                 <div key={m.id} style={{ display: 'inline-block' }}>
                   <button
                     onClick={() => {
@@ -365,18 +425,27 @@ export default function App() {
                     className="btn"
                     style={{ padding: '6px 10px', textAlign: 'left', justifyContent: 'flex-start' }}
                   >
-                    #{m.id} • {m.drone_id}
+                    <>#{m.id} • {m.drone_id}</>
                     {Array.isArray((m as any).payloads) && m.payloads && m.payloads.length > 0
                       ? ` — ${m.payloads.map((p) => `${p.item_name} x${p.quantity}`).join(', ')}`
                       : (m.payload ? ` — ${m.payload.item_name} x${m.payload.quantity} (${m.payload.weight_kg}kg)` : '')}
-                    {m.status ? ` — ${m.status}` : ''}
-                    {m.eta ? ` • ETA ${m.eta}` : ''}
-                    {(m as any).note ? ` • Note: ${(m as any).note}` : ''}
+                    {m.status && (<>
+                      {' '}-{' '}<span style={{ color: toStatusColor(m.status), marginLeft: 4 }}>{toDisplayStatus(m.status)}</span>
+                    </>)}
+                    {m.eta && (<> • ETA {m.eta}</>)}
+                    {(m as any).note && (<> • Note: {(m as any).note}</>)}
                   </button>
                   {typeof m.progress === 'number' && (
                     <div style={{ marginTop: 4, height: 6, background: 'rgba(255,255,255,0.12)', borderRadius: 6, overflow: 'hidden', width: '100%' }}>
                       <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, m.progress))}%`, background: '#4caf50' }} />
                     </div>
+                  )}
+                  {idx < arr.length - 1 && (
+                    <hr style={{
+                      border: 'none',
+                      borderTop: '1px solid var(--border-soft)',
+                      margin: '8px 0'
+                    }} />
                   )}
                 </div>
               ))}
@@ -425,13 +494,15 @@ export default function App() {
                   onMouseDown={(e) => startDrag(e.clientX, e.clientY)}
                   onTouchStart={(e) => { const t = e.touches[0]; startDrag(t.clientX, t.clientY); }}
                 >
-                  #{m.id} • {m.drone_id}
+                  <>#{m.id} • {m.drone_id}</>
                   {Array.isArray((m as any).payloads) && m.payloads && m.payloads.length > 0
                     ? ` — ${m.payloads.map((p) => `${p.item_name} x${p.quantity}`).join(', ')}`
                     : (m.payload ? ` — ${m.payload.item_name} x${m.payload.quantity} (${m.payload.weight_kg}kg)` : '')}
-                  {m.status ? ` — ${m.status}` : ''}
-                  {m.status && m.status !== 'livré' && m.eta ? ` • ETA ${m.eta}` : ''}
-                  {(m as any).note ? ` • Note: ${(m as any).note}` : ''}
+                  {m.status && (<>
+                    {' '}-{' '}<span style={{ color: toStatusColor(m.status), marginLeft: 4 }}>{toDisplayStatus(m.status)}</span>
+                  </>)}
+                  {m.status && m.status !== 'livré' && m.eta && (<> • ETA {m.eta}</>)}
+                  {(m as any).note && (<> • Note: {(m as any).note}</>)}
                 </button>
                 {typeof m.progress === 'number' && (
                   <div style={{ marginTop: 4, height: 6, background: 'rgba(255,255,255,0.12)', borderRadius: 6, overflow: 'hidden', width: '100%' }}>
@@ -449,11 +520,24 @@ export default function App() {
             borderRadius: 8, fontSize: 13, zIndex: 1000,
             fontFamily: 'apple-system, sans-serif',
           }}>
-            MGRS: {mgrs.forward([lastClick.lon, lastClick.lat])}
+            {/* Coordonnées du point cliqué */}
+            <div>MGRS: {mgrs.forward([lastClick.lon, lastClick.lat])}</div>
+            {/* Texte de mission: base items + statut + note, sans écraser la base */}
             {(() => {
               const m = missions.find((mm) => mm.id === selectedMissionId);
-              const note = (m as any)?.note as string | undefined;
-              return note ? (<div style={{ marginTop: 4, color: 'rgba(255,255,255,0.85)' }}>Note: {note}</div>) : null;
+              if (!m) return null;
+              const items = Array.isArray((m as any).payloads) && m.payloads && m.payloads.length > 0
+                ? m.payloads.map((p) => `${p.item_name} x${p.quantity}`).join(', ')
+                : (m.payload ? `${m.payload.item_name} x${m.payload.quantity}` : '');
+              const statusEl = m.status ? (<>
+                {' '}-{' '}<span style={{ color: toStatusColor(m.status), marginLeft: 4 }}>{toDisplayStatus(m.status)}</span>
+              </>) : null;
+              const noteEl = (m as any)?.note ? (<> • Note: {(m as any).note}</>) : null;
+              return (
+                <div style={{ marginTop: 4, color: 'rgba(255,255,255,0.90)' }}>
+                  {items}{statusEl}{noteEl}
+                </div>
+              );
             })()}
           </div>
         )}

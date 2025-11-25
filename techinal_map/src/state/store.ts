@@ -152,6 +152,17 @@ const createStore: StateCreator<DroneState> = (set, get) => ({
             })(),
             status: mm.status,
             note: mm.note,
+            // Parse payload and payloads from JSON strings to preserve base text
+            payload: (() => {
+              const p = mm.payload;
+              if (p && typeof p === 'object') return p as Payload;
+              try { return p ? JSON.parse(p) as Payload : undefined; } catch { return undefined; }
+            })(),
+            payloads: (() => {
+              const ps = mm.payloads;
+              if (Array.isArray(ps)) return ps as PayloadItem[];
+              try { return ps ? JSON.parse(ps) as PayloadItem[] : undefined; } catch { return undefined; }
+            })(),
             // Derive progress from status for initial load
             progress: (() => {
               const k = (mm.status || '').toLowerCase();

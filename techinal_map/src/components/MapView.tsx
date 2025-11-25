@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, useMapEvents, CircleMarker, Polyline, LayersControl, Marker, Popup } from 'react-leaflet';
+import React, { useEffect } from 'react';
+import { MapContainer, TileLayer, useMapEvents, CircleMarker, Polyline, LayersControl } from 'react-leaflet';
 import type { LeafletMouseEvent } from 'leaflet';
 import { useDroneStore } from '../state/store';
 import { startWebSocket } from '../ws';
@@ -23,23 +23,13 @@ export default function MapView({ setWaypointFromMap }: { setWaypointFromMap: (l
   const zones = useDroneStore((s) => s.zones);
   const draftTarget = useDroneStore((s) => s.draftTarget);
   const selectedDroneId = useDroneStore((s) => s.selectedDroneId);
-  const [warehouses, setWarehouses] = useState<{ id: number; name: string; latitude: number; longitude: number }[]>([]);
+  // Entrepôts masqués: ne pas stocker ni afficher (sécurité)
 
   useEffect(() => {
     startWebSocket();
   }, []);
 
-  useEffect(() => {
-    // Fetch entrepôts depuis le backend
-    (async () => {
-      try {
-        const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:8001';
-        const res = await fetch(`${apiBase}/warehouses`);
-        const data = await res.json();
-        setWarehouses(Array.isArray(data) ? data : []);
-      } catch {}
-    })();
-  }, []);
+  // Ne pas charger les entrepôts
 
   return (
     <MapContainer center={[48.8566, 2.3522]} zoom={12} style={{ height: 'calc(100vh - 48px)', width: '100%' }}>
@@ -60,17 +50,7 @@ export default function MapView({ setWaypointFromMap }: { setWaypointFromMap: (l
         </LayersControl.BaseLayer>
       </LayersControl>
       <ZonesLayer zones={zones} />
-      {warehouses.map((w) => (
-        <Marker key={w.id} position={[w.latitude, w.longitude]} eventHandlers={{ click: () => setWaypointFromMap(w.latitude, w.longitude) }}>
-          <Popup>
-            <div style={{ fontWeight: 600 }}>{w.name}</div>
-            <div style={{ fontSize: 12 }}>Lat/Lon: {w.latitude.toFixed(5)}, {w.longitude.toFixed(5)}</div>
-            <div style={{ marginTop: 6 }}>
-              <button className="btn" onClick={() => setWaypointFromMap(w.latitude, w.longitude)}>Définir comme origine</button>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
+      {/* Entrepôts masqués */}
       {Object.values(drones).map((t) => (
         <React.Fragment key={t.drone_id}>
           <DroneMarker t={t} />

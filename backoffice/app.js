@@ -380,13 +380,13 @@ async function loadMissions(filter = '') {
         <div class="muted" style="margin-top:6px">Commande: ${payloadOne.item_name} x${payloadOne.quantity} (${payloadOne.weight_kg}kg)</div>
       ` : ''}
       <div class="row" style="margin-top:8px;">
-        <label style="flex:1;">Note opérateur
+        <label style="flex:1;">
           <input type="text" id="${noteInputId}" placeholder="Ajouter une note" value="${m.note ?? ''}" />
         </label>
         <button data-id="${m.id}" class="btn btn primary btn-update-note">Enregistrer note</button>
       </div>
       <div class="row" style="margin-top:8px;">
-        <label>État
+        <label>
           <select id="${statusSelectId}">
             <option value="pending" ${m.status === 'pending' ? 'selected' : ''}>Préparation</option>
             <option value="assigned" ${m.status === 'assigned' ? 'selected' : ''}>Assignée</option>
