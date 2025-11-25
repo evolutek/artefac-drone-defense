@@ -82,6 +82,17 @@ typedef struct {
     } data;
 } PACKED Event;
 
+enum DroneWaypointType {
+    WAYPOINT_DELIVERY,
+    WAYPOINT_WAREHOUSE,
+    WAYPOINT_ROUTE,
+};
+
+typedef struct {
+    Position pos;
+
+} PACKED DroneWaypoint;
+
 typedef struct {
     uint64_t drone_id;
     uint32_t waypoint_count;
@@ -91,6 +102,7 @@ typedef struct {
 typedef struct {
     uint8_t assignment_count;
     DroneAssignment assignments[MAX_ASSIGNMENTS];
+
 } PACKED Assignments;
 
 typedef struct {
