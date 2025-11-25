@@ -17,7 +17,7 @@ Node*** choose_drone_naive(struct Drone** drones, Node** warehouses){
             //on a la livraison qu'on veut ajouter : regarder si elle est présente dans deliveries, sinon ajouter : faire une struct
             char found = 0;
             for (size_t k = 0; k < darray_size(deliveries); k++){
-                if (warehouses[i]->edges[j].next == deliveries[k][0]){
+                if (warehouses[i]->edges[j]->next == deliveries[k][0]){
                     darray_add(deliveries[k], warehouses[i]);
                     found = 1;
                     break;
@@ -25,7 +25,7 @@ Node*** choose_drone_naive(struct Drone** drones, Node** warehouses){
             }
             if (found == 0){
                 Node** new_list = darray_create(4, sizeof(Node*));
-                darray_add(new_list, warehouses[i]->edges[j].next);
+                darray_add(new_list, warehouses[i]->edges[j]->next);
                 darray_add(new_list, warehouses[i]);
                 darray_add(deliveries, new_list);
             }
@@ -334,14 +334,14 @@ char create_new_solution(Node*** solution, Node* new_element, size_t drone_to_ad
 float cost_between(Node* start, Node* next){
     if (next->type == E_WAREHOUSE){
         for (size_t i = 0; i < start->nb_edges; i++){
-            if (start->edges[i].next->type == E_WAREHOUSE && start->edges[i].next->content.warehouse->id == next->content.warehouse->id)
-                return start->edges[i].cost;
+            if (start->edges[i]->next->type == E_WAREHOUSE && start->edges[i]->next->content.warehouse->id == next->content.warehouse->id)
+                return start->edges[i]->cost;
         }
     }
     else{
         for (size_t i = 0; i < start->nb_edges; i++){
-            if (start->edges[i].next->type == E_DELIVERY && start->edges[i].next->content.delivery->id == next->content.delivery->id){
-                return start->edges[i].cost;
+            if (start->edges[i]->next->type == E_DELIVERY && start->edges[i]->next->content.delivery->id == next->content.delivery->id){
+                return start->edges[i]->cost;
             }     
         }
     }
