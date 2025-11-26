@@ -49,6 +49,9 @@ typedef struct {
     pthread_t main_thread;
     pthread_cond_t compute_ready_var;
     bool running;
+	bool should_recompute;
+
+	uint64_t repartition_id;
 } Ctx;
 
 typedef struct {
@@ -73,6 +76,7 @@ typedef struct {
 	
 	// Algorithm internal attributes
     NodeIndex node;
+	uint64_t repartition_id;
 } Delivery;
 
 typedef struct Drone {
@@ -93,6 +97,8 @@ typedef struct Drone {
 	Position position;
 	DeliveryIndex *targets;
 	uint8_t nb_targets;
+
+	// Algorithm internal attibutes
 	Position final_position;
 } Drone;
 

@@ -30,6 +30,7 @@ NodeIndex** choose_drone_naive(struct Drone** drones, NodeIndex* warehouses) {
                     break;
                 }
             }
+
             if (found == 0) {
                 NodeIndex* new_list = darray_create(4, sizeof(NodeIndex));
                 darray_add(new_list, wh_edge->next);
@@ -62,8 +63,26 @@ NodeIndex** choose_drone_naive(struct Drone** drones, NodeIndex* warehouses) {
     return result;
 }
 
+/*
+// Chaque entrepot a D* L / 3 drones assignés (arrondi)
+NodeIndex **assign_warehouses(Drone **drones, ClusterIndex *idx_clt, size_t nb_clt) {
+	uint32_t nb_del = 0;
+	uint32_t nb_del_clt[nb_clt];
+	for (int i_clt = 0; i_clt < nb_clt; i_clt++) {
+		Cluster *clt = pool_query(&clt.cluster_pool, idx_clt[i_clt]);
+		
+		size_t nb_at = clt->archetype_darray.size;
+		for (int i_at = 0; i_at < nb_at; i_at++) {
+			Archetype *at = pool_query(&clt.archetype_pool, clt->archetype[i_at]);
+			
+			size_t nb_del_at = at->deliveries_darray.size;
+			nb_del += nb_del_at;
+			nb_del_clt[i] = nb_del_at;
+		}
+	}
 
 
+}*/
 
 
 // call choose_drone_naive as many times as needed
@@ -222,6 +241,16 @@ NodeIndex** choose_drone_naive_aux(struct Drone** drones,
 
         *score = max_score;
         return solution;
+    }
+
+    if (((Node*)pool_query(&ctx.node_pool, deliveries[INDEX_VALUE(*actual_index)][0]))->content.delivery->repartition_id == ctx.repartition_id){
+        return choose_drone_naive_aux(drones,
+                                                  deliveries,
+                                                  actual_index,
+                                                  solution,
+                                                  score,
+                                                  all_edited_indexs,
+                                                  warehouses);
     }
 
     // Initialize the variables to stock the best result
