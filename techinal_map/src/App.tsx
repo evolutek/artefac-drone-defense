@@ -4,7 +4,7 @@ import MissionForm from './components/MissionForm';
 import { onStateEvent, offStateEvent, startWebSocket } from './ws';
 import { useDroneStore, type DroneState } from './state/store';
 import Modal from './components/Modal';
-import type { Payload, PayloadItem } from './types';
+import type { Payload, PayloadItem } from './types/types';
 import ProductCatalog from './components/ProductCatalog';
 import SearchInput from './components/SearchInput';
 import * as mgrs from 'mgrs';

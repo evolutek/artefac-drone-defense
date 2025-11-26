@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { PRODUCTS, type Product } from '../data/products';
-import type { Payload } from '../types';
+import type { Payload } from '../types/types';
 import { onStateEvent, offStateEvent, startWebSocket } from '../ws';
 
 export default function ProductCatalog({

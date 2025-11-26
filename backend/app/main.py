@@ -37,6 +37,7 @@ from .mqtt_client import mqtt_client
 from .websocket_manager import websocket_manager
 from .weather_service import check_weather
 from .event_bus import publish as publish_event
+from .algo_service import algo_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -244,6 +245,39 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to start gRPC server: {e}")
 
+    # Start C algorithm service
+    try:
+        if algo_service.start():
+            logger.info("C algorithm service started successfully")
+
+            # Seed existing data to algorithm
+            db = SessionLocal()
+            try:
+                # Send all products
+                from .crud.product import get_products
+                products = get_products(db, skip=0, limit=1000)
+                for prod in products:
+                    algo_service.send_item_new(prod)
+
+                # Send all warehouses
+                from .crud.warehouse import get_warehouses
+                warehouses = get_warehouses(db, skip=0, limit=1000)
+                for wh in warehouses:
+                    algo_service.send_warehouse_new(wh)
+
+                # Send all drones
+                drones = crud.get_drones(db, skip=0, limit=1000)
+                for drone in drones:
+                    algo_service.send_drone_new(drone)
+
+                logger.info("Synchronized existing data with C algorithm")
+            finally:
+                db.close()
+        else:
+            logger.warning("C algorithm service failed to start - running without optimization")
+    except Exception as e:
+        logger.error(f"Failed to start C algorithm service: {e}")
+
     yield
 
     # Cleanup on shutdown
@@ -257,6 +291,11 @@ async def lifespan(app: FastAPI):
             task.cancel()
     except Exception:
         pass
+    # Stop C algorithm
+    try:
+        algo_service.stop()
+    except Exception as e:
+        logger.error(f"Error stopping algo service: {e}")
 
 
 app = FastAPI(
@@ -333,18 +372,25 @@ def register_drone(drone: DroneCreate, db: Session = Depends(get_db)):
         model=drone.model,
     )
     logger.info(f"Registered drone: {drone.drone_id}")
-    # Broadcast state for real-time backoffice refresh
+
+    # Send to C algorithm
     try:
-        import asyncio
-        asyncio.create_task(websocket_manager.broadcast_state(drone.drone_id, {"type": "drone_upsert", "drone": {
+        algo_service.send_drone_new(db_drone)
+    except Exception as e:
+        logger.warning(f"Failed to send drone to algorithm: {e}")
+
+    # Broadcast state for real-time backoffice refresh via event bus
+    try:
+        evt = {"type": "drone_upsert", "drone": {
             "drone_id": db_drone.drone_id,
             "name": db_drone.name,
             "model": db_drone.model,
             "status": db_drone.status,
             "battery_level": db_drone.battery_level,
-        }}))
-    except Exception:
-        pass
+        }}
+        publish_event({"type": "state", "drone_id": drone.drone_id, "data": evt})
+    except Exception as e:
+        logger.warning(f"Failed to publish drone upsert event: {e}")
     return db_drone
 
 
@@ -583,17 +629,37 @@ def create_mission(mission: MissionCreate, db: Session = Depends(get_db)):
 
     logger.info(f"Created mission {db_mission.id} for drone {mission.drone_id}")
 
-    # Broadcast mission creation for real-time backoffice refresh
+    # Send mission to C algorithm for optimization
+    # If multiple products are requested, send one delivery per product type
     try:
-        import asyncio
-        asyncio.create_task(
-            websocket_manager.broadcast_state(
-                "system",
-                {"type": "mission_upsert", "mission_id": db_mission.id}
-            )
-        )
+        payloads = json.loads(payloads_json) if payloads_json else []
+        if not payloads:
+            # No specific payloads, send the mission as-is
+            algo_service.send_delivery_new(db_mission, db_session=db)
+            logger.info(f"Sent mission {db_mission.id} to algorithm for processing")
+        else:
+            # Send one delivery per product type
+            for idx, payload_item in enumerate(payloads):
+                # Create a temporary mission-like object for each product
+                class DeliveryForAlgo:
+                    def __init__(self, mission_id, waypoints, priority, payload_data):
+                        self.id = mission_id * 1000 + idx  # Unique ID per delivery
+                        self.waypoints = waypoints
+                        self.priority = priority
+                        self.payload_item = payload_data
+
+                delivery = DeliveryForAlgo(db_mission.id, waypoints_json, db_mission.priority or 0, payload_item)
+                algo_service.send_delivery_new(delivery, db_session=db)
+                logger.info(f"Sent delivery {delivery.id} (product: {payload_item.get('item_name')}) to algorithm")
     except Exception as e:
-        logger.warning(f"Failed to broadcast mission_upsert for mission {db_mission.id}: {e}")
+        logger.error(f"Failed to send mission {db_mission.id} to algorithm: {e}")
+
+    # Broadcast mission creation for real-time backoffice refresh via event bus
+    try:
+        evt = {"type": "mission_upsert", "mission_id": db_mission.id}
+        publish_event({"type": "state", "drone_id": "system", "data": evt})
+    except Exception as e:
+        logger.warning(f"Failed to publish mission_upsert event for mission {db_mission.id}: {e}")
 
     return db_mission
 
@@ -645,12 +711,12 @@ def update_mission_status(mission_id: int, status: str, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Mission not found")
 
     logger.info(f"Mission {mission_id} status updated to {status}")
-    # Broadcast mission status change
+    # Broadcast mission status change via event bus
     try:
-        import asyncio
-        asyncio.create_task(websocket_manager.broadcast_state("system", {"type": "mission_status_update", "mission_id": mission_id, "status": status}))
-    except Exception:
-        pass
+        evt = {"type": "mission_status_update", "mission_id": mission_id, "status": status}
+        publish_event({"type": "state", "drone_id": "system", "data": evt})
+    except Exception as e:
+        logger.warning(f"Failed to publish mission status update event: {e}")
 
     # Record idempotency key after successful update
     if x_idempotency_key:
@@ -673,12 +739,12 @@ def update_mission_note(mission_id: int, note: Optional[str] = None, db: Session
         raise HTTPException(status_code=404, detail="Mission not found")
 
     logger.info(f"Mission {mission_id} note updated")
-    # Broadcast mission note change
+    # Broadcast mission note change via event bus
     try:
-        import asyncio
-        asyncio.create_task(websocket_manager.broadcast_state("system", {"type": "mission_note_update", "mission_id": mission_id}))
-    except Exception:
-        pass
+        evt = {"type": "mission_note_update", "mission_id": mission_id}
+        publish_event({"type": "state", "drone_id": "system", "data": evt})
+    except Exception as e:
+        logger.warning(f"Failed to publish mission note update event: {e}")
     return {"message": f"Mission {mission_id} note updated"}
 
 
@@ -694,17 +760,18 @@ def delete_mission_endpoint(mission_id: int, db: Session = Depends(get_db)):
     deleted = crud.delete_mission(db, mission_id)
     logger.info(f"Mission {mission_id} deleted")
 
-    # Broadcast mission deletion
+    # Send REMOVE event to C algorithm
     try:
-        import asyncio
-        asyncio.create_task(
-            websocket_manager.broadcast_state(
-                "system",
-                {"type": "mission_delete", "mission_id": mission_id}
-            )
-        )
-    except Exception:
-        pass
+        algo_service.send_delivery_remove(mission_id)
+    except Exception as e:
+        logger.warning(f"Failed to send delivery remove to algorithm: {e}")
+
+    # Broadcast mission deletion via event bus
+    try:
+        evt = {"type": "mission_delete", "mission_id": mission_id}
+        publish_event({"type": "state", "drone_id": "system", "data": evt})
+    except Exception as e:
+        logger.warning(f"Failed to publish mission delete event: {e}")
 
     return {"message": f"Mission {mission_id} deleted"}
 
@@ -774,10 +841,16 @@ def list_warehouses(skip: int = 0, limit: int = 100, db: Session = Depends(get_d
 def create_warehouse_endpoint(payload: WarehouseCreate, db: Session = Depends(get_db)):
     from .crud.warehouse import create_warehouse
     w = create_warehouse(db, name=payload.name, latitude=payload.latitude, longitude=payload.longitude, address=payload.address, capacity=payload.capacity)
-    # Broadcast state for real-time backoffice refresh
+
+    # Send to C algorithm
     try:
-        import asyncio
-        asyncio.create_task(websocket_manager.broadcast_state("system", {"type": "warehouse_upsert", "warehouse": {
+        algo_service.send_warehouse_new(w)
+    except Exception as e:
+        logger.warning(f"Failed to send warehouse to algorithm: {e}")
+
+    # Broadcast state for real-time backoffice refresh via event bus
+    try:
+        evt = {"type": "warehouse_upsert", "warehouse": {
             "id": w.id,
             "name": w.name,
             "latitude": w.latitude,
@@ -786,9 +859,10 @@ def create_warehouse_endpoint(payload: WarehouseCreate, db: Session = Depends(ge
             "capacity": getattr(w, "capacity", None),
             "status": getattr(w, "status", None),
             "note": getattr(w, "note", None),
-        }}))
-    except Exception:
-        pass
+        }}
+        publish_event({"type": "state", "drone_id": "system", "data": evt})
+    except Exception as e:
+        logger.warning(f"Failed to publish warehouse upsert event: {e}")
     return w
 
 
@@ -852,9 +926,15 @@ def create_product_endpoint(payload: ProductCreate, db: Session = Depends(get_db
             db.refresh(p)
         except Exception:
             pass
-    # Broadcast state for real-time backoffice refresh
+
+    # Send to C algorithm
     try:
-        import asyncio
+        algo_service.send_item_new(p)
+    except Exception as e:
+        logger.warning(f"Failed to send product to algorithm: {e}")
+
+    # Broadcast state for real-time backoffice refresh via event bus
+    try:
         evt = {"type": "product_upsert", "product": {
             "id": p.id,
             "name": p.name,
@@ -862,10 +942,9 @@ def create_product_endpoint(payload: ProductCreate, db: Session = Depends(get_db
             "weight_kg": p.weight_kg,
             "image_url": p.image_url,
         }}
-        asyncio.create_task(websocket_manager.broadcast_state("system", evt))
         publish_event({"type": "state", "drone_id": "system", "data": evt})
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to publish product upsert event: {e}")
     return p
 
 
@@ -875,14 +954,19 @@ def delete_product_endpoint(product_id: int, db: Session = Depends(get_db)):
     ok = delete_product(db, product_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Product not found")
-    # Broadcast state for real-time backoffice refresh
+
+    # Send REMOVE event to C algorithm
     try:
-        import asyncio
+        algo_service.send_item_remove(product_id)
+    except Exception as e:
+        logger.warning(f"Failed to send item remove to algorithm: {e}")
+
+    # Broadcast state for real-time backoffice refresh via event bus
+    try:
         evt = {"type": "product_delete", "product_id": product_id}
-        asyncio.create_task(websocket_manager.broadcast_state("system", evt))
         publish_event({"type": "state", "drone_id": "system", "data": evt})
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to publish product delete event: {e}")
     return {"message": f"Product {product_id} deleted"}
 
 
@@ -943,20 +1027,48 @@ def upsert_inventory(warehouse_id: int, entry: InventoryEntry, db: Session = Dep
     if not p:
         raise HTTPException(status_code=404, detail="Product not found")
     item = upsert_inventory(db, warehouse_id=warehouse_id, product_id=entry.product_id, quantity=entry.quantity)
-    # Broadcast state for real-time backoffice refresh
+    # Broadcast state for real-time backoffice refresh via event bus
     try:
-        import asyncio
-        asyncio.create_task(websocket_manager.broadcast_state("system", {"type": "inventory_update", "inventory": {
+        evt = {"type": "inventory_update", "inventory": {
             "warehouse_id": warehouse_id,
             "product_id": item.product_id,
             "quantity": item.quantity,
-        }}))
-    except Exception:
-        pass
+        }}
+        publish_event({"type": "state", "drone_id": "system", "data": evt})
+    except Exception as e:
+        logger.warning(f"Failed to publish inventory update event: {e}")
     return {"product_id": item.product_id, "quantity": item.quantity}
 
 
 # ==================== Delivery Estimation ====================
+
+@app.get("/algo/assignment")
+def get_algo_assignment():
+    """
+    Get the next assignment from the C algorithm.
+    This endpoint blocks until the algorithm produces a result.
+    Use with caution as it may timeout if algorithm is not running.
+    """
+    try:
+        mission = algo_service.get_assignment()
+        if mission is None:
+            raise HTTPException(status_code=503, detail="Algorithm not available or failed to get assignment")
+
+        return {
+            "mission_id": mission.mission_id,
+            "drone_id": mission.drone_id,
+            "waypoints": [
+                {
+                    "position": {"x": wp.position[0], "y": wp.position[1]},
+                    "type": wp.type
+                }
+                for wp in mission.waypoints
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Error getting assignment: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get assignment: {str(e)}")
+
 
 @app.post("/estimate_delivery", response_model=DeliveryEstimateResponse)
 def estimate_delivery(req: DeliveryEstimateRequest, db: Session = Depends(get_db)):

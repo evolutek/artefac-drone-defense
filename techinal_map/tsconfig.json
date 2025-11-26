@@ -8,7 +8,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "types": ["vite/client", "node"],
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@types": ["src/types/*"]
+    }
   },
   "include": ["src"]
 }

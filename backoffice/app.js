@@ -1,4 +1,4 @@
-const API = 'http://localhost:8001';
+const API = 'http://localhost:8000';
 
 // Simple PIN login (aligné sur le client carto)
 let authenticated = (() => {

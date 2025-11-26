@@ -1,18 +1,18 @@
 import { create, type StateCreator } from 'zustand';
-import type { DroneTelemetry, MissionCreate, Payload, PayloadItem } from '../types';
+import type { DroneTelemetry, MissionCreate, Payload } from '../types';
 
 export type DroneState = {
   drones: Record<string, DroneTelemetry>;
   trajectories: Record<string, Array<[number, number]>>; // [lat, lon]
   zones: Array<{ id: string; name: string; center: [number, number]; radius: number; color?: string }>;
-  missions: Array<{ id: number; drone_id: string; waypoints: Array<[number, number]>; status?: string; payload?: Payload; payloads?: PayloadItem[]; note?: string; progress?: number; eta?: string; started_at?: number; delivered_at?: number }>;
+  missions: Array<{ id: number; drone_id: string; waypoints: Array<[number, number]>; status?: string; payload?: Payload; payloads?: Payload[]; note?: string; progress?: number; eta?: string; started_at?: number; delivered_at?: number }>;
   showTrajectories: boolean;
   draftTarget?: [number, number] | null;
   selectedDroneId?: string | null;
   setShowTrajectories: (show: boolean) => void;
   upsertTelemetry: (t: DroneTelemetry) => void;
-  addMission: (m: { id: number; drone_id: string; waypoints: Array<[number, number]>; status?: string; payload?: Payload; payloads?: PayloadItem[]; note?: string; progress?: number; eta?: string; started_at?: number; delivered_at?: number }) => void;
-  submitMission: (m: MissionCreate, payload?: Payload, payloads?: PayloadItem[]) => Promise<void>;
+  addMission: (m: { id: number; drone_id: string; waypoints: Array<[number, number]>; status?: string; payload?: Payload; payloads?: Payload[]; note?: string; progress?: number; eta?: string; started_at?: number; delivered_at?: number }) => void;
+  submitMission: (m: MissionCreate, payload?: Payload, payloads?: Payload[]) => Promise<void>;
   setDraftTarget: (pt: [number, number] | null) => void;
   setSelectedDroneId: (id: string | null) => void;
   loadMissions: () => Promise<void>;
@@ -53,7 +53,7 @@ const createStore: StateCreator<DroneState> = (set, get) => ({
       trajectories: { ...state.trajectories, [t.drone_id]: nextTraj }
     };
   }),
-  addMission: (m: { id: number; drone_id: string; waypoints: Array<[number, number]>; status?: string; payload?: Payload; payloads?: PayloadItem[]; note?: string; progress?: number; eta?: string; started_at?: number }) =>
+  addMission: (m: { id: number; drone_id: string; waypoints: Array<[number, number]>; status?: string; payload?: Payload; payloads?: Payload[]; note?: string; progress?: number; eta?: string; started_at?: number }) =>
     set((state: DroneState) => {
       const next = [...state.missions, m];
       try { localStorage.setItem('missions', JSON.stringify(next)); } catch {}
@@ -83,7 +83,7 @@ const createStore: StateCreator<DroneState> = (set, get) => ({
       return { missions: next };
     });
   },
-  submitMission: async (m: MissionCreate, payload?: Payload, payloads?: PayloadItem[]) => {
+  submitMission: async (m: MissionCreate, payload?: Payload, payloads?: Payload[]) => {
     const useMock = import.meta.env.DEV && (import.meta.env.VITE_USE_MOCK ?? 'true') !== 'false';
     const waypoints: [number, number][] = m.waypoints.map(
       (w: { lat: number; lon: number }) => [w.lat, w.lon] as [number, number]
@@ -160,8 +160,8 @@ const createStore: StateCreator<DroneState> = (set, get) => ({
             })(),
             payloads: (() => {
               const ps = mm.payloads;
-              if (Array.isArray(ps)) return ps as PayloadItem[];
-              try { return ps ? JSON.parse(ps) as PayloadItem[] : undefined; } catch { return undefined; }
+              if (Array.isArray(ps)) return ps as Payload[];
+              try { return ps ? JSON.parse(ps) as Payload[] : undefined; } catch { return undefined; }
             })(),
             // Derive progress from status for initial load
             progress: (() => {

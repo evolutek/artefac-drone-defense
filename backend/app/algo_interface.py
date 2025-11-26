@@ -15,7 +15,7 @@ MAX_DELIVERIES_PER_DRONE = 8
 # Packet structures
 # ----------------------------------------------------------------------
 
-class Position(ctypes.Structure):
+class Position(ctypes.Structure): 
     _pack_ = 1
     _fields_ = [
         ("x", ctypes.c_float),
@@ -57,16 +57,17 @@ class NewDronePkt(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
         ("id", ctypes.c_uint64),
-        ("max_flight_time_speed", ctypes.c_uint8),
-        ("max_speed", ctypes.c_uint8),
-        ("acceleration", ctypes.c_uint8),
-        ("max_flight_time", ctypes.c_uint16),
-        ("max_capacity", ctypes.c_uint32),
-        ("energy", ctypes.c_float),
+        ("position", Position),
+        ("max_capacity", ctypes.c_uint32),         # In grams
+        ("energy", ctypes.c_float),                # In Wh
+        ("max_flight_time", ctypes.c_uint16),      # In s
+        ("max_flight_time_speed", ctypes.c_uint8), # In m/s
+        ("max_speed", ctypes.c_uint8),             # In m/s
+        ("acceleration", ctypes.c_uint8),          # In m/s²
     ]
 
 class DroneFinishedPkt(ctypes.Structure):
-    _pack_ = 1,
+    _pack_ = 1
     _fields_ = [
         ("drone_id", ctypes.c_uint64),
         ("position", Position),
@@ -115,7 +116,7 @@ class StructEvent(ctypes.Structure):
 class StructWaypoint(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
-        ("position", Position),
+        ("position", Position), 
         ("type", ctypes.c_int32),
     ]
 
@@ -189,10 +190,10 @@ class Waypoint:
 
 @dataclass
 class Mission:
-    mission_id: it
+    mission_id: int
     drone_id: int
     waypoints: List[Waypoint]
-
+    
 
 # ----------------------------------------------------------------------
 # Shared memory algorithms & setup
@@ -201,12 +202,19 @@ class Mission:
 class AlgoInterface:
 
     def __init__(self):
+        # Create semaphores (Python creates, C connects)
         self.sem_buf2 = posix_ipc.Semaphore("/sem_buf2", flags=posix_ipc.O_CREAT, initial_value=0)
-        self.sem_buf1 = posix_ipc.Semaphore("/sem_buf1", initial_value=0)
-        self.shm = shared_memory.SharedMemory(name="/algo_shm", create=False, size=65536)
+        self.sem_buf1 = posix_ipc.Semaphore("/sem_buf1", flags=posix_ipc.O_CREAT, initial_value=0)
+
+        # Create shared memory (Python creates, C connects)
+        try:
+            self.shm = shared_memory.SharedMemory(name="algo_shm", create=True, size=65536)
+        except FileExistsError:
+            # If it already exists, just open it
+            self.shm = shared_memory.SharedMemory(name="algo_shm", create=False)
 
         ptr = ctypes.cast(
-            ctypes.addressof(ctypes.c_char.from_buffer(shm.buf)),
+            ctypes.addressof(ctypes.c_char.from_buffer(self.shm.buf)),
             ctypes.POINTER(StructSharedMemory)
         )
         self.shm_struct = ptr.contents
@@ -227,15 +235,21 @@ def get_assignment():
     return Mission(res.mission_id, res.drone_id, waypoints)
 
 def new_event(event_type, data):
+    """Send an event to the C algorithm via shared memory"""
+    if interface is None:
+        raise RuntimeError("AlgoInterface not initialized. Call algo_interface_init() first.")
+
     to_send: StructEvent = interface.shm_struct.buf2
     to_send.type = event_type
     edata = to_send.data
+
     match event_type:
         case EventType.EVENT_STOP:
             pass
         case EventType.EVENT_DRONE_NEW:
             edata.new_drone.id = data.id
-            edata.new_drone.position = data.position
+            edata.new_drone.position.x = data.position[0]
+            edata.new_drone.position.y = data.position[1]
             edata.new_drone.max_capacity = data.max_capacity
             edata.new_drone.energy = data.energy
             edata.new_drone.max_flight_time = data.max_flight_time
@@ -247,39 +261,64 @@ def new_event(event_type, data):
             pass
         case EventType.EVENT_DELIVERY_NEW:
             edata.new_delivery.id = data.id
-            edata.new_delivery.position = data.position
+            edata.new_delivery.position.x = data.position[0]
+            edata.new_delivery.position.y = data.position[1]
             edata.new_delivery.priority = data.priority
-            edata.new_delivery.user_priority = data.user_priority
+            edata.new_delivery.precedence = data.user_priority
             edata.new_delivery.quantity = data.quantity
-            edata.new_delivery.item = data.item_id
+            edata.new_delivery.item_id = data.item_id
         case EventType.EVENT_DELIVERY_REMOVE:
-            shm_struct.buf2.data.id = data
+            edata.id = data
         case EventType.EVENT_WAREHOUSE_NEW:
             edata.new_warehouse.id = data.id
-            edata.new_warehouse.position = data.position
+            edata.new_warehouse.position.x = data.position[0]
+            edata.new_warehouse.position.y = data.position[1]
             edata.new_warehouse.item_count = len(data.item_ids)
-            edata.new_warehouse.items = data.item_ids
+            for i, item_id in enumerate(data.item_ids[:MAX_WAREHOUSE_ITEMS]):
+                edata.new_warehouse.items[i] = item_id
         case EventType.EVENT_WAREHOUSE_REMOVE:
-            shm_struct.buf2.data.id = data
+            edata.id = data
         case EventType.EVENT_ITEM_NEW:
             edata.new_item.id = data.id
             edata.new_item.mass = data.mass
-            edata.new_item.name_length = len(data.name)
-            edata.new_item.name = data.name
+            name_bytes = data.name.encode('utf-8')[:MAX_ITEM_NAME_SIZE-1]
+            edata.new_item.name_length = len(name_bytes)
+            edata.new_item.name = name_bytes
         case EventType.EVENT_ITEM_REMOVE:
-            shm_struct.buf2.data.id = data
-    sem_buf2.release()
+            edata.id = data
+
+    interface.sem_buf2.release()
 
 def algo_interface_init():
+    """Initialize the algorithm interface (creates shared memory and semaphores)"""
+    global interface
     interface = AlgoInterface()
+    return interface
 
 def algo_interface_cleanup():
-    print("Python: Stopping!")
-    shm_struct.buf2.type = EventType.EVENT_STOP
-    sem_buf2.release()
+    """Cleanup and stop the algorithm interface"""
+    global interface
+    if interface is None:
+        return
 
-    sem_buf1.close()
-    sem_buf2.close()
-    posix_ipc.unlink_semaphore("/sem_buf2")
-    shm.close()
-    print("Python: Terminé")
+    print("Python: Stopping algorithm interface...")
+    try:
+        # Send STOP event
+        interface.shm_struct.buf2.type = EventType.EVENT_STOP
+        interface.sem_buf2.release()
+
+        # Close and unlink semaphores
+        interface.sem_buf1.close()
+        interface.sem_buf2.close()
+        posix_ipc.unlink_semaphore("/sem_buf1")
+        posix_ipc.unlink_semaphore("/sem_buf2")
+
+        # Close and unlink shared memory
+        interface.shm.close()
+        interface.shm.unlink()
+
+        interface = None
+        print("Python: Algorithm interface cleaned up successfully")
+    except Exception as e:
+        print(f"Python: Error during cleanup: {e}")
+

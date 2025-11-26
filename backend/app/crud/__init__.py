@@ -10,6 +10,7 @@ from .mission import (
     get_mission,
     get_missions,
     create_mission,
+    delete_mission,
     update_mission_status,
     update_mission_note,
 )
@@ -29,6 +30,7 @@ __all__ = [
     "get_mission",
     "get_missions",
     "create_mission",
+    "delete_mission",
     "update_mission_status",
     "update_mission_note",
     "create_telemetry",

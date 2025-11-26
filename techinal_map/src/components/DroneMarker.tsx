@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Marker, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
-import type { DroneTelemetry } from '../types';
+import type { DroneTelemetry } from '../types/types';
 
 const statusColor = (s?: DroneTelemetry['status']) => {
   switch (s) {

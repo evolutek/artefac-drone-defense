@@ -1,7 +1,7 @@
-import type { WSMessage, TelemetryMessage } from './types';
+import type { WSMessage, TelemetryMessage } from './types/types';
 import { useDroneStore } from './state/store';
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8001/ws/telemetry';
+const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8000/ws/telemetry';
 
 let socket: WebSocket | null = null;
 let reconnectTimer: number | null = null;
