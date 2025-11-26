@@ -75,8 +75,7 @@ static Drone* find_drone_with_id(uint64_t id) {
 
 static void handle_event(const Event* event) {
     printf("IF: Handling event of type %i.\n", event->type);
-    pthread_kill(ctx.main_thread, SIGUSR1);
-    pthread_mutex_lock(&ctx.pool_mutex);
+	ctx.should_recompute = true;
     switch (event->type) {
     case EVENT_STOP:
         ctx.running = false;
@@ -105,6 +104,9 @@ static void handle_event(const Event* event) {
     case EVENT_DRONE_FINISHED:
         break;
     case EVENT_DELIVERY_NEW: {
+    	pthread_kill(ctx.main_thread, SIGUSR1);
+    	pthread_mutex_lock(&ctx.pool_mutex);
+
         const NewDeliveryPkt* pkt = &event->data.new_delivery;
         add_delivery((Delivery) {
             .quantity      = pkt->quantity,
@@ -117,11 +119,17 @@ static void handle_event(const Event* event) {
     }
     case EVENT_DELIVERY_REMOVE: {
         Delivery* del = find_delivery_with_id(event->data.id);
-        if (del)
+        if (del) {
+			ctx.should_recompute = del->repartition_id == 0;
+    		pthread_kill(ctx.main_thread, SIGUSR1);
+    		pthread_mutex_lock(&ctx.pool_mutex);
             pool_free(&ctx.delivery_pool, del);
+		}
         break;
     }
     case EVENT_WAREHOUSE_NEW: {
+    	pthread_kill(ctx.main_thread, SIGUSR1);
+    	pthread_mutex_lock(&ctx.pool_mutex);
         const NewWarehousePkt* pkt = &event->data.new_warehouse;
         Warehouse wh               = {
                           .id         = pkt->id,
@@ -139,6 +147,9 @@ static void handle_event(const Event* event) {
         break;
     }
     case EVENT_WAREHOUSE_REMOVE: {
+		ctx.should_recompute = true;
+    	pthread_kill(ctx.main_thread, SIGUSR1);
+    	pthread_mutex_lock(&ctx.pool_mutex);
         Warehouse* wh = find_warehouse_with_id(event->data.id);
         if (wh)
             pool_free(&ctx.warehouse_pool, wh);

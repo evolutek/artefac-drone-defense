@@ -60,6 +60,28 @@ NodeIndex** choose_drone_naive(struct Drone** drones, NodeIndex* warehouses) {
     return result;
 }
 
+/*
+// Chaque entrepot a D* L / 3 drones assignés (arrondi)
+NodeIndex **assign_warehouses(Drone **drones, ClusterIndex *idx_clt, size_t nb_clt) {
+	uint32_t nb_del = 0;
+	uint32_t nb_del_clt[nb_clt];
+	for (int i_clt = 0; i_clt < nb_clt; i_clt++) {
+		Cluster *clt = pool_query(&clt.cluster_pool, idx_clt[i_clt]);
+		
+		size_t nb_at = clt->archetype_darray.size;
+		for (int i_at = 0; i_at < nb_at; i_at++) {
+			Archetype *at = pool_query(&clt.archetype_pool, clt->archetype[i_at]);
+			
+			size_t nb_del_at = at->deliveries_darray.size;
+			nb_del += nb_del_at;
+			nb_del_clt[i] = nb_del_at;
+		}
+	}
+
+
+}*/
+
+
 // call choose_drone_naive as many times as needed
 NodeIndex** choose_drone_naive_warehouse(struct Drone** drones,
                                          DroneIndex index,

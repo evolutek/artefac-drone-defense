@@ -384,13 +384,32 @@ int main(void) {
     init_context();
     // init_interface();
     init_test();
+	
+	// Loading scenario
+	NodeIndex *wh_nodes = darray_create(ctx.warehouse_pool.size, sizeof(NodeIndex));
+	pool_foreach2(&ctx.warehouse_pool, Warehouse, __attribute__((unused)) idx, wh) {
+       	NodeIndex wh_n;
+       	pool_foreach2(&ctx.node_pool, Node, n_idx, n) {
+    		if (n->content.warehouse == wh) {
+        		wh_n = n_idx;
+            	break;
+        	}
+    	}
+        darray_add(wh_nodes, wh_n);
+    }
 
-    if (sigsetjmp(ctx.restart_point, 1) == 0) {
-        /*
+	Drone** drones = darray_create(ctx.drone_pool.size, sizeof *drones);
+	pool_foreach2(&ctx.drone_pool, Drone, __attribute__((unused)) d_idx, d) {
+        	darray_add(drones, d);
+    }
+	NodeIndex **current_repartition, **next_repartition;
+	uint64_t repartition_id = 1;
+
+	if (sigsetjmp(ctx.restart_point, 1) == 0) {
         pthread_mutex_unlock(&ctx.pool_mutex);
         pthread_mutex_lock(&ctx.pool_mutex);
         pthread_cond_wait(&ctx.compute_ready_var, &ctx.pool_mutex);
-        */
+        
         // Recompute needed, discard
         puts("Interrupted!");
         if (!ctx.running)
@@ -451,34 +470,36 @@ int main(void) {
     }
 
     // Wave compute
-    puts("Computing...");
-    NodeIndex* wh_nodes = darray_create(ctx.warehouse_pool.size, sizeof(NodeIndex));
-    pool_foreach2(&ctx.warehouse_pool, Warehouse, idx, wh) {
-        (void) idx;
-        NodeIndex wh_n;
-        pool_foreach2(&ctx.node_pool, Node, n_idx, n) {
-            if (n->content.warehouse == wh) {
-                wh_n = n_idx;
-                break;
-            }
-        }
-        darray_add(wh_nodes, wh_n);
-    }
-    Drone** drones = darray_create(ctx.drone_pool.size, sizeof *drones);
-    pool_foreach2(&ctx.drone_pool, Drone, d_idx, d) {
-        (void) d_idx;
-        darray_add(drones, d);
-    }
-    NodeIndex** result = choose_drone_naive(drones, wh_nodes);
+	puts("Computing V1...");
+	current_repartition = choose_drone_naive(drones, wh_nodes);
+
+	while (ctx.running) {
+		if (ctx.should_recompute) {
+    		puts("Computing V2...");
+    		// wh_nodes = update;
+		
+			++repartition_id;
+			pool_foreach2(&ctx.drone_pool, Drone, __attribute__((unused)) idx_drone, drone) {
+				drone->position = drone->final_position;
+				Delivery *del = pool_query(&ctx.delivery_pool, drone->targets[drone->nb_targets - 1]);
+				drone->final_position = del->position;
+				del->repartition_id = repartition_id - 1;
+			}
+    	
+	    	next_repartition = choose_drone_naive(drones, wh_nodes);
+		}
+
+		pthread_cond_wait(&ctx.compute_ready_var, &ctx.pool_mutex);
+	}
 
     // === Display result ===
     printf("Node count: %zu\nEdge count: %zu\n", ctx.node_pool.size, ctx.edge_pool.size);
-    if (result != NULL) {
-        printf("Repartition count: %zu\n", darray_size(result));
-        for (size_t i = 0; i < darray_size(result); i++) {
-            printf("- Delivery count: %zu\n", darray_size(result[i]));
-            for (size_t j = 0; j < darray_size(result[i]); j++) {
-                Node* n = pool_query(&ctx.node_pool, result[i][j]);
+    if (current_repartition != NULL) {
+        printf("Repartition count: %zu\n", darray_size(current_repartition));
+        for (size_t i = 0; i < darray_size(current_repartition); i++) {
+            printf("- Delivery count: %zu\n", darray_size(current_repartition[i]));
+            for (size_t j = 0; j < darray_size(current_repartition[i]); j++) {
+                Node* n = pool_query(&ctx.node_pool, current_repartition[i][j]);
                 if (!n)
                     continue;
                 switch (n->type) {
