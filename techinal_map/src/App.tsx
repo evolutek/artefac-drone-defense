@@ -129,6 +129,27 @@ export default function App() {
     const id = window.setInterval(() => setTick((t) => t + 1), 1000);
     return () => { window.clearInterval(id); };
   }, []);
+  // Horodatage local de la dernière modification de statut par mission
+  const [statusTimestamps, setStatusTimestamps] = useState<Record<number, { status?: string; ts: number }>>({});
+  // Mettre à jour la carte des timestamps quand la liste des missions évolue
+  useEffect(() => {
+    const now = Date.now();
+    setStatusTimestamps((prev) => {
+      const next: Record<number, { status?: string; ts: number }> = { ...prev };
+      for (const m of missions) {
+        const existing = next[m.id];
+        if (!existing) {
+          const baseTs = (typeof m.delivered_at === 'number' && m.status === 'livré')
+            ? m.delivered_at!
+            : (typeof m.started_at === 'number' ? m.started_at! : now);
+          next[m.id] = { status: m.status, ts: baseTs };
+        } else if (existing.status !== m.status) {
+          next[m.id] = { status: m.status, ts: now };
+        }
+      }
+      return next;
+    });
+  }, [missions]);
   const [missionsPanelPos, setMissionsPanelPos] = useState<{ x: number; y: number }>({ x: 12, y: 80 });
   const panelRef = useRef<HTMLDivElement | null>(null);
   const dragOffsetRef = useRef<{ dx: number; dy: number } | null>(null);
@@ -479,9 +500,9 @@ export default function App() {
               }}
             />
             {missions.filter((m) => {
-              if (m.status !== 'livré') return true;
-              const d = (m as any).delivered_at as number | undefined;
-              return typeof d === 'number' && (Date.now() - d) < 3 * 60 * 1000;
+              const info = statusTimestamps[m.id];
+              const lastTs = info?.ts ?? (typeof m.started_at === 'number' ? m.started_at! : Date.now());
+              return (Date.now() - lastTs) < 60 * 1000;
             }).map((m) => (
               <div key={m.id} style={{ display: 'inline-block' }}>
                 <button

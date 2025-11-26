@@ -230,7 +230,8 @@ async def lifespan(app: FastAPI):
 
         # Setup MQTT callbacks for WebSocket broadcasting with the main event loop
         from .websocket_manager import setup_mqtt_callbacks
-        event_loop = asyncio.get_event_loop()
+        event_loop = asyncio.get_running_loop()
+        app.state.event_loop = event_loop
         setup_mqtt_callbacks(event_loop)
     else:
         logger.info("MQTT disabled (set MQTT_ENABLED=true to enable). Backend will still run.")
@@ -336,13 +337,18 @@ def register_drone(drone: DroneCreate, db: Session = Depends(get_db)):
     # Broadcast state for real-time backoffice refresh
     try:
         import asyncio
-        asyncio.create_task(websocket_manager.broadcast_state(drone.drone_id, {"type": "drone_upsert", "drone": {
-            "drone_id": db_drone.drone_id,
-            "name": db_drone.name,
-            "model": db_drone.model,
-            "status": db_drone.status,
-            "battery_level": db_drone.battery_level,
-        }}))
+        loop = getattr(app.state, "event_loop", None)
+        if loop:
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast_state(drone.drone_id, {"type": "drone_upsert", "drone": {
+                    "drone_id": db_drone.drone_id,
+                    "name": db_drone.name,
+                    "model": db_drone.model,
+                    "status": db_drone.status,
+                    "battery_level": db_drone.battery_level,
+                }}),
+                loop,
+            )
     except Exception:
         pass
     return db_drone
@@ -586,12 +592,15 @@ def create_mission(mission: MissionCreate, db: Session = Depends(get_db)):
     # Broadcast mission creation for real-time backoffice refresh
     try:
         import asyncio
-        asyncio.create_task(
-            websocket_manager.broadcast_state(
-                "system",
-                {"type": "mission_upsert", "mission_id": db_mission.id}
+        loop = getattr(app.state, "event_loop", None)
+        if loop:
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast_state(
+                    "system",
+                    {"type": "mission_upsert", "mission_id": db_mission.id}
+                ),
+                loop,
             )
-        )
     except Exception as e:
         logger.warning(f"Failed to broadcast mission_upsert for mission {db_mission.id}: {e}")
 
@@ -648,7 +657,12 @@ def update_mission_status(mission_id: int, status: str, db: Session = Depends(ge
     # Broadcast mission status change
     try:
         import asyncio
-        asyncio.create_task(websocket_manager.broadcast_state("system", {"type": "mission_status_update", "mission_id": mission_id, "status": status}))
+        loop = getattr(app.state, "event_loop", None)
+        if loop:
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast_state("system", {"type": "mission_status_update", "mission_id": mission_id, "status": status}),
+                loop,
+            )
     except Exception:
         pass
 
@@ -676,7 +690,12 @@ def update_mission_note(mission_id: int, note: Optional[str] = None, db: Session
     # Broadcast mission note change
     try:
         import asyncio
-        asyncio.create_task(websocket_manager.broadcast_state("system", {"type": "mission_note_update", "mission_id": mission_id}))
+        loop = getattr(app.state, "event_loop", None)
+        if loop:
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast_state("system", {"type": "mission_note_update", "mission_id": mission_id}),
+                loop,
+            )
     except Exception:
         pass
     return {"message": f"Mission {mission_id} note updated"}
@@ -697,12 +716,15 @@ def delete_mission_endpoint(mission_id: int, db: Session = Depends(get_db)):
     # Broadcast mission deletion
     try:
         import asyncio
-        asyncio.create_task(
-            websocket_manager.broadcast_state(
-                "system",
-                {"type": "mission_delete", "mission_id": mission_id}
+        loop = getattr(app.state, "event_loop", None)
+        if loop:
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast_state(
+                    "system",
+                    {"type": "mission_delete", "mission_id": mission_id}
+                ),
+                loop,
             )
-        )
     except Exception:
         pass
 
@@ -777,16 +799,21 @@ def create_warehouse_endpoint(payload: WarehouseCreate, db: Session = Depends(ge
     # Broadcast state for real-time backoffice refresh
     try:
         import asyncio
-        asyncio.create_task(websocket_manager.broadcast_state("system", {"type": "warehouse_upsert", "warehouse": {
-            "id": w.id,
-            "name": w.name,
-            "latitude": w.latitude,
-            "longitude": w.longitude,
-            "address": w.address,
-            "capacity": getattr(w, "capacity", None),
-            "status": getattr(w, "status", None),
-            "note": getattr(w, "note", None),
-        }}))
+        loop = getattr(app.state, "event_loop", None)
+        if loop:
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast_state("system", {"type": "warehouse_upsert", "warehouse": {
+                    "id": w.id,
+                    "name": w.name,
+                    "latitude": w.latitude,
+                    "longitude": w.longitude,
+                    "address": w.address,
+                    "capacity": getattr(w, "capacity", None),
+                    "status": getattr(w, "status", None),
+                    "note": getattr(w, "note", None),
+                }}),
+                loop,
+            )
     except Exception:
         pass
     return w
@@ -811,11 +838,31 @@ def update_warehouse_endpoint(warehouse_id: int, payload: WarehouseUpdate, db: S
             "status": getattr(w, "status", None),
             "note": getattr(w, "note", None),
         }}
-        asyncio.create_task(websocket_manager.broadcast_state("system", evt))
+        loop = getattr(app.state, "event_loop", None)
+        if loop:
+            asyncio.run_coroutine_threadsafe(websocket_manager.broadcast_state("system", evt), loop)
         publish_event({"type": "state", "drone_id": "system", "data": evt})
     except Exception:
         pass
     return w
+
+
+@app.delete("/warehouses/{warehouse_id}")
+def delete_warehouse_endpoint(warehouse_id: int, db: Session = Depends(get_db)):
+    from .crud.warehouse import delete_warehouse
+    ok = delete_warehouse(db, warehouse_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+    try:
+        import asyncio
+        evt = {"type": "warehouse_delete", "warehouse_id": warehouse_id}
+        loop = getattr(app.state, "event_loop", None)
+        if loop:
+            asyncio.run_coroutine_threadsafe(websocket_manager.broadcast_state("system", evt), loop)
+        publish_event({"type": "state", "drone_id": "system", "data": evt})
+    except Exception:
+        pass
+    return {"message": f"Warehouse {warehouse_id} deleted"}
 
 
 @app.get("/products", response_model=List[ProductResponse])
@@ -862,7 +909,9 @@ def create_product_endpoint(payload: ProductCreate, db: Session = Depends(get_db
             "weight_kg": p.weight_kg,
             "image_url": p.image_url,
         }}
-        asyncio.create_task(websocket_manager.broadcast_state("system", evt))
+        loop = getattr(app.state, "event_loop", None)
+        if loop:
+            asyncio.run_coroutine_threadsafe(websocket_manager.broadcast_state("system", evt), loop)
         publish_event({"type": "state", "drone_id": "system", "data": evt})
     except Exception:
         pass
@@ -879,7 +928,9 @@ def delete_product_endpoint(product_id: int, db: Session = Depends(get_db)):
     try:
         import asyncio
         evt = {"type": "product_delete", "product_id": product_id}
-        asyncio.create_task(websocket_manager.broadcast_state("system", evt))
+        loop = getattr(app.state, "event_loop", None)
+        if loop:
+            asyncio.run_coroutine_threadsafe(websocket_manager.broadcast_state("system", evt), loop)
         publish_event({"type": "state", "drone_id": "system", "data": evt})
     except Exception:
         pass
@@ -946,11 +997,13 @@ def upsert_inventory(warehouse_id: int, entry: InventoryEntry, db: Session = Dep
     # Broadcast state for real-time backoffice refresh
     try:
         import asyncio
-        asyncio.create_task(websocket_manager.broadcast_state("system", {"type": "inventory_update", "inventory": {
-            "warehouse_id": warehouse_id,
-            "product_id": item.product_id,
-            "quantity": item.quantity,
-        }}))
+        loop = getattr(app.state, "event_loop", None)
+        if loop:
+            asyncio.run_coroutine_threadsafe(websocket_manager.broadcast_state("system", {"type": "inventory_update", "inventory": {
+                "warehouse_id": warehouse_id,
+                "product_id": item.product_id,
+                "quantity": item.quantity,
+            }}), loop)
     except Exception:
         pass
     return {"product_id": item.product_id, "quantity": item.quantity}

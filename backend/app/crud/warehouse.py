@@ -4,6 +4,7 @@ CRUD operations for Warehouse model
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from ..models.warehouse import Warehouse
+from ..models.inventory import Inventory
 
 
 def get_warehouse(db: Session, warehouse_id: int) -> Optional[Warehouse]:
@@ -35,3 +36,16 @@ def update_warehouse(db: Session, warehouse_id: int, **fields) -> Optional[Wareh
     db.commit()
     db.refresh(w)
     return w
+
+
+def delete_warehouse(db: Session, warehouse_id: int) -> bool:
+    w = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+    if not w:
+        return False
+    try:
+        db.query(Inventory).filter(Inventory.warehouse_id == warehouse_id).delete()
+    except Exception:
+        pass
+    db.delete(w)
+    db.commit()
+    return True

@@ -18,6 +18,7 @@
         <button class="btn" data-nav="warehouses">Gérer entrepôts</button>
         <button class="btn" data-nav="products">Produits</button>
         <button class="btn" data-nav="inventory">Inventaire</button>
+        <button class="btn" data-nav="stocks">Suivi des stocks</button>
         <button class="btn" data-nav="drones">Drones</button>
         <button class="btn" data-nav="missions" style="margin-left:auto">Suivi des livraisons</button>
       </div>
@@ -63,6 +64,10 @@
           <input type="text" name="category" placeholder="Catégorie" />
           <input type="number" step="any" name="weight_kg" placeholder="Poids (kg)" />
           <input type="url" name="image_url" placeholder="Image URL" />
+          <input type="file" name="image_file" accept="image/*" capture="environment" />
+          <div id="product-image-preview" style="margin-top:6px; display:none">
+            <img id="product-image-preview-img" alt="Prévisualisation" style="max-height:80px; border:1px solid var(--border); border-radius:6px; background:rgba(0,0,0,0.2)" />
+          </div>
           <button type="submit">Ajouter</button>
         </form>
         <div id="product-list"></div>
@@ -77,6 +82,20 @@
           <button type="submit">Enregistrer</button>
         </form>
         <div id="inventory-view"></div>
+      </section>
+
+      <section id="stocks">
+        <h2>Suivi des stocks</h2>
+        <div class="row" style="margin-bottom:8px">
+          <select id="stocks-grouping" style="min-width:160px">
+            <option value="produits" selected>Par produit</option>
+            <option value="entrepots">Par entrepôt</option>
+          </select>
+          <input id="stocks-filter" type="text" placeholder="Filtrer (produit/entrepôt)" style="flex:1" />
+          <button id="seed-inventory" class="btn">Remplir stocks démo</button>
+          <div id="stocks-summary" class="muted" style="margin-left:auto"></div>
+        </div>
+        <div id="stocks-view"></div>
       </section>
 
       <section id="drones">
