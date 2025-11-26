@@ -155,6 +155,7 @@ export default function App() {
   const dragOffsetRef = useRef<{ dx: number; dy: number } | null>(null);
   const draggingRef = useRef<boolean>(false);
   const dragMovedRef = useRef<boolean>(false);
+  const [toastVisibleUntil, setToastVisibleUntil] = useState<number | null>(null);
   function startDrag(clientX: number, clientY: number) {
     const rect = panelRef.current?.getBoundingClientRect();
     const dx = rect ? clientX - rect.left : 0;
@@ -208,6 +209,11 @@ export default function App() {
           if (typeof setStatus === 'function') {
             setStatus(mission_id, status);
           }
+          const fn = useDroneStore.getState().loadMissions;
+          if (typeof fn === 'function') {
+            fn().catch(() => {});
+          }
+          setToastVisibleUntil(Date.now() + 15000);
           return; // éviter rechargement complet pour simple mise à jour de statut
         }
       }
@@ -216,6 +222,7 @@ export default function App() {
         if (typeof fn === 'function') {
           fn().catch(() => {});
         }
+        if (t === 'mission_upsert') setToastVisibleUntil(Date.now() + 15000);
       }
     };
     onStateEvent(handler);
@@ -372,8 +379,15 @@ export default function App() {
           <button
             type="button"
             className="btn"
-            onClick={() => setMode(mode === 'catalogue' ? 'carte' : 'catalogue')}
-          >{mode === 'catalogue' ? 'Mode Carte' : 'Mode Catalogue'}</button>
+            aria-label="Accéder à la carte"
+            onClick={() => setMode('carte')}
+          >Accéder à la carte</button>
+          <button
+            type="button"
+            className="btn"
+            aria-label="Accéder au catalogue"
+            onClick={() => setMode('catalogue')}
+          >Accéder au catalogue</button>
           <button
             type="button"
             className="btn"
@@ -482,66 +496,63 @@ export default function App() {
             </div>
           </div>
         )}
-        {mode === 'carte' && missions.length > 0 && (
-          <div
-            ref={panelRef}
-            style={{
-              position: 'fixed', top: missionsPanelPos.y, left: missionsPanelPos.x,
-              display: 'flex', flexDirection: 'column', gap: 8, zIndex: 1000,
-              maxWidth: 'min(540px, 94vw)'
-            }}
-          >
-            <div
-              style={{ height: 10, background: 'rgba(255,255,255,0.12)', borderRadius: 6, cursor: 'move' }}
-              onMouseDown={(e) => startDrag(e.clientX, e.clientY)}
-              onTouchStart={(e) => {
-                const t = e.touches[0];
-                startDrag(t.clientX, t.clientY);
-              }}
-            />
-            {missions.filter((m) => {
-              const info = statusTimestamps[m.id];
-              const lastTs = info?.ts ?? (typeof m.started_at === 'number' ? m.started_at! : Date.now());
-              return (Date.now() - lastTs) < 60 * 1000;
-            }).map((m) => (
-              <div key={m.id} style={{ display: 'inline-block' }}>
-                <button
-                  onClick={() => {
-                    if (draggingRef.current || dragMovedRef.current) { draggingRef.current = false; dragMovedRef.current = false; return; }
-                    const first = m.waypoints?.[0];
-                    if (first) {
-                      setLastClick({ lat: first[0], lon: first[1] });
-                      setDraftTarget([first[0], first[1]]);
-                    }
-                    setSelectedMissionId(m.id);
-                    setSelectedDroneId(m.drone_id);
-                    setReplayPayload(m.payload);
-                    setReplayPayloads(m.payloads);
-                    setModalOpen(true);
-                  }}
-                  className="btn"
-                  style={{ padding: '6px 10px', textAlign: 'left', justifyContent: 'flex-start', cursor: 'move' }}
+        {mode === 'carte' && toastVisibleUntil && Date.now() < toastVisibleUntil && missions.length > 0 && (
+          (() => {
+            const latest = [...missions].sort((a, b) => (b.started_at ?? b.id) - (a.started_at ?? a.id))[0];
+            if (!latest) return null;
+            return (
+              <div
+                ref={panelRef}
+                style={{
+                  position: 'fixed', top: missionsPanelPos.y, left: missionsPanelPos.x,
+                  display: 'flex', flexDirection: 'column', gap: 8, zIndex: 1000,
+                  maxWidth: 'min(540px, 94vw)'
+                }}
+              >
+                <div
+                  style={{ height: 10, background: 'rgba(255,255,255,0.12)', borderRadius: 6, cursor: 'move' }}
                   onMouseDown={(e) => startDrag(e.clientX, e.clientY)}
                   onTouchStart={(e) => { const t = e.touches[0]; startDrag(t.clientX, t.clientY); }}
-                >
-                  <>#{m.id} • {m.drone_id}</>
-                  {Array.isArray((m as any).payloads) && m.payloads && m.payloads.length > 0
-                    ? ` — ${m.payloads.map((p) => `${p.item_name} x${p.quantity}`).join(', ')}`
-                    : (m.payload ? ` — ${m.payload.item_name} x${m.payload.quantity} (${m.payload.weight_kg}kg)` : '')}
-                  {m.status && (<>
-                    {' '}-{' '}<span style={{ color: toStatusColor(m.status), marginLeft: 4 }}>{toDisplayStatus(m.status)}</span>
-                  </>)}
-                  {m.status && m.status !== 'livré' && m.eta && (<> • ETA {m.eta}</>)}
-                  {(m as any).note && (<> • Note: {(m as any).note}</>)}
-                </button>
-                {typeof m.progress === 'number' && (
-                  <div style={{ marginTop: 4, height: 6, background: 'rgba(255,255,255,0.12)', borderRadius: 6, overflow: 'hidden', width: '100%' }}>
-                    <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, m.progress))}%`, background: '#4caf50' }} />
-                  </div>
-                )}
+                />
+                <div style={{ display: 'inline-block' }}>
+                  <button
+                    onClick={() => {
+                      if (draggingRef.current || dragMovedRef.current) { draggingRef.current = false; dragMovedRef.current = false; return; }
+                      const first = latest.waypoints?.[0];
+                      if (first) {
+                        setLastClick({ lat: first[0], lon: first[1] });
+                        setDraftTarget([first[0], first[1]]);
+                      }
+                      setSelectedMissionId(latest.id);
+                      setSelectedDroneId(latest.drone_id);
+                      setReplayPayload(latest.payload);
+                      setReplayPayloads(latest.payloads);
+                      setModalOpen(true);
+                    }}
+                    className="btn"
+                    style={{ padding: '6px 10px', textAlign: 'left', justifyContent: 'flex-start', cursor: 'move' }}
+                    onMouseDown={(e) => startDrag(e.clientX, e.clientY)}
+                    onTouchStart={(e) => { const t = e.touches[0]; startDrag(t.clientX, t.clientY); }}
+                  >
+                    <>#{latest.id} • {latest.drone_id}</>
+                    {Array.isArray((latest as any).payloads) && latest.payloads && latest.payloads.length > 0
+                      ? ` — ${latest.payloads.map((p) => `${p.item_name} x${p.quantity}`).join(', ')}`
+                      : (latest.payload ? ` — ${latest.payload.item_name} x${latest.payload.quantity} (${latest.payload.weight_kg}kg)` : '')}
+                    {latest.status && (<>
+                      {' '}-{' '}<span style={{ color: toStatusColor(latest.status), marginLeft: 4 }}>{toDisplayStatus(latest.status)}</span>
+                    </>)}
+                    {latest.status && latest.status !== 'livré' && latest.eta && (<> • ETA {latest.eta}</>)}
+                    {(latest as any).note && (<> • Note: {(latest as any).note}</>)}
+                  </button>
+                  {typeof latest.progress === 'number' && (
+                    <div style={{ marginTop: 4, height: 6, background: 'rgba(255,255,255,0.12)', borderRadius: 6, overflow: 'hidden', width: '100%' }}>
+                      <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, latest.progress))}%`, background: '#4caf50' }} />
+                    </div>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })()
         )}
         {lastClick && (
           <div style={{
