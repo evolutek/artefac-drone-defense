@@ -1,10 +1,15 @@
 #include "interface.h"
 #include "algo/cutter.h"
+#include "algo/graph.h"
 #include "algo/utils.h"
+#include "utils/darray.h"
 #include "utils/index.h"
 #include "utils/pool.h"
 
+#include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -15,7 +20,6 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
-#include <pthread.h>
 
 static int shm_fd;
 static SharedMemory* shm;
@@ -69,13 +73,11 @@ static Drone* find_drone_with_id(uint64_t id) {
         }
     }
     return NULL;
-
-
 }
 
 static void handle_event(const Event* event) {
     printf("IF: Handling event of type %i.\n", event->type);
-	ctx.should_recompute = true;
+    ctx.should_recompute = true;
     switch (event->type) {
     case EVENT_STOP:
         ctx.running = false;
@@ -102,10 +104,11 @@ static void handle_event(const Event* event) {
         break;
     }
     case EVENT_DRONE_FINISHED:
+        ctx.missions_in_progress = false;
         break;
     case EVENT_DELIVERY_NEW: {
-    	pthread_kill(ctx.main_thread, SIGUSR1);
-    	pthread_mutex_lock(&ctx.pool_mutex);
+        pthread_kill(ctx.main_thread, SIGUSR1);
+        pthread_mutex_lock(&ctx.pool_mutex);
 
         const NewDeliveryPkt* pkt = &event->data.new_delivery;
         add_delivery((Delivery) {
@@ -120,16 +123,16 @@ static void handle_event(const Event* event) {
     case EVENT_DELIVERY_REMOVE: {
         Delivery* del = find_delivery_with_id(event->data.id);
         if (del) {
-			ctx.should_recompute = del->repartition_id == 0;
-    		pthread_kill(ctx.main_thread, SIGUSR1);
-    		pthread_mutex_lock(&ctx.pool_mutex);
+            ctx.should_recompute = del->repartition_id == 0;
+            pthread_kill(ctx.main_thread, SIGUSR1);
+            pthread_mutex_lock(&ctx.pool_mutex);
             pool_free(&ctx.delivery_pool, del);
-		}
+        }
         break;
     }
     case EVENT_WAREHOUSE_NEW: {
-    	pthread_kill(ctx.main_thread, SIGUSR1);
-    	pthread_mutex_lock(&ctx.pool_mutex);
+        pthread_kill(ctx.main_thread, SIGUSR1);
+        pthread_mutex_lock(&ctx.pool_mutex);
         const NewWarehousePkt* pkt = &event->data.new_warehouse;
         Warehouse wh               = {
                           .id         = pkt->id,
@@ -143,29 +146,29 @@ static void handle_event(const Event* event) {
                 abort();
             wh.items[i] = item;
         }
-
+        add_warehouse(wh);
         break;
     }
     case EVENT_WAREHOUSE_REMOVE: {
-		ctx.should_recompute = true;
-    	pthread_kill(ctx.main_thread, SIGUSR1);
-    	pthread_mutex_lock(&ctx.pool_mutex);
+        ctx.should_recompute = true;
+        pthread_kill(ctx.main_thread, SIGUSR1);
+        pthread_mutex_lock(&ctx.pool_mutex);
         Warehouse* wh = find_warehouse_with_id(event->data.id);
         if (wh)
             pool_free(&ctx.warehouse_pool, wh);
         break;
     }
     case EVENT_ITEM_NEW: {
-        Item* item         = _pool_alloc(&ctx.item_pool, NULL);
         size_t name_length = event->data.new_item.name_length;
         char* name         = malloc(name_length + 1);
-        *item              = (Item) {
-                         .id   = event->data.new_item.id,
-                         .mass = event->data.new_item.mass,
-                         .name = name,
+        Item item          = {
+                     .id   = event->data.new_item.id,
+                     .mass = event->data.new_item.mass,
+                     .name = name,
         };
         memcpy(name, event->data.new_item.name, name_length);
         name[name_length] = 0;
+        add_item(item);
         break;
     }
     case EVENT_ITEM_REMOVE: {
@@ -177,12 +180,11 @@ static void handle_event(const Event* event) {
     }
     }
     pthread_mutex_unlock(&ctx.pool_mutex);
-    pthread_cond_signal(&ctx.compute_ready_var);
+    sem_post(&ctx.compute_ready_sem);
 }
 
-
 static void* interface_handle(void* _unused) {
-    (void)_unused;
+    (void) _unused;
 
     // Block SIGUSR1 on the interface thread
     sigset_t mask;
@@ -190,6 +192,7 @@ static void* interface_handle(void* _unused) {
     sigaddset(&mask, SIGUSR1);
     pthread_sigmask(SIG_BLOCK, &mask, NULL);
 
+    puts("Algorithm interface initialized.");
     while (ctx.running) {
         puts("IF: Waiting for backend messages...");
         if (sem_wait(sem_buf2) < 0) {
@@ -202,25 +205,75 @@ static void* interface_handle(void* _unused) {
     return NULL;
 }
 
-bool init_interface(void) {
-
-    shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
-    ftruncate(shm_fd, SHM_SIZE);
-    shm = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-
-    sem_buf1 = sem_open(SEM_BUF1, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    if (sem_buf1 == SEM_FAILED)
-        abort();
-
+static sem_t* try_open_semaphore(const char* name) {
+    printf("Attempting to open semaphore file '%s'...", name);
+    fflush(stdout);
     size_t retries;
+    sem_t* sem;
     for (retries = 0; retries < MAX_RETRIES; retries++) {
-        sem_buf2 = sem_open(SEM_BUF2, 0);
-        if (sem_buf2 != SEM_FAILED)
+        sem = sem_open(name, 0);
+        if (sem != SEM_FAILED)
             break;
         sleep(1);
     }
-    if (retries == MAX_RETRIES)
+    if (retries == MAX_RETRIES) {
+        puts("Timed out.");
+        return NULL;
+    }
+    puts("Done.");
+    return sem;
+}
+
+static void* try_open_shm(const char* name, int* out_fd) {
+    printf("Attempting to open shared memory file '%s'...", name);
+    fflush(stdout);
+    int fd;
+    size_t retries = 0;
+    do {
+        fd = shm_open(name, O_RDWR, 0666);
+        retries++;
+        sleep(1);
+    } while (fd == -1 && errno == ENOENT && retries < MAX_RETRIES);
+
+    if (retries == MAX_RETRIES) {
+        puts("Timed out.");
+        return NULL;
+    }
+
+    if (ftruncate(fd, SHM_SIZE) == -1) {
+        puts("Not resized.");
+        close(fd);
+        return NULL;
+    }
+
+    void* addr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (addr == MAP_FAILED) {
+        close(fd);
+        puts("Mapping error.");
+        perror("Failed to mmap shared memory");
+        return NULL;
+    }
+    *out_fd = fd;
+    puts("Done.");
+    return addr;
+}
+
+bool init_interface(void) {
+
+    sem_buf1 = try_open_semaphore(SEM_BUF1);
+    if (!sem_buf1)
         return false;
+    sem_buf2 = try_open_semaphore(SEM_BUF2);
+    if (!sem_buf2) {
+        sem_close(sem_buf1);
+        return false;
+    }
+
+    shm = try_open_shm(SHM_NAME, &shm_fd);
+    if (!shm) {
+        sem_close(sem_buf1);
+        sem_close(sem_buf2);
+    }
 
     pthread_create(&thread, NULL, &interface_handle, NULL);
     return true;
@@ -229,10 +282,48 @@ bool init_interface(void) {
 void stop_interface(void) {
     void* unused;
     pthread_join(thread, &unused);
-    (void)unused;
-
+    (void) unused;
 
     munmap(shm, SHM_SIZE);
     close(shm_fd);
-    sem_unlink(SEM_BUF1);
+    sem_close(sem_buf2);
+    sem_close(sem_buf1);
+}
+
+void send_mission(NodeIndex* repart, const Drone* drone) {
+
+    DroneAssignment ass = {
+        .drone_id       = drone->id,
+        .waypoint_count = darray_size(repart),
+    };
+    assert(ass.waypoint_count <= MAX_DELIVERIES_PER_DRONE);
+
+    DARRAY_FOR(i, repart) {
+        NodeIndex idx = repart[i];
+        Node* n       = pool_query(&ctx.node_pool, idx);
+        if (n->type == E_WAREHOUSE) {
+            ass.waypoints[i] = (DroneWaypoint) {
+                .type = WAYPOINT_WAREHOUSE,
+                .pos  = n->content.warehouse->pos,
+            };
+        } else {
+            ass.waypoints[i] = (DroneWaypoint) {
+                .type = WAYPOINT_DELIVERY,
+                .pos  = n->content.delivery->position,
+            };
+        }
+    }
+}
+
+void send_repartitions(NodeIndex** repartitions) {
+    if (ctx.missions_in_progress)
+        sem_wait(&ctx.compute_ready_sem);
+
+    PoolIter it = pool_iter_init(&ctx.drone_pool);
+    DARRAY_FOR(i, repartitions) {
+        NodeIndex* drone_repart = repartitions[i];
+        const Drone* drone      = pool_iter_next(&it);
+        send_mission(drone_repart, drone);
+    }
+    ctx.missions_in_progress = true;
 }

@@ -96,7 +96,7 @@ typedef struct {
 typedef struct {
     uint64_t drone_id;
     uint32_t waypoint_count;
-    Position waypoints[MAX_DELIVERIES_PER_DRONE];
+    DroneWaypoint waypoints[MAX_DELIVERIES_PER_DRONE];
 } PACKED DroneAssignment;
 
 typedef struct {
@@ -113,5 +113,7 @@ typedef struct {
 
 bool init_interface(void);
 void stop_interface(void);
+
+void send_repartitions(NodeIndex** repartitions);    
 
 #endif /* ! INTERFACE_H */

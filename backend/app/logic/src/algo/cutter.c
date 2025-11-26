@@ -117,6 +117,9 @@ ClusterIndex* cut(void) {
         darray_add(arch->deliveries_darray, del_idx);
     }
 
+    darray_clear(ctx.new_deliveries);
+    darray_clear(ctx.new_warehouses);
+
     return dirty_clusters;
 }
 

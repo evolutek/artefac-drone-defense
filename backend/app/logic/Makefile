@@ -1,6 +1,6 @@
 CC = gcc
 CPPFLAGS := -I src
-CFLAGS := -Wall -Wextra -Werror -O0 -g -march=native #-fsanitize=address 
+CFLAGS := -Wall -Wextra -Werror -march=native  -O0 -g -fsanitize=address 
 LDFLAGS := -lm -lpthread 
 
 SRC = $(wildcard src/**/*.c) src/main.c

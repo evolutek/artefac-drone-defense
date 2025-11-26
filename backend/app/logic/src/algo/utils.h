@@ -1,5 +1,6 @@
 #pragma once
 
+#include <semaphore.h>
 #include <stdint.h>
 #include "utils/pool.h"
 #include "utils/index.h"
@@ -47,9 +48,13 @@ typedef struct {
     pthread_mutex_t pool_mutex;
     sigjmp_buf restart_point;
     pthread_t main_thread;
-    pthread_cond_t compute_ready_var;
+    sem_t compute_ready_sem;
     bool running;
 	bool should_recompute;
+    bool missions_in_progress;
+
+    NodeIndex **current_repartition;
+    uint64_t repartition_id;
 } Ctx;
 
 typedef struct {

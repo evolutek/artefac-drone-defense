@@ -4,6 +4,7 @@
 #include "utils/darray.h"
 #include "utils/pool.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 NodeIndex* to_graph(ClusterIndex* cluster_indices, uint16_t nb_cluster) {
@@ -75,11 +76,13 @@ void link_archetypes(Archetype* at1, Archetype* at2) {
 // Creates nodes for all deliveries and then links the deliveries and finally the warehouse
 void link_intra_archetype(Archetype* at, NodeIndex wh_idx, uint32_t* i_wh_edge) {
     size_t nb_del = darray_size(at->deliveries_darray);
+    printf("nb_del = %zu\n", nb_del);
 
     // Creation of all nodes
     for (size_t i_del = 0; i_del < nb_del; i_del++) {
         Delivery* del = pool_query(&ctx.delivery_pool, at->deliveries_darray[i_del]);
         Node* wh = pool_query(&ctx.node_pool, wh_idx);
+        printf("nb_edges (wh) = %zu\n", wh->nb_edges);
         Node n_del    = {
                .content.delivery = del,
                .type             = E_DELIVERY,
@@ -99,7 +102,7 @@ void link_intra_archetype(Archetype* at, NodeIndex wh_idx, uint32_t* i_wh_edge) 
         Node* wh = pool_query(&ctx.node_pool, wh_idx);
 
         EdgeIndex idx_edge;
-        pool_add(&ctx.edge_pool, Edge, link(wh->content.warehouse->pos, del1), idx_edge);
+        pool_add(&ctx.edge_pool, Edge, link_single(wh->content.warehouse->pos, del1), idx_edge);
         wh->edges[(*i_wh_edge)++] = idx_edge;
         for (size_t i2_del = i1_del + 1; i2_del < nb_del; i2_del++) {
             del2 = pool_query(&ctx.delivery_pool, at->deliveries_darray[i2_del]);
@@ -113,20 +116,21 @@ void link_deliveries(Delivery* del1, Delivery* del2) {
     Node* n1 = pool_query(&ctx.node_pool, del1->node);
     Node* n2 = pool_query(&ctx.node_pool, del2->node);
     if (del1->user_priority <= del2->user_priority) {
-        pool_add(&ctx.edge_pool, Edge, link(del1->position, del2), idx_edge1);
+        pool_add(&ctx.edge_pool, Edge, link_single(del1->position, del2), idx_edge1);
+        printf("nb_edges: %zu\n", n1->nb_edges);
         n1->edges[n1->nb_edges++] = idx_edge1;
 
         if (del1->user_priority == del2->user_priority) {
-            pool_add(&ctx.edge_pool, Edge, link(del2->position, del1), idx_edge2);
+            pool_add(&ctx.edge_pool, Edge, link_single(del2->position, del1), idx_edge2);
             n2->edges[n2->nb_edges++] = idx_edge2;
         }
     } else {
-        pool_add(&ctx.edge_pool, Edge, link(del2->position, del1), idx_edge2);
+        pool_add(&ctx.edge_pool, Edge, link_single(del2->position, del1), idx_edge2);
         n2->edges[n2->nb_edges++] = idx_edge2;
     }
 }
 
-Edge link(Position pos, Delivery* del) {
+Edge link_single(Position pos, Delivery* del) {
     Position last_pos = pos;
     float distance    = 0;
 
