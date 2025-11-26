@@ -1,5 +1,122 @@
 const API = 'http://localhost:8001';
 
+// Simple PIN login (aligné sur le client carto)
+let authenticated = (() => {
+  try { return localStorage.getItem('session_auth') === '1'; } catch { return false; }
+})();
+let pin = '';
+const DEFAULT_PIN = '123123123';
+const PIN_LENGTH = DEFAULT_PIN.length;
+let wrongAttempts = (() => {
+  try { return parseInt(localStorage.getItem('pin_fail_count') || '0'); } catch { return 0; }
+})();
+let locked = wrongAttempts >= 3;
+
+function handleAccess() {
+  if (pin === DEFAULT_PIN) {
+    authenticated = true;
+    try { localStorage.setItem('session_auth', '1'); } catch {}
+    pin = '';
+    wrongAttempts = 0;
+    try { localStorage.setItem('pin_fail_count', '0'); } catch {}
+    const ov = document.getElementById('login-overlay');
+    if (ov) ov.remove();
+    const loginEl = document.getElementById('login');
+    if (loginEl) loginEl.style.display = 'none';
+    destroyLoginGlobe();
+    init();
+    return;
+  }
+  const next = wrongAttempts + 1;
+  wrongAttempts = next;
+  try { localStorage.setItem('pin_fail_count', String(next)); } catch {}
+  const errEl = document.getElementById('pin-error');
+  if (errEl) errEl.textContent = `PIN incorrect — tentative ${next}/3`;
+  const errEl2 = document.getElementById('login-pin-error');
+  if (errEl2) errEl2.textContent = `PIN incorrect — tentative ${next}/3`;
+  if (next >= 3) {
+    locked = true;
+    const box = document.getElementById('login-box');
+    if (box) {
+      box.innerHTML = `<div style="text-align:center; font-weight:600;">Verrouillé — réessayez plus tard</div>`;
+    }
+    const card = document.getElementById('login-card');
+    if (card) {
+      card.innerHTML = `<div style="text-align:center; font-weight:600;">Verrouillé — réessayez plus tard</div>`;
+    }
+  }
+}
+
+function renderLogin() {
+  if (document.getElementById('login-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'login-overlay';
+  overlay.style.position = 'fixed';
+  overlay.style.inset = '0';
+  overlay.style.zIndex = '3000';
+  overlay.style.background = 'rgba(0,0,0,0.35)';
+  const box = document.createElement('div');
+  box.id = 'login-box';
+  box.style.position = 'absolute';
+  box.style.left = '50%';
+  box.style.top = '50%';
+  box.style.transform = 'translate(-50%, -50%)';
+  box.style.width = 'min(360px, 92vw)';
+  box.style.background = 'rgba(12,16,22,0.85)';
+  box.style.border = '1px solid var(--border)';
+  box.style.borderRadius = '12px';
+  box.style.boxShadow = '0 10px 30px rgba(0,0,0,0.25)';
+  box.style.backdropFilter = 'saturate(180%) blur(8px)';
+  box.style.padding = '16px';
+  box.innerHTML = `
+    <div style="text-align: center; font-weight: 600; margin-bottom: 6px">Entrer le PIN</div>
+    <input
+      id="pin-input"
+      type="password"
+      inputmode="numeric"
+      pattern="[0-9]*"
+      maxlength="${PIN_LENGTH}"
+      class="input"
+      placeholder="${'•'.repeat(PIN_LENGTH)}"
+      style="display:block; margin:0 auto; width:min(260px, 100%); text-align:center; font-size:24px; letter-spacing:6px; color:#fff; border:1px solid var(--border)"
+      aria-label="PIN agent"
+    />
+    <div id="pin-error" style="color:#f44336; text-align:center; margin-top:8px; font-size:13px"></div>
+    <div style="display:flex; margin-top:12px">
+      <button type="button" class="btn" style="margin-left:auto" id="btn-access">Accéder</button>
+    </div>
+  `;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  const inp = document.getElementById('pin-input');
+  const btn = document.getElementById('btn-access');
+  if (inp) {
+    inp.addEventListener('input', (e) => {
+      const v = String(e.target.value || '');
+      pin = v.replace(/[^0-9]/g, '').slice(0, PIN_LENGTH);
+      e.target.value = pin;
+    });
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAccess(); });
+    inp.focus();
+  }
+  if (btn) btn.addEventListener('click', () => handleAccess());
+}
+
+let sections = ['login','warehouses','products','inventory','drones','missions'];
+
+function forceLogin() {
+  authenticated = false;
+  try { localStorage.setItem('session_auth', '0'); } catch {}
+  window.location.href = './login.html';
+}
+
+let loginGlobeInit = false;
+let loginGlobeRenderer = null;
+let loginGlobeScene = null;
+let loginGlobeCamera = null;
+let loginGlobeSphere = null;
+let loginGlobeAnimId = null;
+
 async function fetchJSON(url, opts = {}) {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
   if (!res.ok) throw new Error(await res.text());
@@ -21,15 +138,64 @@ async function loadWarehouses() {
   container.className = 'list';
   for (const w of renderItems) {
     const card = document.createElement('div');
-    card.className = 'card';
     card.className = 'card warehouse-card';
+    const status = (w.status || '').trim().toLowerCase();
+    const note = w.note || '';
+    let mgrsStr = '';
+    try {
+      if (typeof window.mgrs !== 'undefined' && window.mgrs && typeof window.mgrs.forward === 'function') {
+        mgrsStr = window.mgrs.forward([Number(w.longitude), Number(w.latitude)]);
+      }
+    } catch {}
     card.innerHTML = `
       <div class="warehouse-info">
         <div class="warehouse-title"><strong>${w.name}</strong></div>
-        <div class="muted">Lat/Lon: ${w.latitude.toFixed(5)}, ${w.longitude.toFixed(5)}</div>
+        <div class="muted">Lat/Lon: ${Number(w.latitude).toFixed(5)}, ${Number(w.longitude).toFixed(5)}</div>
+
+        ${status ? `<div class="muted"> ${status}${note ? ` — ${note}` : ''}</div>` : ''}
       </div>
-      <div class="row warehouse-actions" style="margin-top:auto; justify-content:flex-end;">
-        <button data-id="${w.id}" class="btn btn primary btn-inventory">Voir inventaire</button>
+      <div class="row" style="gap:8px;">
+        <label class="muted">
+          <select data-id="${w.id}" class="input warehouse-status">
+            <option value="operational" ${status === 'operational' ? 'selected' : ''}>Opérationnel</option>
+            <option value="maintenance" ${status === 'maintenance' ? 'selected' : ''}>Maintenance</option>
+            <option value="inactive" ${status === 'inactive' ? 'selected' : ''}>Inactif</option>
+            <option value="moving" ${status === 'moving' ? 'selected' : ''}>En déplacement</option>
+          </select>
+        </label>
+        <input type="text" class="input warehouse-note" data-id="${w.id}" placeholder="Message (si déplacement)" value="${note}" />
+      </div>
+      <div class="row" style="gap:8px;">
+        <input type="number" step="any" class="input warehouse-lat" data-id="${w.id}" placeholder="Latitude (optionnel)" />
+        <input type="number" step="any" class="input warehouse-lon" data-id="${w.id}" placeholder="Longitude (optionnel)" />
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
+        <div style="font-weight: 600;">Coordonnées — format MGRS</div>
+        <div class="mgrs-grid" style="display: grid; grid-template-columns: 80px 80px 160px 1fr 1fr auto; gap: 8px; justify-items: start; align-items: start;">
+          <label style="display: flex; flex-direction: column; gap: 4px;">Zone
+            <select class="input input-sm warehouse-mgrs-zone" aria-label="Zone (menu)" data-id="${w.id}">
+              <option value="" disabled selected>Choisir</option>
+              ${Array.from({length: 60}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join('')}
+            </select>
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 4px;">Bande
+            <select class="input input-sm warehouse-mgrs-band" aria-label="Bande (menu)" data-id="${w.id}">
+              <option value="" disabled selected>Choisir</option>
+              ${['C','D','E','F','G','H','J','K','L','M','N','P','Q','R','S','T','U','V','W','X'].map(l => `<option value="${l}">${l}</option>`).join('')}
+            </select>
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 4px;">Grille
+            <input type="text" placeholder="YT" class="input input-sm warehouse-mgrs-grid" data-id="${w.id}" />
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 4px;">Est (m)
+            <input type="text" inputmode="numeric" placeholder="26398" class="input input-sm warehouse-mgrs-east" data-id="${w.id}" />
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 4px;">Nord (m)
+            <input type="text" inputmode="numeric" placeholder="28974" class="input input-sm warehouse-mgrs-north" data-id="${w.id}" />
+          </label>
+          <button data-id="${w.id}" class="btn btn primary btn-update-warehouse" style="justify-self:end; align-self:end;">Mettre à jour</button>
+        </div>
+
       </div>
     `;
     container.appendChild(card);
@@ -39,6 +205,53 @@ async function loadWarehouses() {
   // populate inventory form warehouse select
   const sel = document.querySelector('#inventory-form select[name="warehouse_id"]');
   sel.innerHTML = renderItems.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+
+  // Bind update warehouse buttons
+  listEl.querySelectorAll('.btn-update-warehouse').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      const id = parseInt(e.target.getAttribute('data-id'), 10);
+      if (!id) return;
+      const statusSel = listEl.querySelector(`select.warehouse-status[data-id="${id}"]`);
+      const noteInput = listEl.querySelector(`input.warehouse-note[data-id="${id}"]`);
+      const latInput = listEl.querySelector(`input.warehouse-lat[data-id="${id}"]`);
+      const lonInput = listEl.querySelector(`input.warehouse-lon[data-id="${id}"]`);
+      const zoneSel = listEl.querySelector(`select.warehouse-mgrs-zone[data-id="${id}"]`);
+      const bandSel = listEl.querySelector(`select.warehouse-mgrs-band[data-id="${id}"]`);
+      const gridInput = listEl.querySelector(`input.warehouse-mgrs-grid[data-id="${id}"]`);
+      const eastInput = listEl.querySelector(`input.warehouse-mgrs-east[data-id="${id}"]`);
+      const northInput = listEl.querySelector(`input.warehouse-mgrs-north[data-id="${id}"]`);
+      const payload = {};
+      const statusVal = statusSel?.value || '';
+      const noteVal = noteInput?.value || '';
+      const latVal = latInput?.value || '';
+      const lonVal = lonInput?.value || '';
+      const zoneVal = zoneSel?.value || '';
+      const bandVal = bandSel?.value || '';
+      const gridVal = gridInput?.value || '';
+      const eastVal = eastInput?.value || '';
+      const northVal = northInput?.value || '';
+      if (statusVal) payload.status = statusVal;
+      if (statusVal === 'moving' && noteVal) payload.note = noteVal;
+      // Prefer MGRS if provided, otherwise use lat/lon inputs
+      if (zoneVal && bandVal && gridVal && eastVal && northVal && typeof window.mgrs !== 'undefined' && window.mgrs && typeof window.mgrs.toPoint === 'function') {
+        try {
+          const mgrsStr2 = `${zoneVal}${bandVal} ${gridVal.trim()} ${eastVal.trim()} ${northVal.trim()}`;
+          const pt = window.mgrs.toPoint(mgrsStr2);
+          if (Array.isArray(pt) && pt.length === 2) {
+            payload.longitude = parseFloat(pt[0]);
+            payload.latitude = parseFloat(pt[1]);
+          }
+        } catch {}
+      } else {
+        if (latVal !== '') payload.latitude = parseFloat(latVal);
+        if (lonVal !== '') payload.longitude = parseFloat(lonVal);
+      }
+      try {
+        await fetchJSON(`${API}/warehouses/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+        await loadWarehouses();
+      } catch (err) { alert(err.message); }
+    });
+  });
 }
 
 document.getElementById('warehouse-form').addEventListener('submit', async (e) => {
@@ -47,7 +260,24 @@ document.getElementById('warehouse-form').addEventListener('submit', async (e) =
   const payload = Object.fromEntries(fd.entries());
   payload.latitude = parseFloat(payload.latitude);
   payload.longitude = parseFloat(payload.longitude);
+  // If MGRS components provided, compose and convert to lat/lon
+  try {
+    const zone = (payload.mgrs_zone || '').trim();
+    const band = (payload.mgrs_band || '').trim();
+    const grid = (payload.mgrs_grid || '').trim();
+    const east = (payload.mgrs_east || '').trim();
+    const north = (payload.mgrs_north || '').trim();
+    if (zone && band && grid && east && north && typeof window.mgrs !== 'undefined' && window.mgrs && typeof window.mgrs.toPoint === 'function') {
+      const mgrsStr = `${zone}${band} ${grid} ${east} ${north}`;
+      const pt = window.mgrs.toPoint(mgrsStr);
+      if (Array.isArray(pt) && pt.length === 2) {
+        payload.longitude = parseFloat(pt[0]);
+        payload.latitude = parseFloat(pt[1]);
+      }
+    }
+  } catch {}
   if (payload.capacity) payload.capacity = parseInt(payload.capacity, 10);
+  delete payload.mgrs_zone; delete payload.mgrs_band; delete payload.mgrs_grid; delete payload.mgrs_east; delete payload.mgrs_north;
   try {
     await fetchJSON(`${API}/warehouses`, { method: 'POST', body: JSON.stringify(payload) });
     e.target.reset();
@@ -90,6 +320,7 @@ async function loadProducts() {
     const u = p.image_url ? String(p.image_url) : '';
     if (u.startsWith('http://') || u.startsWith('https://')) return u;
     if (u.startsWith('/product-placeholder/')) return `${API}${u}`; // served by backend
+    if (u.startsWith('/product-icons/')) return `${API}${u}`;
     // Legacy numeric-only values or numeric .svg should resolve to backend placeholder
     if (/^\d+$/.test(u)) return `${API}/product-placeholder/${p.id}.svg`;
     if (/^\d+\.svg$/.test(u)) return `${API}/product-placeholder/${p.id}.svg`;
@@ -97,11 +328,16 @@ async function loadProducts() {
     // Old absolute local asset path under /products -> rewrite to /product-icons
     if (u.startsWith('/products/')) {
       const tail = u.split('/').pop() || '';
-      if (/^\d+$/.test(tail)) return `${API}/product-placeholder/${p.id}.svg`;
-      return u.replace('/products/', '/product-icons/'); // served by backend static mount
+      const m = tail.match(/^(\d+)(\.svg)?$/);
+      if (m) return `${API}/product-placeholder/${m[1]}.svg`;
+      if (u.includes('/placeholder/')) {
+        const n = parseInt(tail.replace(/\.svg$/,''), 10);
+        if (!isNaN(n)) return `${API}/product-placeholder/${n}.svg`;
+      }
+      return `${API}${u.replace('/products/', '/product-icons/')}`; // served by backend static mount
     }
     // Relative file name under product-icons
-    if (u.endsWith('.svg')) return `/product-icons/${u}`; // e.g., 'med-kit.svg'
+    if (u.endsWith('.svg')) return `${API}/product-icons/${u}`; // e.g., 'med-kit.svg'
     // No explicit image: try name-based mapping or dynamic SVG
     const name = (p.name || '').toLowerCase();
     const rules = [
@@ -122,7 +358,7 @@ async function loadProducts() {
       { kw: ['aérosol', 'aerosol'], file: 'extinguisher-aerosol-1l.svg' },
     ];
     for (const r of rules) {
-      if (r.kw.every(k => name.includes(k))) return `/product-icons/${r.file}`;
+      if (r.kw.every(k => name.includes(k))) return `${API}/product-icons/${r.file}`;
     }
     return svgCardFor(p);
   }
@@ -246,6 +482,7 @@ document.getElementById('drone-form').addEventListener('submit', async (e) => {
 // Initial load
 (async function init() {
   try {
+    if (!authenticated) { window.location.href = './login.html'; return; }
     await loadWarehouses();
     await loadProducts();
     await loadDrones();
@@ -335,6 +572,29 @@ function connectRealtime() {
 }
 
 connectRealtime();
+
+// Simple tabs routing: show one section at a time
+function showSection(id) {
+  if (!authenticated && id !== 'login') id = 'login';
+  sections.forEach((s) => {
+    const el = document.getElementById(s);
+    if (!el) return;
+    el.style.display = (s === id) ? 'block' : 'none';
+  });
+}
+document.querySelectorAll('button[data-nav]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const id = btn.getAttribute('data-nav');
+    if (sections.includes(id)) showSection(id);
+  });
+});
+const logo = document.querySelector('header .logo');
+if (logo) {
+  logo.style.cursor = 'pointer';
+  logo.addEventListener('click', () => { forceLogin(); });
+}
+// Default section: warehouses
+showSection('warehouses');
 
 // Reload warehouses list when FR filter toggled
 document.getElementById('warehouse-filter-fr')?.addEventListener('change', async () => {
@@ -487,3 +747,51 @@ document.getElementById('mission-status-filter')?.addEventListener('change', asy
 (async function initMissions() {
   try { await loadMissions(''); } catch (err) { console.error(err); }
 })();
+function initLoginGlobe() {
+  if (loginGlobeInit) return;
+  const canvas = document.getElementById('login-globe');
+  if (!canvas || typeof THREE === 'undefined') return;
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  renderer.setSize(w, h, false);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b0f14);
+  const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+  camera.position.set(0, 0, 3.2);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+  scene.add(ambient);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+  dir.position.set(3, 2, 2);
+  scene.add(dir);
+  const geom = new THREE.SphereGeometry(1, 64, 64);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x1f3a68, roughness: 0.65, metalness: 0.05 });
+  const sphere = new THREE.Mesh(geom, mat);
+  scene.add(sphere);
+  function onResize() {
+    const ww = canvas.clientWidth;
+    const hh = canvas.clientHeight;
+    renderer.setSize(ww, hh, false);
+    camera.aspect = ww / hh;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', onResize, { passive: true });
+  function animate() {
+    sphere.rotation.y += 0.0025;
+    renderer.render(scene, camera);
+    loginGlobeAnimId = requestAnimationFrame(animate);
+  }
+  animate();
+  loginGlobeInit = true;
+  loginGlobeRenderer = renderer;
+  loginGlobeScene = scene;
+  loginGlobeCamera = camera;
+  loginGlobeSphere = sphere;
+}
+function destroyLoginGlobe() {
+  if (!loginGlobeInit) return;
+  try { cancelAnimationFrame(loginGlobeAnimId); } catch {}
+  try { loginGlobeRenderer.dispose(); } catch {}
+  loginGlobeInit = false; loginGlobeRenderer = null; loginGlobeScene = null; loginGlobeCamera = null; loginGlobeSphere = null; loginGlobeAnimId = null;
+}

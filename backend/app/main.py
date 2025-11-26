@@ -26,6 +26,7 @@ from .schemas import (
     WeatherCheckResponse,
     WarehouseCreate,
     WarehouseResponse,
+    WarehouseUpdate,
     ProductCreate,
     ProductResponse,
     InventoryEntry,
@@ -782,7 +783,36 @@ def create_warehouse_endpoint(payload: WarehouseCreate, db: Session = Depends(ge
             "latitude": w.latitude,
             "longitude": w.longitude,
             "address": w.address,
+            "capacity": getattr(w, "capacity", None),
+            "status": getattr(w, "status", None),
+            "note": getattr(w, "note", None),
         }}))
+    except Exception:
+        pass
+    return w
+
+
+@app.put("/warehouses/{warehouse_id}", response_model=WarehouseResponse)
+def update_warehouse_endpoint(warehouse_id: int, payload: WarehouseUpdate, db: Session = Depends(get_db)):
+    from .crud.warehouse import update_warehouse
+    fields = payload.model_dump(exclude_unset=True)
+    w = update_warehouse(db, warehouse_id, **fields)
+    if not w:
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+    try:
+        import asyncio
+        evt = {"type": "warehouse_upsert", "warehouse": {
+            "id": w.id,
+            "name": w.name,
+            "latitude": w.latitude,
+            "longitude": w.longitude,
+            "address": w.address,
+            "capacity": getattr(w, "capacity", None),
+            "status": getattr(w, "status", None),
+            "note": getattr(w, "note", None),
+        }}
+        asyncio.create_task(websocket_manager.broadcast_state("system", evt))
+        publish_event({"type": "state", "drone_id": "system", "data": evt})
     except Exception:
         pass
     return w

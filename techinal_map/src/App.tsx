@@ -39,6 +39,22 @@ export default function App() {
   const [pinError, setPinError] = useState<string>('');
   const [locked, setLocked] = useState<boolean>(false);
 
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    if (mode === 'carte') {
+      html.style.overflow = 'hidden';
+      body.style.overflow = 'hidden';
+    } else {
+      html.style.overflow = '';
+      body.style.overflow = '';
+    }
+    return () => {
+      html.style.overflow = '';
+      body.style.overflow = '';
+    };
+  }, [mode]);
+
   function wipeAll() {
     try { localStorage.clear(); } catch {}
     try { sessionStorage.clear(); } catch {}
@@ -300,7 +316,7 @@ export default function App() {
         <img
           src="/assets/logo-artifact-ago-white.png"
           alt="Logo"
-          style={{ height: 40, marginRight: 12, cursor: 'pointer' }}
+          style={{ height: 40, marginRight: 12, cursor: 'pointer', paddingLeft: 4.5 }}
           onClick={() => {
             if (!authenticated) return;
             const next = logoClicks + 1;
@@ -324,19 +340,13 @@ export default function App() {
             }
           }}
         />
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', paddingLeft: 12 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center', paddingLeft: 12, paddingRight: 12 }}>
           <button
             type="button"
-            aria-label="Historique des commandes"
+            className="btn"
+            aria-label="Suivis de commande"
             onClick={() => setMode('historique')}
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 6 }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <rect x="4" y="6" width="16" height="2" fill="#fff"/>
-              <rect x="4" y="11" width="16" height="2" fill="#fff"/>
-              <rect x="4" y="16" width="16" height="2" fill="#fff"/>
-            </svg>
-          </button>
+          >Suivis de commande</button>
 
           <button
             type="button"
@@ -347,7 +357,6 @@ export default function App() {
             type="button"
             className="btn"
             onClick={() => { setMode('carte'); setReplayPayload(undefined); setModalOpen(true); }}
-            style={{ margin: 15.8 }}
           >Créer mission</button>
         </div>
       </header>

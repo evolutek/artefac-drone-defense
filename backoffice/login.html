@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Connexion • Backoffice</title>
+    <link rel="icon" href="./assets/logo-artifact-ago-white.png" type="image/png" sizes="22x22" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <section style="grid-column: 1 / -1;">
+        <div style="position:relative">
+          <div style="position:fixed; inset:0; z-index:2000; pointer-events:none;">
+            <div style="position:absolute; left:16px; top:16px;">
+              <img src="./assets/logo-artifact-ago-white.png" alt="Logo" style="height:40px; width:auto; opacity:0.95" />
+            </div>
+          </div>
+          <canvas id="login-globe" style="position:fixed; inset:0; width:100vw; height:100vh; display:block; border:none; outline:none; background:transparent"></canvas>
+          <img src="./assets/logo-artifact-ago-white.png" alt="Logo" style="position:fixed; left:50%; top:54%; transform:translate(-50%, -50%); width:240px; height:auto; z-index:3000; pointer-events:none;" />
+          <div id="login-card" style="position:fixed; left:50%; top:75%; transform:translate(-50%, -50%); width:min(360px, 92vw); background: rgba(12,16,22,0.85); backdrop-filter: saturate(180%) blur(8px); border:1px solid var(--border); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.25); padding:16px; z-index:3001;">
+            <div style="text-align:center; font-weight:600; margin-bottom:6px">Entrer le PIN</div>
+            <input id="login-pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="9" class="input" placeholder="•••••••••" style="display:block; margin:0 auto; width:min(260px, 100%); text-align:center; font-size:24px; letter-spacing:6px; color:#fff; border:1px solid var(--border)" aria-label="PIN agent" />
+            <div id="login-pin-error" style="color:#f44336; text-align:center; margin-top:8px; font-size:13px"></div>
+            <div style="display:flex; margin-top:12px"><button type="button" class="btn" style="margin-left:auto" id="login-access-btn">Accéder</button></div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script>
+      const DEFAULT_PIN = '123123123';
+      const PIN_LENGTH = DEFAULT_PIN.length;
+      let wrongAttempts = (() => { try { return parseInt(localStorage.getItem('pin_fail_count') || '0'); } catch { return 0; } })();
+      let locked = wrongAttempts >= 3;
+      let pin = '';
+      const inp = document.getElementById('login-pin-input');
+      const btn = document.getElementById('login-access-btn');
+      const err = document.getElementById('login-pin-error');
+      if (inp) {
+        inp.setAttribute('maxlength', String(PIN_LENGTH));
+        inp.setAttribute('placeholder', '•'.repeat(PIN_LENGTH));
+        inp.addEventListener('input', (e) => {
+          const v = String(e.target.value || '');
+          pin = v.replace(/[^0-9]/g, '').slice(0, PIN_LENGTH);
+          e.target.value = pin;
+        });
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAccess(); });
+        inp.focus();
+      }
+      if (btn) btn.addEventListener('click', () => handleAccess());
+      function handleAccess() {
+        if (locked) return;
+        if (pin === DEFAULT_PIN) {
+          try { localStorage.setItem('session_auth', '1'); } catch {}
+          try { localStorage.setItem('pin_fail_count', '0'); } catch {}
+          window.location.href = './index.html';
+          return;
+        }
+        const next = wrongAttempts + 1;
+        wrongAttempts = next;
+        try { localStorage.setItem('pin_fail_count', String(next)); } catch {}
+        if (err) err.textContent = `PIN incorrect — tentative ${next}/3`;
+        if (next >= 3) {
+          locked = true;
+          const card = document.getElementById('login-card');
+          if (card) card.innerHTML = `<div style="text-align:center; font-weight:600;">Verrouillé — réessayez plus tard</div>`;
+        }
+      }
+      let initd = false, renderer = null, scene = null, camera = null, sphere = null, clouds = null, stars = null, animId = null;
+      function initLoginGlobe() {
+        if (initd) return;
+        const canvas = document.getElementById('login-globe');
+        if (!canvas || typeof THREE === 'undefined') return;
+        const w = window.innerWidth, h = window.innerHeight;
+        renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(w, h, false);
+        scene = new THREE.Scene();
+        scene.background = null;
+        camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+        camera.position.set(0, 0, 3.2);
+        const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambient);
+        const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+        dir.position.set(2.5, 1.8, 3.2);
+        scene.add(dir);
+        const loader = new THREE.TextureLoader();
+        const earthMap = loader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg');
+        sphere = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), new THREE.MeshPhongMaterial({ map: earthMap, shininess: 6 }));
+        scene.add(sphere);
+        const cloudsTex = loader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_clouds_2048.png');
+        clouds = new THREE.Mesh(new THREE.SphereGeometry(1.01, 64, 64), new THREE.MeshLambertMaterial({ map: cloudsTex, transparent: true, opacity: 0.85 }));
+        scene.add(clouds);
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 600;
+        const positions = new THREE.Float32BufferAttribute(new Float32Array(starCount * 3), 3);
+        for (let i = 0; i < starCount; i++) {
+          const r = 8 + Math.random() * 6;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          positions.setXYZ(i, r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
+        }
+        starGeo.setAttribute('position', positions);
+        stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.02 }));
+        scene.add(stars);
+        function onResize() {
+          const ww = window.innerWidth, hh = window.innerHeight;
+          renderer.setSize(ww, hh, false);
+          camera.aspect = ww / hh;
+          camera.updateProjectionMatrix();
+        }
+        window.addEventListener('resize', onResize, { passive: true });
+        const clock = new THREE.Clock();
+        let angleY = 0;
+        const rotSpeed = 0.1; // rad/s — aligné sur IntroSplash
+        function animate() {
+          const dt = clock.getDelta();
+          angleY += rotSpeed * dt;
+          if (sphere) sphere.rotation.y = angleY;
+          if (clouds) clouds.rotation.y = angleY;
+          renderer.render(scene, camera);
+          animId = requestAnimationFrame(animate);
+        }
+        animate();
+        initd = true;
+      }
+      initLoginGlobe();
+    </script>
+  </body>
+  </html>

@@ -15,10 +15,11 @@ class Warehouse(Base):
     longitude = Column(Float, nullable=False)
     address = Column(String, nullable=True)
     capacity = Column(Integer, nullable=True)
+    status = Column(String, nullable=True)
+    note = Column(String, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __repr__(self):
         return f"<Warehouse(name={self.name}, lat={self.latitude}, lon={self.longitude})>"
-

@@ -67,6 +67,13 @@ def init_db():
                 conn.execute(text("ALTER TABLE missions ADD COLUMN payloads TEXT"))
             if "note" not in existing:
                 conn.execute(text("ALTER TABLE missions ADD COLUMN note TEXT"))
+            # Warehouses: add status and note columns if missing
+            cols_w = conn.execute(text("PRAGMA table_info(warehouses)")).fetchall()
+            existing_w = {row[1] for row in cols_w}
+            if "status" not in existing_w:
+                conn.execute(text("ALTER TABLE warehouses ADD COLUMN status TEXT"))
+            if "note" not in existing_w:
+                conn.execute(text("ALTER TABLE warehouses ADD COLUMN note TEXT"))
     except Exception:
         # Non-blocking: migrations best-effort; if it fails, creation still works
         pass

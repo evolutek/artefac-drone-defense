@@ -21,3 +21,17 @@ def create_warehouse(db: Session, name: str, latitude: float, longitude: float, 
     db.refresh(w)
     return w
 
+
+def update_warehouse(db: Session, warehouse_id: int, **fields) -> Optional[Warehouse]:
+    w = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+    if not w:
+        return None
+    for k, v in fields.items():
+        try:
+            if hasattr(w, k) and v is not None:
+                setattr(w, k, v)
+        except Exception:
+            pass
+    db.commit()
+    db.refresh(w)
+    return w

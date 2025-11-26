@@ -144,11 +144,23 @@ class WarehouseResponse(BaseModel):
     longitude: float
     address: Optional[str]
     capacity: Optional[int]
+    status: Optional[str]
+    note: Optional[str]
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class WarehouseUpdate(BaseModel):
+    name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    address: Optional[str] = None
+    capacity: Optional[int] = None
+    status: Optional[str] = None
+    note: Optional[str] = None
 
 
 class ProductCreate(BaseModel):

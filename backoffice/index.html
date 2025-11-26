@@ -6,17 +6,31 @@
     <title>Evolutek Backoffice Logistique</title>
     <link rel="icon" href="./assets/logo-artifact-ago-white.png" type="image/png" sizes="32x32" />
     <link rel="stylesheet" href="./styles.css" />
+    <script>try{if(localStorage.getItem('session_auth')!=='1'){location.href='./login.html'}}catch(e){location.href='./login.html'}</script>
   </head>
   <body>
     <header>
-      <div class="row" style="gap:10px; align-items:center;">
-        <img src="./assets/logo-artifact-ago-white.png" alt="Artefac" class="logo" />
-        <h1>Backoffice Logistique</h1>
+      <div class="row" style="margin-top:8px; gap:8px;">
+        <button class="btn" data-nav="warehouses">Gérer entrepôts</button>
+        <button class="btn" data-nav="products">Produits</button>
+        <button class="btn" data-nav="inventory">Inventaire</button>
+        <button class="btn" data-nav="drones">Drones</button>
+        <button class="btn" data-nav="missions" style="margin-left:auto">Suivi des livraisons</button>
       </div>
-      <p>Gérer entrepôts, produits, inventaire et drones</p>
     </header>
 
     <main>
+      <section id="login" style="display:none">
+        <div style="position:relative">
+          <canvas id="login-globe" style="width:100%; height: calc(100vh - 160px); display:block; border:1px solid var(--border); border-radius:10px"></canvas>
+          <div id="login-card" style="position:fixed; left:50%; top:75%; transform:translate(-50%, -50%); width:min(360px, 92vw); background: rgba(12,16,22,0.85); backdrop-filter: saturate(180%) blur(8px); border:1px solid var(--border); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.25); padding:16px;">
+            <div style="text-align:center; font-weight:600; margin-bottom:6px">Entrer le PIN</div>
+            <input id="login-pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="9" class="input" placeholder="•••••••••" style="display:block; margin:0 auto; width:min(260px, 100%); text-align:center; font-size:24px; letter-spacing:6px; color:#fff; border:1px solid var(--border)" aria-label="PIN agent" />
+            <div id="login-pin-error" style="color:#f44336; text-align:center; margin-top:8px; font-size:13px"></div>
+            <div style="display:flex; margin-top:12px"><button type="button" class="btn" style="margin-left:auto" id="login-access-btn">Accéder</button></div>
+          </div>
+        </div>
+      </section>
       <section id="warehouses">
         <h2>Entrepôts</h2>
         <div class="row" style="margin-bottom:8px;">
@@ -90,8 +104,11 @@
         </div>
         <div id="mission-list" class="list"></div>
       </section>
+
     </main>
 
+    <script src="https://unpkg.com/mgrs@1.0.0/dist/mgrs.js"></script>
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
     <script src="./app.js"></script>
   </body>
   </html>
