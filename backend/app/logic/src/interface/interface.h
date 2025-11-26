@@ -58,6 +58,12 @@ typedef struct {
 } PACKED NewDronePkt;
 
 typedef struct {
+    uint64_t drone_id;
+    Position position;
+    float percent_bat;
+} PACKED DroneFinishedPkt;
+
+typedef struct {
     uint64_t id;
     Position position;
     uint32_t item_count;
@@ -76,6 +82,7 @@ typedef struct {
     union {
         NewDeliveryPkt new_delivery;
         NewDronePkt new_drone;
+        DroneFinishedPkt drone_finished;
         NewWarehousePkt new_warehouse;
         NewItemPkt new_item;
         uint64_t id; // Used for remove and drone finished events.
