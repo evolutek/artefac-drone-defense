@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include "utils/pool.h"
 #include "utils/index.h"
+#include <pthread.h>
+#include <setjmp.h>
 
 typedef struct Node Node;
 
@@ -39,7 +41,14 @@ typedef struct {
 
     WarehouseIndex* new_warehouses;
     DeliveryIndex* new_deliveries;
+    DroneIndex* new_drones;
     ArchetypeIndex* unhandled_archetypes;
+
+    pthread_mutex_t pool_mutex;
+    sigjmp_buf restart_point;
+    pthread_t main_thread;
+    pthread_cond_t compute_ready_var;
+    bool running;
 } Ctx;
 
 typedef struct {
@@ -63,7 +72,7 @@ typedef struct {
 	uint32_t mass;		// In grams
 	
 	// Algorithm internal attributes
-	Node *node;
+    NodeIndex node;
 } Delivery;
 
 typedef struct Drone {
@@ -112,7 +121,7 @@ float distance_2D(Position pos1, Position pos2);
 
 float consumption(Drone *drone, float distance, uint8_t speed, uint32_t charge);
 
-float can_handle(Drone *drone, uint8_t nb_deliveries, Node *deliveries[nb_deliveries], 
-		uint8_t speed, Node** warehouses);
+float can_handle(Drone *drone, uint8_t nb_deliveries, NodeIndex deliveries[nb_deliveries], 
+		uint8_t speed, NodeIndex* warehouses);
 
 bool is_constrained(ExclusionZone *cnst, const Position* pos1, const Position* pos2, Detour* out_detour);

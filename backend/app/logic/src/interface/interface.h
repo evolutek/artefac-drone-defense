@@ -82,16 +82,22 @@ typedef struct {
     } data;
 } PACKED Event;
 
-typedef struct {
-    uint64_t drone_id;
-    uint32_t delivery_count;
-    uint64_t deliveries[MAX_DELIVERIES_PER_DRONE];
-} PACKED DroneAssignment;
+enum DroneWaypointType {
+    WAYPOINT_DELIVERY,
+    WAYPOINT_WAREHOUSE,
+    WAYPOINT_ROUTE,
+};
 
 typedef struct {
-    uint8_t assignment_count;
-    DroneAssignment assignments[MAX_ASSIGNMENTS];
-} PACKED Assignments;
+    Position pos;
+    enum DroneWaypointType type;
+} PACKED DroneWaypoint;
+
+typedef struct {
+    uint64_t drone_id;
+    uint32_t waypoint_count;
+    Position waypoints[MAX_DELIVERIES_PER_DRONE];
+} PACKED DroneAssignment;
 
 typedef struct {
 
@@ -102,11 +108,10 @@ typedef struct {
     volatile uint32_t active_buf2;
 
     Event buf2;
-    Assignments buf1;
+    DroneAssignment buf1;
 } PACKED SharedMemory;
 
-bool init_shared_mem(void);
-void interface_handle(void);
-void cleanup_shared_mem(void);
+bool init_interface(void);
+void stop_interface(void);
 
 #endif /* ! INTERFACE_H */

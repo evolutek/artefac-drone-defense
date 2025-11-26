@@ -6,21 +6,23 @@
 
 #include <fcntl.h>
 #include <semaphore.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
-#include <wchar.h>
+#include <pthread.h>
 
 static int shm_fd;
 static SharedMemory* shm;
 static sem_t* sem_buf1;
 static sem_t* sem_buf2;
 
-static bool running = true;
+static pthread_t thread;
 
 #define MAX_RETRIES 5
 
@@ -67,41 +69,18 @@ static Drone* find_drone_with_id(uint64_t id) {
         }
     }
     return NULL;
-}
 
-bool init_shared_mem(void) {
 
-    shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
-    ftruncate(shm_fd, SHM_SIZE);
-    shm = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-
-    sem_buf1 = sem_open(SEM_BUF1, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    if (sem_buf1 == SEM_FAILED)
-        abort();
-
-    size_t retries;
-    for (retries = 0; retries < MAX_RETRIES; retries++) {
-        sem_buf2 = sem_open(SEM_BUF2, 0);
-        if (sem_buf2 != SEM_FAILED)
-            break;
-        sleep(1);
-    }
-    if (retries == MAX_RETRIES)
-        return false;
-    return true;
-}
-void cleanup_shared_mem(void) {
-    munmap(shm, SHM_SIZE);
-    close(shm_fd);
-    sem_unlink(SEM_BUF1);
 }
 
 static void handle_event(const Event* event) {
     printf("IF: Handling event of type %i.\n", event->type);
+    pthread_kill(ctx.main_thread, SIGUSR1);
+    pthread_mutex_lock(&ctx.pool_mutex);
     switch (event->type) {
     case EVENT_STOP:
-        running = false;
-        return;
+        ctx.running = false;
+        break;
     case EVENT_DRONE_NEW: {
         const NewDronePkt* pkt = &event->data.new_drone;
         add_drone((Drone) {
@@ -186,13 +165,21 @@ static void handle_event(const Event* event) {
         break;
     }
     }
-    puts("IF: Sending data to backend.");
-    sem_post(sem_buf1);
+    pthread_mutex_unlock(&ctx.pool_mutex);
+    pthread_cond_signal(&ctx.compute_ready_var);
 }
 
-void interface_handle(void) {
 
-    while (running) {
+static void* interface_handle(void* _unused) {
+    (void)_unused;
+
+    // Block SIGUSR1 on the interface thread
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGUSR1);
+    pthread_sigmask(SIG_BLOCK, &mask, NULL);
+
+    while (ctx.running) {
         puts("IF: Waiting for backend messages...");
         if (sem_wait(sem_buf2) < 0) {
             perror("sem_wait");
@@ -200,5 +187,41 @@ void interface_handle(void) {
 
         handle_event(&shm->buf2);
     }
-    cleanup_shared_mem();
+    puts("Interface finished.");
+    return NULL;
+}
+
+bool init_interface(void) {
+
+    shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+    ftruncate(shm_fd, SHM_SIZE);
+    shm = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+
+    sem_buf1 = sem_open(SEM_BUF1, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    if (sem_buf1 == SEM_FAILED)
+        abort();
+
+    size_t retries;
+    for (retries = 0; retries < MAX_RETRIES; retries++) {
+        sem_buf2 = sem_open(SEM_BUF2, 0);
+        if (sem_buf2 != SEM_FAILED)
+            break;
+        sleep(1);
+    }
+    if (retries == MAX_RETRIES)
+        return false;
+
+    pthread_create(&thread, NULL, &interface_handle, NULL);
+    return true;
+}
+
+void stop_interface(void) {
+    void* unused;
+    pthread_join(thread, &unused);
+    (void)unused;
+
+
+    munmap(shm, SHM_SIZE);
+    close(shm_fd);
+    sem_unlink(SEM_BUF1);
 }

@@ -1,34 +1,55 @@
 #pragma once
 
 #include "utils.h"
-#include <stdio.h>
 #include <stdint.h>
-
+#include <stdio.h>
 
 typedef struct Element_deliveries {
-	struct Delivery* delivery; //pointeur sur delivery
-    size_t*  warehouses; //liste des warehouse qui peuvent y accéder
+    struct Delivery* delivery; // pointeur sur delivery
+    size_t* warehouses;        // liste des warehouse qui peuvent y accéder
 } Element_deliveries;
 
-Node*** choose_drone_naive(struct Drone** drones, Node** warehouses);
+NodeIndex** choose_drone_naive(struct Drone** drones, NodeIndex* warehouses);
 
-Node*** choose_drone_naive_warehouse(struct Drone** drones, size_t index, Node** warehouse, Node*** warehouse_solution, 
-    Node*** deliveries, size_t* index_return, float* score_return, Node** warehouses);
+NodeIndex** choose_drone_naive_warehouse(struct Drone** drones,
+                                         DroneIndex index,
+                                         NodeIndex* warehouse,
+                                         NodeIndex** warehouse_solution,
+                                         NodeIndex** deliveries,
+                                         DroneIndex* index_return,
+                                         float* score_return);
 
-char create_new_solution_warehouse(Node*** warehouse_solution, size_t index_to_add, struct Drone* drone, Node* selected_warehouse, Node**** new_warehouse_solution);
+char create_new_solution_warehouse(NodeIndex** warehouse_solution,
+                                   DroneIndex index_to_add,
+                                   struct Drone* drone,
+                                   NodeIndex selected_warehouse,
+                                   NodeIndex*** new_warehouse_solution);
 
-Node*** copy_solution(Node*** solution);
+NodeIndex** copy_solution(NodeIndex** solution);
 
-Node*** choose_drone_naive_aux(struct Drone** drones, Node*** deliveries, size_t* actual_index, Node*** solution, float* score, size_t** all_edited_indexs, Node** warehouses);
+NodeIndex** choose_drone_naive_aux(struct Drone** drones,
+                                   NodeIndex** deliveries,
+                                   DroneIndex* actual_index,
+                                   NodeIndex** solution,
+                                   float* score,
+                                   size_t** all_edited_indexs,
+                                   NodeIndex* warehouses);
 
-char good_warehouse(Node** drone_path, Node** delivery);
+char good_warehouse(NodeIndex* drone_path, NodeIndex* delivery);
 
-char create_new_solution(Node*** solution, Node* new_element, size_t drone_to_add, struct Drone* drone, Node**** new_solution, Node** warehouses);
+char create_new_solution(NodeIndex** solution,
+                         NodeIndex new_element,
+                         DroneIndex drone_to_add,
+                         struct Drone* drone,
+                         NodeIndex*** new_solution,
+                         NodeIndex* warehouses);
 
-float cost_between(Node* start, Node* next);
+float cost_between(NodeIndex start, NodeIndex next);
 
-void partial_free_solution_parent(Node*** solution, size_t** modified_son, size_t** modified_parent);
+void partial_free_solution_parent(NodeIndex** solution,
+                                  size_t** modified_son,
+                                  size_t** modified_parent);
 
-void partial_free_solution(Node*** solution, size_t* modified);
+void partial_free_solution(NodeIndex** solution, size_t* modified);
 
 void free_darray_matrice(void** array);

@@ -18,23 +18,24 @@ typedef struct Node {
 		Warehouse *warehouse;
 	} content;
 	enum Node_type type;
-	Edge **edges;
+	EdgeIndex* edges;
 	size_t nb_edges;
+    bool visited;
 } Node;
 
 struct Edge {
 	float cost;
 	Position *pos;	// Intermediary position due to constraints
 	uint8_t nb_pos;
-	Node *next;
+    NodeIndex next;
 };
 
-Node** to_graph(ClusterIndex* cluster_indices, uint16_t nb_cluster);
+NodeIndex* to_graph(ClusterIndex* cluster_indices, uint16_t nb_cluster);
 size_t count_edges(Cluster* clt);
 float Weight(Delivery* delivery, uint32_t dist);
 Edge link(Position pos, Delivery* del);
 void link_deliveries(Delivery* del1, Delivery* del2);
 void link_archetypes(Archetype* at1, Archetype* at2);
-void link_intra_archetype(Archetype* at, Node* wh, uint32_t* i_wh_edge);
+void link_intra_archetype(Archetype* at, NodeIndex wh, uint32_t* i_wh_edge);
 
 #endif /* ! GRAPH_H */

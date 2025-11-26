@@ -5,9 +5,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <sys/types.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
 #define HEADER_SIZE offsetof(struct slot, next)
 
@@ -161,26 +161,24 @@ void pool_foreach(Pool* pool, action action, void* user_data) {
 
 PoolIter pool_iter_init(const Pool* pool) {
     return (PoolIter) {
-        .pool = pool,
+        .pool        = pool,
+        .in_pool_idx = -1,
     };
 }
 void* pool_iter_next(PoolIter* iter) {
-    if (iter->contiguous_idx >= iter->pool->size)
+    if (iter->iterated_count >= iter->pool->size)
         return NULL;
 
     const Pool* pool = iter->pool;
 
+    size_t slot_size = compute_slot_size(pool->stride);
+    struct slot* slot;
+    do {
+        iter->in_pool_idx++;
+        slot = ptr_offset_bytes(iter->pool->blocks, slot_size * iter->in_pool_idx);
+    } while (!slot->allocated);
+    iter->iterated_count++;
     void* ptr = _pool_query(pool, iter->in_pool_idx);
-
-    iter->contiguous_idx++;
-    if (iter->contiguous_idx < pool->size) {
-        size_t slot_size = compute_slot_size(pool->stride);
-        struct slot* slot;
-        do {
-            iter->in_pool_idx++;
-            slot = ptr_offset_bytes(pool->blocks, slot_size * iter->in_pool_idx);
-        } while(!slot->allocated);
-    }
 
     return ptr;
 }
