@@ -128,7 +128,7 @@ void link_deliveries(Delivery* del1, Delivery* del2) {
 
 Edge link(Position pos, Delivery* del) {
     Position last_pos = pos;
-    float distance    = 0;
+    float distance    = distance_2D(pos, del->position);
 
     Position* detours  = malloc(ctx.exclusion_zone_pool.size * sizeof(Position));
     uint8_t nb_detours = 0;
@@ -143,6 +143,8 @@ Edge link(Position pos, Delivery* del) {
         }
     }
 
+    printf("detour = %f\n", Weight(del, distance));
+    printf("dist = %f\n", distance);
     return (Edge) {
         .cost   = Weight(del, distance),
         .pos    = detours,

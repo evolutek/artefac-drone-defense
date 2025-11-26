@@ -48,6 +48,9 @@ NodeIndex** choose_drone_naive(struct Drone** drones, NodeIndex* warehouses) {
     }
     DroneIndex indx    = MAKE_INDEX(Drone, 0);
     float score        = 0;
+
+    //warehouse_solution = ?
+
     NodeIndex** result = choose_drone_naive_warehouse(
         drones, MAKE_INDEX(Drone, 0), warehouses, warehouse_solution, deliveries, &indx, &score);
 
@@ -58,6 +61,10 @@ NodeIndex** choose_drone_naive(struct Drone** drones, NodeIndex* warehouses) {
 
     return result;
 }
+
+
+
+
 
 // call choose_drone_naive as many times as needed
 NodeIndex** choose_drone_naive_warehouse(struct Drone** drones,
@@ -186,6 +193,7 @@ NodeIndex** copy_solution(NodeIndex** solution) {
     return new_solution;
 }
 
+int i = 0;
 // build all the possible solutions and return the best one with it score
 NodeIndex** choose_drone_naive_aux(struct Drone** drones,
                                    NodeIndex** deliveries,
@@ -195,6 +203,7 @@ NodeIndex** choose_drone_naive_aux(struct Drone** drones,
                                    size_t** all_edited_indexs,
                                    NodeIndex* warehouses) {
 
+    printf("appel %d\n", ++i);
     // End of the recursion
     if (INDEX_VALUE(*actual_index) == darray_size(deliveries)) {
         float max_score = 0;
@@ -203,6 +212,7 @@ NodeIndex** choose_drone_naive_aux(struct Drone** drones,
             float total_score = 0;
             for (size_t j = 1; j < darray_size(solution[i]); j++) {
                 total_score += cost_between(ancient, solution[i][j]); // EDIT
+                //printf("score : %f\n", cost_between(ancient, solution[i][j]));
                 ancient = solution[i][j];                             // EDIT
             }
             if (total_score > max_score) {
@@ -399,12 +409,10 @@ char create_new_solution(NodeIndex** solution,
 float cost_between(NodeIndex start_idx, NodeIndex next_idx) {
     Node* start             = pool_query(&ctx.node_pool, start_idx);
     Node* next              = pool_query(&ctx.node_pool, next_idx);
-    enum Node_type expected = next->type == E_WAREHOUSE ? E_DELIVERY : E_WAREHOUSE;
     for (size_t i = 0; i < start->nb_edges; i++) {
         Edge* start_edge = pool_query(&ctx.edge_pool, start->edges[i]);
         Node* start_next = pool_query(&ctx.node_pool, start_edge->next);
-        if (start_next->type == expected &&
-            start_next->content.warehouse->id == next->content.warehouse->id)
+        if (start_next == next)
             return start_edge->cost;
     }
     return -1;

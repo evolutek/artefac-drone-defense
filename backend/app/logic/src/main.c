@@ -15,10 +15,10 @@
 #include <stdlib.h>
 
 // For init_test
-#define ITEM_COUNT 10
-#define WH_COUNT 4
-#define DEL_COUNT 200
-#define DRONE_COUNT 6
+#define ITEM_COUNT 1
+#define WH_COUNT 1
+#define DEL_COUNT 20
+#define DRONE_COUNT 3
 static ItemIndex items[ITEM_COUNT];
 
 size_t rand_index(size_t max) {
@@ -53,7 +53,7 @@ void init_test() {
 
     for (size_t i = 0; i < DEL_COUNT; i++) {
         Delivery del = {
-            .position = {i + 2, i * 3},
+            .position = {i * 1000 + 2, i * 1500},
             .priority = rand_index(100),
             .item     = items[rand_index(ITEM_COUNT)],
             .quantity = 1,

@@ -1,6 +1,6 @@
 CC = gcc
 CPPFLAGS := -I src
-CFLAGS := -Wall -Wextra -Werror -O0 -g -march=native #-fsanitize=address 
+CFLAGS := -Wall -Wextra -Werror -g -march=native #-fsanitize=address 
 LDFLAGS := -lm -lpthread 
 
 SRC = $(wildcard src/**/*.c) src/main.c
@@ -13,7 +13,7 @@ TARGET := build/algo
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 clean:
 	$(RM) $(TARGET)
