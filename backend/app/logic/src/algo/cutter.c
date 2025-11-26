@@ -8,8 +8,6 @@
 
 #include <pthread.h>
 
-#define DARRAY_FOR(var, array) for (size_t var = 0; var < darray_size(array); i++)
-
 static ArchetypeIndex find_archetype(ItemIndex item) {
 
     pool_foreach2(&ctx.archetype_pool, Archetype, idx, arch) {
@@ -81,6 +79,7 @@ ClusterIndex* cut(void) {
                     unmark_unhandled_archetype(arch_idx);
                 arch->ref_count++;
                 darray_add(cluster.archetypes_darray, arch_idx);
+                continue;
             }
             // Create a new empty archetype
             Archetype arch = {

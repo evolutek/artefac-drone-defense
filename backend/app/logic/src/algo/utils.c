@@ -1,9 +1,11 @@
 #include "utils.h"
+#include "graph.h"
+#include "utils/darray.h"
+#include "utils/pool.h"
+#include <assert.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "graph.h"
-#include "utils/darray.h"
 
 float distance_2D(Position pos1, Position pos2) {
     float dx = pos2.x - pos1.x;
@@ -17,8 +19,9 @@ float distance_2D(Position pos1, Position pos2) {
 // 		+ (charge / max_capacity) * (energy / 2)
 // Indeed :
 // 		consumption(drone, max_flight_time * max_flight_time_speed, max_flight_time_speed,
-// 0) = energy 		consumption(drone, 0, speed, charge) = 0 		consumption(drone, distance, 0, charge) = 0
-// O consumption means that the drone can't flight under the current conditions
+// 0) = energy 		consumption(drone, 0, speed, charge) = 0 		consumption(drone,
+// distance, 0, charge) = 0 O consumption means that the drone can't flight under the current
+// conditions
 float consumption(Drone* drone, float distance, uint8_t speed, uint32_t charge) {
     float f1 = distance * speed;
     float f2 = drone->max_flight_time * drone->max_flight_time_speed * drone->max_flight_time_speed;
@@ -30,42 +33,95 @@ float consumption(Drone* drone, float distance, uint8_t speed, uint32_t charge) 
 // Return the remaining autonomy of the drone after delivering or
 // a negative value if it can not be delivered.
 // nb_deliveries must be strictly higher than 0
-float can_handle(Drone *drone, uint8_t nb_deliveries, Node *deliveries[nb_deliveries], 
-		uint8_t speed, Node** warehouses) {
-	uint32_t distance, payload;
-	payload = 0;
-	float cons = 0;
+float can_handle(Drone* drone,
+                 uint8_t nb_deliveries,
+                 NodeIndex deliveries[nb_deliveries],
+                 uint8_t speed,
+                 NodeIndex* warehouses) {
+    uint32_t distance, payload;
+    payload    = 0;
+    float cons = 0;
 
     float min_dist = -1;
-    for (size_t i = 0; i < darray_size(warehouses); i++){
-        float dist = distance_2D(deliveries[nb_deliveries - 1]->content.delivery->position, warehouses[i]->content.warehouse->pos);
-        if (min_dist == -1 || dist < min_dist){
+    Node* last     = pool_query(&ctx.node_pool, deliveries[nb_deliveries - 1]);
+    for (size_t i = 0; i < darray_size(warehouses); i++) {
+        Node* wh   = pool_query(&ctx.node_pool, warehouses[i]);
+        float dist = distance_2D(last->content.delivery->position, wh->content.warehouse->pos);
+        if (min_dist == -1 || dist < min_dist) {
             min_dist = dist;
         }
     }
     cons += consumption(drone, min_dist, speed, 0);
 
-	Node *n_current, *n_previous;
-	n_previous = deliveries[nb_deliveries - 1];
-	while (--nb_deliveries > 1 && cons < drone->autonomy && payload < drone->max_capacity) {
-		n_current = n_previous;
-		n_previous = deliveries[nb_deliveries - 1];
-		payload += n_current->content.delivery->mass;
-		distance = distance_2D(n_current->content.delivery->position, n_previous->content.delivery->position);
-		cons += consumption(drone, distance, speed, payload);
-	}
-	
-	payload += n_previous->content.delivery->mass;
-	
-	if (drone->autonomy <= cons || drone->max_capacity < payload)
-		return -1;
+    while (--nb_deliveries && cons < drone->autonomy && payload < drone->max_capacity) {
+        Node* n = pool_query(&ctx.node_pool, deliveries[nb_deliveries]);
+        Node* p = pool_query(&ctx.node_pool, deliveries[nb_deliveries - 1]);
+        payload += n->content.delivery->mass;
+        distance = distance_2D(n->content.delivery->position, p->content.delivery->position);
+        cons += consumption(drone, distance, speed, payload);
+    }
 
+    Node* first = pool_query(&ctx.node_pool, deliveries[0]);
+    payload += first->content.delivery->mass;
 
-	distance = distance_2D(deliveries[0]->content.warehouse->pos, n_previous->content.delivery->position);
-	cons += consumption(drone, distance, speed, payload);
-    
-	return drone->autonomy - cons;
+    if (drone->autonomy <= cons || drone->max_capacity < payload)
+        return -1;
+
+    distance = distance_2D(drone->final_position, first->content.delivery->position);
+    cons += consumption(drone, distance, speed, payload);
+
+    return drone->autonomy - cons;
 }
+/*
+float can_handle(Drone* drone,
+                 uint8_t nb_deliveries,
+                 NodeIndex deliveries[nb_deliveries],
+                 uint8_t speed,
+                 NodeIndex* warehouses) {
+    assert(nb_deliveries > 0);
+    uint32_t distance, payload;
+    payload    = 0;
+    float cons = 0;
+
+    float min_dist = -1;
+    for (size_t i = 0; i < darray_size(warehouses); i++) {
+        Node* del = pool_query(&ctx.node_pool, deliveries[nb_deliveries -1 ]);
+        Node* wh = pool_query(&ctx.node_pool, warehouses[i]);
+        float dist = distance_2D(del->content.delivery->position,
+                                 wh->content.warehouse->pos);
+        if (min_dist == -1 || dist < min_dist) {
+            min_dist = dist;
+        }
+    }
+    cons += consumption(drone, min_dist, speed, 0);
+
+    NodeIndex n_current, n_previous;
+    n_previous = deliveries[nb_deliveries - 1];
+    Node* prev;
+    while (--nb_deliveries > 0 && cons < drone->autonomy && payload < drone->max_capacity) {
+        Node* cur = pool_query(&ctx.node_pool, n_current);
+        prev = pool_query(&ctx.node_pool, n_previous);
+        n_current  = n_previous;
+        n_previous = deliveries[nb_deliveries - 1];
+        payload += cur->content.delivery->mass;
+        distance = distance_2D(cur->content.delivery->position,
+                               prev->content.delivery->position);
+        cons += consumption(drone, distance, speed, payload);
+    }
+
+    payload += prev->content.delivery->mass;
+
+    if (drone->autonomy <= cons || drone->max_capacity < payload)
+        return -1;
+
+    Node* first = pool_query(&ctx.node_pool, deliveries[0]);
+    //distance = distance_2D(first->content.warehouse->pos, prev->content.delivery->position);
+    distance = distance_2D(drone->final_position, first->content.delivery->position);
+    cons += consumption(drone, distance, speed, payload);
+
+    return drone->autonomy - cons;
+}
+*/
 
 static void vec_multf(Position* vec, float f) {
     vec->x *= f;

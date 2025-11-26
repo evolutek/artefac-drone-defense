@@ -13,6 +13,7 @@ typedef struct {
 typedef struct {
     ArchetypeIndex* archetypes_darray;
     WarehouseIndex warehouse_idx;
+    NodeIndex graph_root;
 } Cluster;
 
 ClusterIndex* cut(void);

@@ -216,7 +216,10 @@ bool init_interface(void) {
 }
 
 void stop_interface(void) {
-    pthread_join(thread, NULL);
+    void* unused;
+    pthread_join(thread, &unused);
+    (void)unused;
+
 
     munmap(shm, SHM_SIZE);
     close(shm_fd);

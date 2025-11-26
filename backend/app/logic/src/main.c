@@ -1,22 +1,24 @@
 #include "algo/cutter.h"
 #include "algo/graph.h"
+#include "algo/path.h"
 #include "algo/utils.h"
 #include "interface/interface.h"
 #include "utils/darray.h"
+#include "utils/index.h"
 #include "utils/pool.h"
-#include "algo/path.h"
 
+#include <pthread.h>
 #include <setjmp.h>
 #include <signal.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 
-/*
 // For init_test
-//#define ITEM_COUNT 200
-//#define WH_COUNT 5
-//#define DEL_COUNT 4000
+#define ITEM_COUNT 10
+#define WH_COUNT 4
+#define DEL_COUNT 200
+#define DRONE_COUNT 6
 static ItemIndex items[ITEM_COUNT];
 
 size_t rand_index(size_t max) {
@@ -24,7 +26,6 @@ size_t rand_index(size_t max) {
     long x = random();
     return x * max / RANDOM_MAX;
 }
-
 void init_test() {
     for (size_t i = 0; i < ITEM_COUNT; i++) {
         char* name = malloc(512);
@@ -52,15 +53,29 @@ void init_test() {
 
     for (size_t i = 0; i < DEL_COUNT; i++) {
         Delivery del = {
-            .position = {i / 3 - 5, i * 1.7 + 8},
+            .position = {i + 2, i * 3},
             .priority = rand_index(100),
             .item     = items[rand_index(ITEM_COUNT)],
             .quantity = 1,
         };
         add_delivery(del);
     }
-}
 
+    for (size_t i = 0; i < DRONE_COUNT; i++) {
+        Drone d = {
+            .id                    = i,
+            .max_capacity          = 5,
+            .max_speed             = 15,
+            .energy                = 9,
+            .position              = {i / 7 + 2, i * 2.5 - 1},
+            .max_flight_time_speed = 32.4 * 3.6,
+            .max_flight_time       = 51 * 60,
+        };
+        d.autonomy = d.energy;
+        add_drone(d);
+    }
+}
+/*
 
 
 void init_context(void);
@@ -74,7 +89,7 @@ void test_clustering(void) {
     //srandom(0);
     //init();
 
-	// CUTS
+        // CUTS
     printf("Cutting!\n");
     ClusterIndex* clusters = cut();
     size_t cluster_count = darray_size(clusters);
@@ -309,7 +324,7 @@ void init_context(void) {
     pool_init(&ctx.archetype_pool, 16, sizeof(Archetype));
     pool_init(&ctx.cluster_pool, 16, sizeof(Cluster));
     pool_init(&ctx.node_pool, 64, sizeof(Node));
-	pool_init(&ctx.edge_pool, 256, sizeof(Edge));
+    pool_init(&ctx.edge_pool, 256, sizeof(Edge));
 
     ctx.new_warehouses       = darray_create(4, sizeof *ctx.new_warehouses);
     ctx.new_deliveries       = darray_create(4, sizeof *ctx.new_deliveries);
@@ -343,29 +358,155 @@ void cleanup_context(void) {
     darray_destroy(ctx.unhandled_archetypes);
 }
 
+static void print_node(Node* n, NodeIndex idx) {
+    if (n->type == E_DELIVERY)
+        printf("DEL_%zu", INDEX_VALUE(idx));
+    else
+        printf("WH_%zu", INDEX_VALUE(idx));
+}
+
+static void traverse(Node* n, NodeIndex idx) {
+    if (n->visited)
+        return;
+    n->visited = true;
+    for (size_t i = 0; i < n->nb_edges; i++) {
+        Edge* e    = pool_query(&ctx.edge_pool, n->edges[i]);
+        Node* next = pool_query(&ctx.node_pool, e->next);
+        print_node(n, idx);
+        printf(" -> ");
+        print_node(next, e->next);
+        puts("");
+        traverse(next, e->next);
+    }
+}
+
 int main(void) {
     init_context();
-    init_interface();
+    // init_interface();
+    init_test();
 
-    if (sigsetjmp(ctx.restart_point, 1) != 0) {
+    if (sigsetjmp(ctx.restart_point, 1) == 0) {
+        /*
         pthread_mutex_unlock(&ctx.pool_mutex);
         pthread_mutex_lock(&ctx.pool_mutex);
         pthread_cond_wait(&ctx.compute_ready_var, &ctx.pool_mutex);
+        */
         // Recompute needed, discard
         puts("Interrupted!");
         if (!ctx.running)
             goto ending;
-        // ClusterIndex* dirty_cluster_indices = cut();
+
+        ClusterIndex* dirty_cluster_indices = cut();
+        size_t cluster_count                = darray_size(dirty_cluster_indices);
+
+        printf("Cluster count: %zu\n", cluster_count);
+
+        for (size_t i = 0; i < cluster_count; i++) {
+            Cluster* cluster = pool_query(&ctx.cluster_pool, dirty_cluster_indices[i]);
+            printf("Cluster %zu:\n", i);
+            printf("  Archetype count: %zu\n", darray_size(cluster->archetypes_darray));
+        }
+
+        printf("Total archetype count: %zu\n", ctx.archetype_pool.size);
+        pool_foreach2(&ctx.archetype_pool, Archetype, arch_idx, arch) {
+            printf("- Archetype %zu: item=%zu deliveries[%zu]=\n",
+                   INDEX_VALUE(arch_idx),
+                   INDEX_VALUE(arch->item),
+                   darray_size(arch->deliveries_darray));
+
+            DARRAY_FOR(i, arch->deliveries_darray) {
+                Delivery* del = pool_query(&ctx.delivery_pool, arch->deliveries_darray[i]);
+                printf("  (%g, %g) => %zu\n",
+                       del->position.x,
+                       del->position.y,
+                       INDEX_VALUE(del->item));
+            }
+        }
+
+        pool_foreach2(&ctx.warehouse_pool, Warehouse, wh_idx, wh) {
+            printf("Warehouse %zu (%g, %g) => [ ", INDEX_VALUE(wh_idx), wh->pos.x, wh->pos.y);
+            for (size_t i = 0; i < wh->item_count; i++) {
+                printf("%zu ", INDEX_VALUE(wh->items[i]));
+            }
+            puts("]");
+        }
+
+        NodeIndex* dirty_nodes =
+            to_graph(dirty_cluster_indices, darray_size(dirty_cluster_indices));
+
+        DARRAY_FOR(i, dirty_cluster_indices) {
+            Cluster* clt    = pool_query(&ctx.cluster_pool, dirty_cluster_indices[i]);
+            clt->graph_root = dirty_nodes[i];
+        }
+
+        puts("digraph g {");
+        for (size_t i = 0; i < darray_size(dirty_cluster_indices); i++) {
+            Node* n = pool_query(&ctx.node_pool, dirty_nodes[i]);
+            traverse(n, dirty_nodes[i]);
+        }
+        puts("}");
+
+        darray_destroy(dirty_cluster_indices);
+        darray_destroy(dirty_nodes);
     }
 
     // Wave compute
     puts("Computing...");
-    while (1)
-        ;
+    NodeIndex* wh_nodes = darray_create(ctx.warehouse_pool.size, sizeof(NodeIndex));
+    pool_foreach2(&ctx.warehouse_pool, Warehouse, idx, wh) {
+        (void) idx;
+        NodeIndex wh_n;
+        pool_foreach2(&ctx.node_pool, Node, n_idx, n) {
+            if (n->content.warehouse == wh) {
+                wh_n = n_idx;
+                break;
+            }
+        }
+        darray_add(wh_nodes, wh_n);
+    }
+    Drone** drones = darray_create(ctx.drone_pool.size, sizeof *drones);
+    pool_foreach2(&ctx.drone_pool, Drone, d_idx, d) {
+        (void) d_idx;
+        darray_add(drones, d);
+    }
+    NodeIndex** result = choose_drone_naive(drones, wh_nodes);
+
+    // === Display result ===
+    printf("Node count: %zu\nEdge count: %zu\n", ctx.node_pool.size, ctx.edge_pool.size);
+    if (result != NULL) {
+        printf("Repartition count: %zu\n", darray_size(result));
+        for (size_t i = 0; i < darray_size(result); i++) {
+            printf("- Delivery count: %zu\n", darray_size(result[i]));
+            for (size_t j = 0; j < darray_size(result[i]); j++) {
+                Node* n = pool_query(&ctx.node_pool, result[i][j]);
+                if (!n)
+                    continue;
+                switch (n->type) {
+                case E_DELIVERY:
+                    printf("  - (delivery at %f,%f)\n",
+                           n->content.delivery->position.x,
+                           n->content.delivery->position.y);
+                    break;
+
+                case E_WAREHOUSE:
+                    printf("  - (warehouse at %f,%f)\n",
+                           n->content.warehouse->pos.x,
+                           n->content.warehouse->pos.y);
+                    break;
+                default:
+                    break;
+                }
+            }
+            printf("\n");
+        }
+    }
+
+    darray_destroy(drones);
+    darray_destroy(wh_nodes);
 
 ending:
     pthread_mutex_unlock(&ctx.pool_mutex);
-    stop_interface();
+    // stop_interface();
     cleanup_context();
     return 0;
 }

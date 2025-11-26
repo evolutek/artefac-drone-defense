@@ -72,7 +72,7 @@ typedef struct {
 	uint32_t mass;		// In grams
 	
 	// Algorithm internal attributes
-	Node *node;
+    NodeIndex node;
 } Delivery;
 
 typedef struct Drone {
@@ -121,7 +121,7 @@ float distance_2D(Position pos1, Position pos2);
 
 float consumption(Drone *drone, float distance, uint8_t speed, uint32_t charge);
 
-float can_handle(Drone *drone, uint8_t nb_deliveries, Node *deliveries[nb_deliveries], 
-		uint8_t speed, Node** warehouses);
+float can_handle(Drone *drone, uint8_t nb_deliveries, NodeIndex deliveries[nb_deliveries], 
+		uint8_t speed, NodeIndex* warehouses);
 
 bool is_constrained(ExclusionZone *cnst, const Position* pos1, const Position* pos2, Detour* out_detour);
